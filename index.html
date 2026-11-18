@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Farstu Designer | Porch concept planner</title>
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div><p class="eyebrow">Porch concept planner</p><h1>Farstu Designer</h1><p class="muted">Three new walls and a shed roof against your existing house.</p></div>
+    <span class="tag">Single-slope roof</span>
+  </header>
+  <noscript><p class="status">Enable JavaScript in your browser to use the designer.</p></noscript>
+  <p class="status" id="app-error" role="alert" hidden></p>
+  <nav class="tabs app-views" aria-label="Workspace views">
+    <button type="button" id="show-designer" aria-controls="designer-view" aria-pressed="true">Designer</button>
+    <button type="button" id="show-bom" aria-controls="bom-view" aria-pressed="false">Lumber BOM &amp; prices</button>
+  </nav>
+  <main id="designer-view">
+    <section class="card preview" aria-labelledby="drawing-heading">
+      <div class="bar">
+        <h2 id="drawing-heading">Drawing</h2>
+        <div class="view-controls">
+          <div class="tabs" role="group" aria-label="Drawing view">
+            <button type="button" data-view="3d" aria-pressed="true">3D</button>
+            <button type="button" data-view="front" aria-pressed="false">Front</button>
+            <button type="button" data-view="left" aria-pressed="false">Left</button>
+            <button type="button" data-view="right" aria-pressed="false">Right</button>
+            <button type="button" data-view="plan" aria-pressed="false">Plan</button>
+          </div>
+          <label class="roof-display">Roof display
+            <select id="roof-display" aria-controls="drawing">
+              <option value="tiles">Tiles &amp; gutters</option>
+              <option value="rafters">Rafters</option>
+              <option value="none">Hidden</option>
+            </select>
+          </label>
+          <button type="button" id="toggle-door" aria-controls="drawing">Open door</button>
+          <button type="button" id="toggle-ground" aria-controls="drawing">Hide ground</button>
+          <details class="layer-menu" id="wall-layers">
+            <summary>Wall layers</summary>
+            <div class="layer-panel">
+              <button type="button" data-layer-preset="finished">Finished walls</button>
+              <button type="button" data-layer-preset="timber">Wall timber only</button>
+              <button type="button" data-layer-preset="none">Hide wall layers</button>
+              <div class="layer-options" role="group" aria-label="Farstu wall layers, outside to inside"></div>
+              <p class="hint">Farstu only, outside to inside. Uncheck outer layers to see what’s behind them. Plan shows the layers side by side. The ventilated gap is the space around the battens; layer thicknesses are schematic.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+      <div class="stage"><svg id="drawing" viewBox="0 0 820 525" role="img" aria-labelledby="drawing-title"></svg></div>
+      <div class="metrics">
+        <div><span>Slab area</span><strong id="area"></strong></div>
+        <div><span>Wall height at house</span><strong id="rear"></strong></div>
+        <div><span>Roof rise</span><strong id="rise"></strong></div>
+      </div>
+      <div class="footer">
+        <p class="zoom-help"><kbd>Ctrl</kbd> + mouse wheel to zoom the drawing (100–400%). Press <kbd>R</kbd> to reset the zoom.</p>
+        <div class="legend">
+          <span><i class="swatch swatch-house"></i>Existing house façade</span>
+          <span><i class="swatch swatch-walls"></i>New walls</span>
+          <span><i class="swatch swatch-roof"></i>Tiled roof</span>
+          <span><i class="swatch swatch-piers"></i>Cylindrical piers</span>
+        </div>
+        <p id="assembly"></p>
+        <p id="framing-summary" hidden></p>
+        Concept drawing only. Verify structure, clearances, drainage, and local building requirements before construction.
+      </div>
+    </section>
+    <form class="card settings" id="settings">
+      <div class="bar"><h2>Parameters</h2><div class="parameter-actions"><button type="button" id="export-settings">Export settings</button><button type="reset">Reset</button></div></div>
+      <p class="hint">Open a section to edit its settings and see temporary measurement arrows. Focus a number to show its arrow again. Measurements are in millimetres unless marked otherwise.</p>
+      <p class="status" id="status" role="status"></p>
+      <p class="status" id="storage-status" role="status"></p>
+      <details class="parameter-group" name="parameters" open>
+        <summary>Foundation</summary>
+        <div class="parameter-body">
+          <details class="parameter-section" name="foundation-parameters" open>
+            <summary>Slab</summary>
+            <div class="parameter-content">
+              <div class="fields" id="slab"></div>
+              <p class="hint">Width is across the front; length is measured out from the house.</p>
+            </div>
+          </details>
+          <details class="parameter-section" name="foundation-parameters">
+            <summary>Cylindrical footings</summary>
+            <div class="parameter-content">
+              <label class="footing-layout">Pier grid
+                <select id="footing-layout" aria-describedby="footing-hint">
+                  <option value="2x2">2 × 2 (4 piers)</option>
+                  <option value="3x2">3 × 2 (6 piers)</option>
+                  <option value="2x3" selected>2 × 3 (6 piers)</option>
+                  <option value="3x3">3 × 3 (9 piers)</option>
+                </select>
+              </label>
+              <div class="fields" id="footings"></div>
+              <p class="hint" id="footing-hint">The first number is across the slab width; the second is along its length, from the house out. Piers are evenly spaced on each axis. Depth is measured below the slab. Choose Hide ground, then Plan, to see every pier.</p>
+            </div>
+          </details>
+        </div>
+      </details>
+      <details class="parameter-group" name="parameters">
+        <summary>Openings</summary>
+        <div class="parameter-body">
+          <details class="parameter-section" name="opening-parameters" open>
+            <summary>Left-side door</summary>
+            <div class="parameter-content">
+              <div class="fields" id="door"></div>
+              <label class="door-handing">Door swing <select id="door-handing">
+                <option value="ltr">LTR — hinges on the left</option>
+                <option value="rtl">RTL — hinges on the right</option>
+              </select></label>
+              <p class="hint">Left is as seen facing the house. Offset is measured from the existing house wall to the nearest edge of the door.</p>
+              <p class="hint">Hinge side is as seen from outside the door. Preview the outward swing in 3D, Left, or Plan.</p>
+              <p class="hint">The exterior step follows the door opening when its width or offset changes.</p>
+            </div>
+          </details>
+          <details class="parameter-section" name="opening-parameters">
+            <summary>Front window</summary>
+            <div class="parameter-content fields" id="front"></div>
+          </details>
+          <details class="parameter-section" name="opening-parameters">
+            <summary>Right window</summary>
+            <div class="parameter-content fields" id="right"></div>
+          </details>
+          <p class="hint">Both windows are centred in their clear wall spans. Bottom clearance is from the slab to the sill; top clearance is from the window head to the lowest roofline directly above it. The last clearance edited stays fixed.</p>
+          <p class="hint">Trim width is measured out from the opening edge. Set it to 0 to hide the trim, or toggle Opening trim under Wall layers. The door has trim on three sides, not across the threshold.</p>
+        </div>
+      </details>
+      <details class="parameter-group" name="parameters">
+        <summary>Walls</summary>
+        <div class="parameter-body">
+          <details class="parameter-section" name="wall-parameters" open>
+            <summary>Dimensions &amp; cladding</summary>
+            <div class="parameter-content">
+              <div class="fields" id="walls"></div>
+              <p class="hint">Wall thickness applies to the three new walls. Cover-board spacing is measured centre to centre and also applies to the existing house façade. The lockpanel drawing shows a drip edge at least 200 mm above the drawn grade; it is not a construction detail.</p>
+            </div>
+          </details>
+          <details class="parameter-section" name="wall-parameters">
+            <summary>Stud framing</summary>
+            <div class="parameter-content">
+              <div class="fields" id="studs"></div>
+              <p class="hint">Stud spacing is centre to centre. Width is along the wall; depth is through the wall. Studs next to corners and openings are positioned to suit the opening.</p>
+            </div>
+          </details>
+        </div>
+      </details>
+      <details class="parameter-group" name="parameters">
+        <summary>Roof</summary>
+        <div class="parameter-body">
+          <details class="parameter-section" name="roof-parameters" open>
+            <summary>Pitch &amp; overhangs</summary>
+            <div class="parameter-content">
+              <div class="fields" id="roof"></div>
+              <p class="hint">The tiled roof slopes down toward the front window. Overhangs are horizontal; the left and right share one setting. There is no rear overhang at the house. Verify the tile system's minimum pitch and the roof's load capacity before construction.</p>
+              <p class="hint">The white gutter follows the low front eave and drains to the right-hand downspout.</p>
+            </div>
+          </details>
+          <details class="parameter-section" name="roof-parameters">
+            <summary>Tile covering</summary>
+            <div class="parameter-content">
+              <div class="fields" id="roofTiles"></div>
+              <p class="hint">Width is across the roof. Exposed length is measured up the slope between courses, excluding overlap. Profile rise is the height from valley to crown. The Left and Right views show the overlapping course edges.</p>
+            </div>
+          </details>
+          <details class="parameter-section" name="roof-parameters">
+            <summary>Rafter framing</summary>
+            <div class="parameter-content">
+              <div class="fields" id="rafters"></div>
+              <p class="hint">Rafter spacing is centre to centre across the roof. Width is across the roof; depth is perpendicular to the slope. The last bay can be narrower.</p>
+            </div>
+          </details>
+        </div>
+      </details>
+      <details class="parameter-group" name="parameters">
+        <summary>Existing house</summary>
+        <div class="parameter-body">
+          <details class="parameter-section" name="house-parameters" open>
+            <summary>Wall dimensions</summary>
+            <div class="parameter-content">
+              <div class="fields" id="houseWall"></div>
+              <p class="hint">The wall is centred on the farstu. Wall height is measured from the top of the slab. Concrete base height is measured from the drawn ground level to the start of the timber cladding. The two schematic basement windows sit below the left and right house windows and scale down to fit a shorter base.</p>
+            </div>
+          </details>
+          <p class="hint">Horizontal offset is measured from the farstu centreline to the centre of each window. Use a negative value for left and a positive value for right in the Front view. Sill height is measured from the top of the slab.</p>
+          <details class="parameter-section" name="house-parameters">
+            <summary>Left house window</summary>
+            <div class="parameter-content fields" id="houseLeft"></div>
+          </details>
+          <details class="parameter-section" name="house-parameters">
+            <summary>Upper house window</summary>
+            <div class="parameter-content fields" id="houseUpper"></div>
+          </details>
+          <details class="parameter-section" name="house-parameters">
+            <summary>Right house window</summary>
+            <div class="parameter-content fields" id="houseRight"></div>
+          </details>
+          <details class="parameter-section" name="house-parameters">
+            <summary>Hedge</summary>
+            <div class="parameter-content">
+              <div class="fields" id="hedge"></div>
+              <p class="hint">Distance is from the existing house wall to the hedge centre. Height is measured from ground level to the top of the hedge. The ferns and flowers sit on the house-facing side of the hedge. They appear with the hedge only in Left and Right views.</p>
+            </div>
+          </details>
+        </div>
+      </details>
+    </form>
+  </main>
+  <main id="bom-view" class="card bom" aria-labelledby="bom-heading" hidden>
+    <h2 id="bom-heading">Lumber bill of materials</h2>
+    <p class="hint">A concept estimate for the three new walls and shed roof. It includes modeled solid lumber, not the existing house, roofing, sheet goods, insulation, foundations, hardware, or labor. Drawing layer toggles do not change this list.</p>
+    <p class="hint">Matches use a selection of standard lengths from the <a href="https://www.derome.se/handla-online/produkter/traeprodukter">Derome catalogue</a> as of <time id="bom-catalogue-date"></time>, not live store stock. The closest cross-section in the same product family is shown when no exact size is listed. Verify substitutions, actual dimensions, material grades, and store stock before ordering. A match does not establish structural suitability.</p>
+    <p class="hint">Cut lengths are schematic and rounded up to whole millimetres. Stock estimates reuse offcuts within each material group with 3 mm per cut; they are not optimized and include no extra waste allowance. Cladding profiles, battens and trim thickness are estimating assumptions, not construction details.</p>
+    <p class="hint">Derome prices were not publicly verifiable. Enter quoted SEK per stock board or per metre, using the same VAT basis for all entries. Prices are saved in this browser by article number. Delivery and taxes not included in your quotes are not added.</p>
+    <p class="status" id="bom-status" role="status"></p>
+    <p class="status" id="bom-price-status" role="status"></p>
+    <div class="bom-scroll" role="region" aria-label="Scrollable lumber spreadsheet" tabindex="0">
+      <table class="bom-table">
+        <caption>Estimated lumber takeoff and Derome stock matches</caption>
+        <thead>
+          <tr>
+            <th scope="col">Material</th><th scope="col">Needed (mm)</th><th scope="col">Cut list (qty × mm)</th>
+            <th scope="col">Derome article</th><th scope="col">Match</th><th scope="col">Stock (mm)</th>
+            <th scope="col">Buy (pcs)</th><th scope="col">Buy (m)</th><th scope="col">Quote (SEK)</th><th scope="col">Line cost (SEK)</th>
+          </tr>
+        </thead>
+        <tbody id="bom-rows"></tbody>
+      </table>
+    </div>
+    <p id="bom-total" class="bom-total" role="status"></p>
+  </main>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
