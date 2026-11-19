@@ -54,6 +54,10 @@ export function createControls($) {
     houseUpper: { label: 'Upper house window', offset: 0, sill: 3350, width: 700, height: 500 },
     houseRight: { label: 'Right house window', offset: 4244, sill: 1250, width: 1300, height: 1100 }
   };
+  const houseBasementWindows = {
+    houseBasementLeft: { label: 'Left basement window', offset: -4244, sill: 150, width: 900, height: 300 },
+    houseBasementRight: { label: 'Right basement window', offset: 4244, sill: 150, width: 900, height: 300 }
+  };
   function addFields(group, specs) {
     for (const [key, title, initial, min = 0, unit = 'mm', max = 50000, step = unit ? 'any' : 1] of specs) {
       const label = document.createElement('label');
@@ -64,7 +68,8 @@ export function createControls($) {
       Object.assign(input, { type: 'number', name: key, id: key, min, max, step, required: true,
         defaultValue: initial, inputMode: unit ? 'decimal' : 'numeric' });
       const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, '')}`
-        : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}` : title;
+        : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}`
+          : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}` : title;
       input.setAttribute('aria-label', unit ? `${fieldTitle} (${unit === 'mm' ? 'millimetres' : 'degrees'})` : fieldTitle);
       const suffix = document.createElement('span');
       suffix.className = 'unit';
@@ -142,6 +147,13 @@ export function createControls($) {
       [key + 'Offset', 'Horizontal offset', values.offset, -50000], [key + 'Sill', 'Sill height', values.sill]
     ]);
   }
+  for (const [key, values] of Object.entries(houseBasementWindows)) {
+    addFields(key, [
+      windowSize(key + 'Width','Width',values.width), windowSize(key + 'Height','Height',values.height),
+      [key + 'Offset', 'Horizontal offset', values.offset, -50000],
+      [key + 'Sill', 'Sill height above base bottom', values.sill]
+    ]);
+  }
   addFields('houseWall', [
     ['houseWallWidth', 'House wall width', 10798, 1],
     ['houseWallHeight', 'House wall height', 4400, 1],
@@ -154,6 +166,6 @@ export function createControls($) {
   ]);
   return {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, windowMuntins
+    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows, windowMuntins
   };
 }

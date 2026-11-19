@@ -19,8 +19,11 @@ export function initDesigner() {
   const { width: drawingWidth, height: drawingHeight } = svg.viewBox.baseVal;
   const {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, windowMuntins
+    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows,
+    windowMuntins
   } = createControls($);
+  const legacyBasementFields = new Set(Object.keys(houseBasementWindows)
+    .flatMap(key => ['Width','Height','Offset','Sill'].map(suffix => key + suffix)));
   const roofGuidance = $('roof-guidance');
   const storageStatus = $('storage-status');
   const exportButton = $('export-settings');
@@ -117,7 +120,7 @@ export function initDesigner() {
       adjustedRoofSettings = true;
     }
     for (const [key, input] of Object.entries(fields)) {
-      const value = key === 'houseBaseRecession' && saved.fields[key] === undefined
+      const value = (key === 'houseBaseRecession' || legacyBasementFields.has(key)) && saved.fields[key] === undefined
         ? input.defaultValue : savedFields[key];
       const minimum = Number(input.step) === windowSizeStep ? 1 : Number(input.min);
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value)) ||
@@ -143,7 +146,7 @@ export function initDesigner() {
       hasOption(input,saved.windowMuntins?.[key]))) return false;
 
     for (const [key, input] of Object.entries(fields)) {
-      const value = key === 'houseBaseRecession' && saved.fields[key] === undefined
+      const value = (key === 'houseBaseRecession' || legacyBasementFields.has(key)) && saved.fields[key] === undefined
         ? input.defaultValue : savedFields[key];
       if (Number(input.step) === windowSizeStep && Number(value) % windowSizeStep !== 0) {
         input.value = Math.max(windowSizeStep,Math.floor(Number(value)/windowSizeStep)*windowSizeStep);
@@ -273,6 +276,19 @@ export function initDesigner() {
       }
       return { key, left: centre-halfWidth, right: centre+halfWidth, sill, head };
     });
+    const basementOpenings = Object.entries(houseBasementWindows).map(([key, {label}]) => {
+      const centre = v.width/2+v[key + 'Offset'];
+      const halfWidth = v[key + 'Width']/2;
+      const sill = v[key + 'Sill'];
+      const head = sill+v[key + 'Height'];
+      if (Math.abs(v[key + 'Offset'])+halfWidth > v.houseWallWidth/2) {
+        flag(`${label} extends beyond the sides of the house wall.`, 'houseWallWidth', key + 'Width', key + 'Offset');
+      }
+      if (v.houseBaseHeight > 0 && head > v.houseBaseHeight) {
+        flag(`${label} extends beyond the concrete base.`, 'houseBaseHeight', key + 'Height', key + 'Sill');
+      }
+      return { key, left: centre-halfWidth, right: centre+halfWidth, sill, head };
+    });
     for (const [key, input] of Object.entries({
       ...fields, [footingLayout.id]:footingLayout, 'roof-material':roofMaterial
     })) {
@@ -287,7 +303,7 @@ export function initDesigner() {
       return false;
     }
     settingsValid = true;
-    latest = { ...v, windows, houseOpenings, slope, rear, eave,
+    latest = { ...v, windows, houseOpenings, basementOpenings, slope, rear, eave,
       roofMaterial:roofMaterial.value, roofFinish:roofFinish.value };
     bom.update(latest, true);
     loads.update(latest, true);
@@ -303,7 +319,7 @@ export function initDesigner() {
     if (!latest) return;
     const { width: W, length: L, frontWallHeight: H, rear: R, eave: E, frontOverhang: F, sideOverhang: S,
       slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing,
-      windows, houseOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, houseBaseRecession,
+      windows, houseOpenings, basementOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, houseBaseRecession,
       hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, pitch, slope,
       studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise,
       roofMaterial:material, roofFinish:finish } = latest;
@@ -772,14 +788,10 @@ export function initDesigner() {
       houseCladding(houseAt,houseA,houseB,() => houseWallHeight,houseBaseTop,
         houseOpenings.map(w => ({start:w.left,end:w.right,bottom:w.sill,top:w.head})));
       if (houseBaseHeight > 0) {
-        const centreZ = slabBase + houseBaseHeight/2;
-        const halfHeight = Math.min(150,houseBaseHeight/4);
-        for (const w of houseOpenings.filter(w => w.key === 'houseLeft' || w.key === 'houseRight')) {
-          const centreX = (w.left+w.right)/2;
-          const halfWidth = Math.min(450,(w.right-w.left)/2);
-          drawWindow(face,baseSection,{start:centreX-halfWidth,end:centreX+halfWidth,
-            bottom:centreZ-halfHeight,top:centreZ+halfHeight},facade,
-          {key:`${w.key}-basement`,pattern:'cross',thickness:145,trim:0,flashing:false});
+        for (const w of basementOpenings) {
+          drawWindow(face,baseSection,{start:w.left,end:w.right,
+            bottom:slabBase+w.sill,top:slabBase+w.head},facade,
+          {key:w.key,pattern:'cross',thickness:145,trim:0,flashing:false});
         }
       }
       for (const w of houseOpenings) {
@@ -1237,6 +1249,17 @@ export function initDesigner() {
             [0,hedgeDistance,slabBase+hedgeHeight],sideElevation,hedgeHeight,side==='left'?[20,0]:[-20,0])
         ];
         default: {
+          const basement = basementOpenings.find(w => w.key===section);
+          if (basement) {
+            const centre = (basement.left+basement.right)/2;
+            const sill = slabBase+basement.sill, head = slabBase+basement.head;
+            return [
+              m(section+'Width','Window width',houseBaseAt(basement.left,head),houseBaseAt(basement.right,head),onFacade),
+              m(section+'Height','Window height',houseBaseAt(basement.left,sill),houseBaseAt(basement.left,head),onFacade,undefined,[-12,0]),
+              m(section+'Offset','Horizontal offset',houseBaseAt(W/2,sill),houseBaseAt(centre,sill),onFacade,undefined,[0,13]),
+              m(section+'Sill','Sill height',houseBaseAt(basement.right,slabBase),houseBaseAt(basement.right,sill),onFacade,undefined,[13,0])
+            ];
+          }
           const w = houseOpenings.find(w => w.key===section);
           if (!w) return [];
           const c = (w.left+w.right)/2;

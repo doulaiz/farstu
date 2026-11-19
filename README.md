@@ -33,6 +33,8 @@ Enter editable window widths and heights in 100 mm (10 cm) increments, starting 
 
 Under **Parameters → Existing house → Wall dimensions**, set **Basement recession** to offset the concrete basement face behind the upper wall. The stepped profile is shown in the 3D drawing and the Left and Right elevations. Older saved configurations without this setting default to a 100 mm recession.
 
+Under **Parameters → Existing house**, configure the left and right basement windows independently. Their sill heights are measured from the bottom of the concrete base, and each opening must fit within the base. Older saved configurations use the default basement-window settings.
+
 The roof remains a single-slope porch roof. Choose concrete or clay tiles, or standing-seam metal. The default pitch is 14°. Tile roofs below 14° are rejected; tiles from 14° to 22° need sealed high-grade underlayment. Standing-seam metal below 14° uses double-seamed joints and is rejected below 6°. The drawing and roof schedule cover the underlayment, fascia, flashings, gutter, and downpipe; the schedule accepts manual SEK quotes. Snow guards and roof-access equipment are not modeled. Confirm manufacturer limits, snow and wind loads, drainage, and local safety requirements before construction.
 
 ## Floor & pier loads
