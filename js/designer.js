@@ -1,4 +1,4 @@
-import { createControls } from './controls.js';
+import { createControls, windowSizeStep } from './controls.js';
 import { createBomView } from './bom-view.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
@@ -90,13 +90,15 @@ export function initDesigner() {
   }
 
 
+  let adjustedWindowSizes = false;
   function restoreSettings(saved) {
     if (!saved || saved.version !== 1 || !saved.fields || !saved.trimColours ||
       !saved.layers || !saved.anchors) return false;
     for (const [key, input] of Object.entries(fields)) {
       const value = saved.fields[key];
+      const minimum = Number(input.step) === windowSizeStep ? 1 : Number(input.min);
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value)) ||
-        Number(value) < Number(input.min) || Number(value) > Number(input.max)) return false;
+        Number(value) < minimum || Number(value) > Number(input.max)) return false;
     }
     for (const key of Object.keys(trimColours)) {
       if (typeof saved.trimColours[key] !== 'string' ||
@@ -116,7 +118,15 @@ export function initDesigner() {
     if (saved.windowMuntins !== undefined && !Object.entries(windowMuntins).every(([key,input]) =>
       hasOption(input,saved.windowMuntins?.[key]))) return false;
 
-    for (const [key, input] of Object.entries(fields)) input.value = saved.fields[key];
+    for (const [key, input] of Object.entries(fields)) {
+      const value = saved.fields[key];
+      if (Number(input.step) === windowSizeStep && Number(value) % windowSizeStep !== 0) {
+        input.value = Math.max(windowSizeStep,Math.floor(Number(value)/windowSizeStep)*windowSizeStep);
+        adjustedWindowSizes = true;
+      } else {
+        input.value = value;
+      }
+    }
     for (const [key, input] of Object.entries(trimColours)) input.value = saved.trimColours[key];
     if (saved.windowMuntins) {
       for (const [key,input] of Object.entries(windowMuntins)) input.value = saved.windowMuntins[key];
@@ -166,7 +176,10 @@ export function initDesigner() {
         key === side + (anchor === 'Bottom' ? 'Top' : 'Bottom'))) continue;
       v[key] = input.valueAsNumber;
       if (!input.validity.valid || !Number.isFinite(v[key])) {
-        flag(`${input.getAttribute('aria-label')} must be between ${input.min} and ${input.max}.`, key);
+        const label = input.getAttribute('aria-label');
+        flag(input.validity.stepMismatch && !input.validity.rangeUnderflow && !input.validity.rangeOverflow
+          ? `${label} must be in increments of ${input.step} mm.`
+          : `${label} must be between ${input.min} and ${input.max}.`, key);
         v[key] = NaN;
       }
     }
@@ -1340,10 +1353,14 @@ export function initDesigner() {
     storageStatus.textContent = 'Saved settings are invalid or incomplete; defaults were loaded.';
   }
   for (const tab of tabs) tab.setAttribute('aria-pressed',String(tab.dataset.view === view));
-  if (!update() && restored) {
+  const valid = update();
+  if (!valid && restored) {
     persistenceEnabled = false;
     resetParameters(true);
     storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
     update();
+  } else if (valid && adjustedWindowSizes) {
+    const notice = 'Older saved window sizes were adjusted to 100 mm increments.';
+    storageStatus.textContent = [notice,storageStatus.textContent].filter(Boolean).join(' ');
   }
 }

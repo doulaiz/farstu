@@ -1,5 +1,7 @@
 import { muntinPatterns } from './windows.js';
 
+export const windowSizeStep = 100;
+
 export function createControls($) {
   const layerMenu = $('wall-layers');
   const roofDisplay = $('roof-display');
@@ -46,20 +48,19 @@ export function createControls($) {
   const trimColours = {};
   const windowMuntins = {};
   const houseWindows = {
-    houseLeft: { label: 'Left house window', offset: -4244, sill: 1250, width: 1350, height: 1150 },
-    houseUpper: { label: 'Upper house window', offset: 0, sill: 3350, width: 720, height: 500 },
-    houseRight: { label: 'Right house window', offset: 4244, sill: 1250, width: 1350, height: 1150 }
+    houseLeft: { label: 'Left house window', offset: -4244, sill: 1250, width: 1300, height: 1100 },
+    houseUpper: { label: 'Upper house window', offset: 0, sill: 3350, width: 700, height: 500 },
+    houseRight: { label: 'Right house window', offset: 4244, sill: 1250, width: 1300, height: 1100 }
   };
   function addFields(group, specs) {
-    for (const [key, title, initial, min = 0, unit = 'mm', max = 50000] of specs) {
+    for (const [key, title, initial, min = 0, unit = 'mm', max = 50000, step = unit ? 'any' : 1] of specs) {
       const label = document.createElement('label');
       label.textContent = title;
       const box = document.createElement('span');
       box.className = 'number';
       const input = document.createElement('input');
-      Object.assign(input, { type: 'number', name: key, id: key, min, max, step: 'any', required: true,
+      Object.assign(input, { type: 'number', name: key, id: key, min, max, step, required: true,
         defaultValue: initial, inputMode: unit ? 'decimal' : 'numeric' });
-      if (!unit) input.step = '1';
       const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, '')}`
         : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}` : title;
       input.setAttribute('aria-label', unit ? `${fieldTitle} (${unit === 'mm' ? 'millimetres' : 'degrees'})` : fieldTitle);
@@ -74,6 +75,8 @@ export function createControls($) {
     }
   }
 
+  const windowSize = (key,title,initial) => [key,title,initial,windowSizeStep,'mm',50000,windowSizeStep];
+
   addFields('slab', [
     ['width', 'Slab width', 2800, 1], ['length', 'Slab length', 2200, 1],
     ['slabThickness', 'Slab thickness', 140, 1]
@@ -84,7 +87,7 @@ export function createControls($) {
   addFields('door', [['doorWidth', 'Door width', 1000, 1], ['doorHeight', 'Door height', 2100, 1], ['offset', 'Offset from house', 550]]);
   for (const side of Object.keys(anchors)) {
     addFields(side, [
-      [side + 'Width', 'Window width', 950, 1], [side + 'Height', 'Window height', 1000, 1],
+      windowSize(side + 'Width','Window width',900), windowSize(side + 'Height','Window height',1000),
       [side + 'Bottom', 'Bottom clearance', 900, 0, 'mm', 100000], [side + 'Top', 'Top clearance', 0, 0, 'mm', 100000]
     ]);
     const label = document.createElement('label');
@@ -133,7 +136,7 @@ export function createControls($) {
   ]);
   for (const [key, values] of Object.entries(houseWindows)) {
     addFields(key, [
-      [key + 'Width', 'Width', values.width, 1], [key + 'Height', 'Height', values.height, 1],
+      windowSize(key + 'Width','Width',values.width), windowSize(key + 'Height','Height',values.height),
       [key + 'Offset', 'Horizontal offset', values.offset, -50000], [key + 'Sill', 'Sill height', values.sill]
     ]);
   }
