@@ -108,8 +108,8 @@ export function createControls($) {
     ['slabThickness', 'Slab thickness', 140, 80, 'mm', 400, 1]
   ]);
   addFields('footings', [
-    stockSize('footingDiameter','Pier diameter',403,[150,190,251,302,403]),
-    ['footingDepth', 'Pier depth', 300, 300, 'mm', 3000, 1]
+    stockSize('footingDiameter','Pier diameter',251,[150,190,251,302,403]),
+    ['footingDepth', 'Pier depth', 400, 300, 'mm', 3000, 1]
   ]);
   addFields('door', [
     stockSize('doorWidth','Door opening width',1000,[800,900,1000,1100]),

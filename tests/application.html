@@ -47,6 +47,34 @@ async function check(name, run) {
   }
 }
 try {
+  await check('New footing defaults render correctly; saved settings survive until Reset',async () => {
+    function verify(columns, rows, diameter, depth) {
+      assert(field('footing-layout').value === `${columns}x${rows}` &&
+        Number(field('footingDiameter').value) === diameter && Number(field('footingDepth').value) === depth,
+        'Footing settings did not match the expected new, saved or reset design');
+      assert(!field('status').textContent,field('status').textContent);
+      field('show-loads').click();
+      const piers = [...field('loads-diagram').querySelectorAll('.loads-pier circle')];
+      assert(piers.length === columns*rows &&
+        new Set(piers.map(pier => pier.getAttribute('cx'))).size === columns &&
+        new Set(piers.map(pier => pier.getAttribute('cy'))).size === rows &&
+        piers.every(pier => Number(pier.getAttribute('r')) === diameter/2),
+        'Rendered footings did not use the selected grid and diameter');
+      field('show-designer').click();
+    }
+    await load(true);
+    verify(3,2,251,400);
+    change(field('footing-layout'),'2x3');
+    edit('footingDiameter',403);
+    edit('footingDepth',900);
+    await load();
+    verify(2,3,403,900);
+    field('settings').reset();
+    verify(3,2,251,400);
+    await load();
+    verify(3,2,251,400);
+  });
+
   await check('Calculated clearances round-trip; anchored limits and invalid-setting notices remain enforced',async () => {
     await load(true);
     edit('length',6000);
