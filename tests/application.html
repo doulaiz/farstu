@@ -76,6 +76,98 @@ try {
     assert(Math.abs(actual-expected) < .01,`${message}: ${actual} != ${expected}`);
   }
 
+  await check('Standing flashing follows the roof and warns on upper-window contact',async () => {
+    await load(true);
+    const number = id => Number(field(id).value);
+    const slope = Math.tan(number('pitch')*Math.PI/180);
+    const bottom = number('frontWallHeight')+slope*number('length')+
+      number('rafterDepth')*Math.hypot(1,slope)+8+2;
+    const top = bottom+number('flashingHeight');
+    const warning = () => field('flashing-warning').textContent;
+    assert(!warning(),'Default upper window unexpectedly touches the flashing');
+    const gap = Math.floor(top+number('slabThickness')+25);
+    edit('houseUpperSill',gap+1);
+    assert(!warning(),'A gap above the window sill was treated as contact');
+    edit('houseUpperSill',gap);
+    assert(warning().includes('upper window'),'Contact with the window sill was not reported');
+    edit('slabOriginOffset',1000);
+    assert(!warning(),'Moving the slab away from the window did not clear the warning');
+    edit('slabOriginOffset',3494);
+    assert(warning(),'Restoring the slab position did not restore the warning');
+    doc.querySelector('[data-view="front"]').click();
+    const bounds = selector => {
+      const polygon = doc.querySelector(selector);
+      assert(polygon,`Missing ${selector}`);
+      const points = polygon.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+      return {left:Math.min(...points.map(p => p[0])),right:Math.max(...points.map(p => p[0])),
+        top:Math.min(...points.map(p => p[1])),bottom:Math.max(...points.map(p => p[1]))};
+    };
+    const facade = bounds('.house-facade'), slab = bounds('.slab-edge'), flashing = bounds('.roof-standing-flashing');
+    const scale = (facade.right-facade.left)/number('houseWallWidth');
+    near((flashing.right-flashing.left)/scale,number('roofWidth'),'Flashing width');
+    near((slab.left-flashing.left)/scale,number('doorSideOverhang'),'Flashing position');
+    near((flashing.bottom-flashing.top)/scale,number('flashingHeight'),'Flashing height');
+    near((slab.top-flashing.bottom)/scale,bottom,'Flashing base height');
+    edit('houseUpperSill',Math.floor(bottom+number('slabThickness')));
+    const contactOffset = number('slabOriginOffset')-number('doorSideOverhang')-95-number('houseUpperWidth')/2;
+    edit('houseUpperOffset',contactOffset-1);
+    assert(!warning(),'A horizontal gap beside the window was treated as contact');
+    edit('houseUpperOffset',contactOffset);
+    assert(warning().includes('upper window'),'Flashing touching the window casing was not reported');
+    edit('houseUpperSill',Math.floor(bottom+number('slabThickness'))-number('houseUpperHeight')-200);
+    assert(!warning(),'A window entirely below the flashing was treated as contact');
+    edit('houseUpperSill',Math.floor(bottom+number('slabThickness'))-number('houseUpperHeight')-107-4);
+    assert(warning(),'Contact with the sloping apron at the window head was not reported');
+    edit('houseUpperSill',Math.floor(bottom+number('slabThickness')));
+    for (const view of ['3d','front','left','right','plan']) {
+      doc.querySelector(`[data-view="${view}"]`).click();
+      assert(doc.querySelector('.roof-abutment-flashing'),`Missing roof apron in ${view}`);
+      assert(doc.querySelector(view === '3d' || view === 'front'
+        ? '.roof-standing-flashing' : '.roof-standing-flashing-edge'),`Missing standing flashing in ${view}`);
+    }
+    edit('houseUpperOffset',4894);
+    edit('houseUpperSill',gap+20);
+    assert(!warning(),'Metal flashing warned despite a vertical gap');
+    change(field('roof-material'),'tiles');
+    assert(warning(),'Tile profile rise did not update the flashing collision');
+    edit('flashingHeight',50);
+    assert(!warning(),'Reducing the flashing height did not clear the warning');
+    edit('flashingHeight',200);
+    assert(warning(),'Increasing the flashing height did not restore the warning');
+    doc.querySelector('[data-view="front"]').click();
+    const tileSlab = bounds('.slab-edge'), tileFlashing = bounds('.roof-standing-flashing');
+    const tileScale = (bounds('.house-facade').right-bounds('.house-facade').left)/number('houseWallWidth');
+    near((tileSlab.top-tileFlashing.bottom)/tileScale,bottom-8+number('tileRise'),'Tile flashing base height');
+    change(field('roof-display'),'none');
+    assert(warning() && !doc.querySelector('.roof-abutment-flashing'),
+      'Hiding the roof removed the warning or retained its flashing');
+    await load();
+    assert(field('flashingHeight').value === '200' && warning(),'Flashing height or warning did not survive reload');
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    delete saved.fields.flashingHeight;
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('flashingHeight').value === '150' && !field('storage-status').textContent,
+      'Existing designs did not restore the default flashing height');
+  });
+
+  await check('Plan framing retains the selected stud depth at the wall-thickness limit',async () => {
+    await load(true);
+    edit('wallThickness',170);
+    doc.querySelector('[data-view="plan"]').click();
+    const width = selector => {
+      const polygon = doc.querySelector(selector);
+      assert(polygon,`Missing ${selector}`);
+      const xs = polygon.getAttribute('points').trim().split(/\s+/).map(pair => Number(pair.split(',')[0]));
+      return Math.max(...xs)-Math.min(...xs);
+    };
+    for (const depth of [120,145,170]) {
+      edit('studDepth',depth);
+      const scale = width('polygon[fill="#f8f6e8"]') / Number(field('width').value);
+      near(width('.wall-plan[data-layer="studs"]') / scale,depth,'Incorrect drawn stud depth');
+    }
+  });
+
   await check('House origin fixes windows and wall while slab position, size and thickness change',async () => {
     await load(true);
     doc.querySelector('[data-view="front"]').click();

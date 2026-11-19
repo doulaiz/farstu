@@ -5,8 +5,10 @@ import { pierLayout } from './loads.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
-import { roofPitchGuidance, roofWidthRange, tileGaugeLimit, tileSystems } from './roofing.js';
+import { roofPitchGuidance, roofWidthRange, standingFlashing, tileGaugeLimit, tileSystems } from './roofing.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
+
+const houseTrim = 95;
 
 export function initDesigner() {
   const $ = (id) => {
@@ -172,7 +174,7 @@ export function initDesigner() {
     }
     for (const [key, input] of Object.entries(fields)) {
       if (isCalculatedClearance(key,saved.anchors)) continue;
-      const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth'].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === undefined
+      const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth','flashingHeight'].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === undefined
         ? input.dataset.initial : savedFields[key];
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value))) return false;
       if (input.tagName === 'SELECT') {
@@ -431,6 +433,25 @@ export function initDesigner() {
     }
     latest = { ...v, houseA, houseB, rightOverhang, windows, houseOpenings, basementOpenings, slope, rear, eave,
       roofMaterial:roofMaterial.value, roofFinish:roofFinish.value };
+    const flashing = standingFlashing(latest);
+    const upper = houseOpenings.find(window => window.key === 'houseUpper');
+    const top = v.houseWallHeight-v.slabThickness;
+    const extension = sillExtension(upper.right-upper.left);
+    const fall = Math.min(16,(upper.head-upper.sill)*.1);
+    const head = Math.min(upper.head+houseTrim+12,top);
+    const surround = [
+      [Math.max(houseA,upper.left-houseTrim),Math.min(houseB,upper.right+houseTrim),upper.sill,Math.min(top,upper.head+houseTrim),22],
+      [Math.max(houseA,upper.left-extension),Math.min(houseB,upper.right+extension),upper.sill-fall-Math.min(9,fall),upper.sill,sillProjection]
+    ];
+    if (head >= upper.head+houseTrim+10) {
+      surround.push([Math.max(houseA,upper.left-houseTrim-8),Math.min(houseB,upper.right+houseTrim+8),upper.head+houseTrim,head,sillProjection]);
+    }
+    const touches = surround.some(([left,right,bottom,top,projection]) =>
+      flashing.left <= right && flashing.right >= left &&
+      flashing.bottom-slope*projection <= top && flashing.top >= bottom);
+    $('flashing-warning').textContent = touches
+      ? 'Warning: the standing flashing (ståndskiva) or its apron touches or overlaps the existing upper window or its surround. Adjust the roof or window layout and consult a roofer.'
+      : '';
     bom.update(latest, true);
     loads.update(latest, true);
     $('area').textContent = `${fmt(v.width * v.length / 1e6)} m\u00b2`;
@@ -493,6 +514,7 @@ export function initDesigner() {
     const tileRun = tileLength/Math.hypot(1,slope);
     const roof = [[roofLeft,0,R+roofDepth],[roofRight,0,R+roofDepth],[roofRight,L+F,E+roofDepth],[roofLeft,L+F,E+roofDepth]];
     const roofAt = (x,y,offset = 0) => [x,y,R-slope*y+roofDepth+offset];
+    const flashing = standingFlashing(latest);
     const slab = [ground(0,0), ground(W,0), ground(W,L), ground(0,L)];
     const frontAt = (x,z) => [x,L,z];
     const sideAt = (x) => (y,z) => [x,y,z];
@@ -521,7 +543,7 @@ export function initDesigner() {
     const frontTop = () => H;
     const frontSection = (u,d,z) => [u,L-d,z];
     const sideSection = (which) => (u,d,z) => [which === 'left' ? d : W-d,u,z];
-    const core = Math.min(studDepth,T*.85);
+    const core = studDepth;
     const spare = T-core;
     const outer = spare*.6, inner = spare-outer;
     const bands = {
@@ -837,6 +859,23 @@ export function initDesigner() {
       }
     }
 
+    function drawStandingFlashing() {
+      const {left,right,bottom,top,coverRise} = flashing;
+      const apron = Math.min(150,L+F);
+      const metal = '#555b5c';
+      face([roofAt(left,0,coverRise+2),roofAt(right,0,coverRise+2),
+        roofAt(right,apron,coverRise+2),roofAt(left,apron,coverRise+2)],
+      metal,{class:'face roof-abutment-flashing'});
+      if (sideElevation) {
+        line([0,0,bottom],[0,0,top],'roof-standing-flashing-edge');
+      } else if (!plan) {
+        face([[left,1,bottom],[right,1,bottom],[right,1,top],[left,1,top]],
+          metal,{class:'face roof-standing-flashing'});
+      } else {
+        line([left,0,bottom],[right,0,bottom],'roof-standing-flashing-edge');
+      }
+    }
+
     function drawRoofEdgeDetails() {
       const start=roofLeft, end=roofRight, eave=L+F;
       const metal='#555b5c';
@@ -852,10 +891,7 @@ export function initDesigner() {
         roofAt(end-22,0,-10),roofAt(end,0,-10),
         roofAt(end,eave,-10),roofAt(end-22,eave,-10)
       ],metal,{class:'face roof-verge-flashing'});
-      face([
-        roofAt(start,0,-10),roofAt(end,0,-10),
-        roofAt(end,30,-10),roofAt(start,30,-10)
-      ],metal,{class:'face roof-abutment-flashing'});
+      drawStandingFlashing();
       for (const x of rafterStarts(roofWidth,doorSideOverhang,rafterWidth,rafterSpacing)) {
         face([
           roofAt(x,eave,-roofDepth+10),roofAt(x+rafterWidth,eave,-roofDepth+10),
@@ -930,7 +966,7 @@ export function initDesigner() {
       }
       for (const w of houseOpenings) {
         drawWindow(face,section,{start:w.left,end:w.right,bottom:w.sill,top:w.head},facade,
-          {key:w.key,pattern:'cross',thickness:145,trim:95,trimColour:'#f5efe1'});
+          {key:w.key,pattern:'cross',thickness:145,trim:houseTrim,trimColour:'#f5efe1'});
       }
       note(houseAt(houseA,houseWallHeight),'Existing house',-9,'start');
     }
@@ -1182,7 +1218,10 @@ export function initDesigner() {
       planWall((u,d) => ground(u,L-d),W,windows.front,'front');
       drawEntryStep();
       if (roofFraming) drawRafters();
-      if (roofTiles) drawGutter();
+      if (roofTiles) {
+        drawStandingFlashing();
+        drawGutter();
+      }
       shapes.push(['door-leaf', []]);
       if (planA < planB) note(ground((planA+planB)/2,-Math.min(260,L*.11)),'Existing house',-7);
       note(ground(T,(door.start+door.end)/2),'Left door',-9,'start');
@@ -1356,7 +1395,7 @@ export function initDesigner() {
             m('studSpacing','Stud centres',at(pair>0?centre(posts[pair-1]):0,z),
               at(pair>0?centre(posts[pair]):studSpacing,z),exposed&&pair>0),
             m('studWidth','Stud width',at(p[0],z),at(p[1],z),exposed&&p[1]-p[0]===studWidth),
-            m('studDepth','Stud depth',at(p[0],z),frontSection(p[0],bands.studs[1],z),exposed&&!front&&core===studDepth)
+            m('studDepth','Stud depth',at(p[0],z),frontSection(p[0],bands.studs[1],z),exposed&&!front)
           ];
         }
         case 'roof': return [
@@ -1364,7 +1403,9 @@ export function initDesigner() {
           m('frontOverhang','Front overhang',[0,L,E+roofDepth],[0,L+F,E+roofDepth],!front),
           m('roofWidth','Total roof width',[roofLeft,L,E+roofDepth],[roofRight,L,E+roofDepth],onFacade||plan),
           m('doorSideOverhang','Door-side overhang',[0,L,E+roofDepth],[roofLeft,L,E+roofDepth],onFacade||plan),
-          m('rightOverhang','Opposite overhang',[W,L,E+roofDepth],[roofRight,L,E+roofDepth],onFacade||plan,rightOverhang)
+          m('rightOverhang','Opposite overhang',[W,L,E+roofDepth],[roofRight,L,E+roofDepth],onFacade||plan,rightOverhang),
+          m('flashingHeight','Standing flashing height',[roofLeft,0,flashing.bottom],[roofLeft,0,flashing.top],
+            roofTiles&&!plan,latest.flashingHeight,[-12,0])
         ];
         case 'roofTiles': {
           const y = L+F, x = roofLeft, z = E+roofDepth;

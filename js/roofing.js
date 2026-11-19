@@ -14,6 +14,13 @@ export const tileSystems = {
   300: { label: 'Benders Palema', width: 330, length: 420, waves: 2 }
 };
 
+export function standingFlashing(model) {
+   const { roofWidth, doorSideOverhang, rear, rafterDepth, slope, roofMaterial, tileRise, flashingHeight } = model;
+   const coverRise = roofMaterial === 'tiles' ? tileRise : 8;
+   const bottom = rear + rafterDepth * Math.hypot(1,slope) + coverRise + 2;
+   return { left:-doorSideOverhang, right:roofWidth-doorSideOverhang, bottom, top:bottom+flashingHeight, coverRise };
+}
+
 export function tileGaugeLimit(pitch) {
   return pitch < 18 ? 320 : pitch < 22 ? 340 : 375;
 }
@@ -79,7 +86,7 @@ export function buildRoofSchedule(model) {
     { id: 'bargeboards-120', role: 'Bargeboards, 22 × 120 mm', quantity: vergeLength, unit: 'm', basis: 'Second board on both roof edges' },
     { id: 'verge-flashing', role: 'Metal verge flashing', quantity: vergeLength, unit: 'm', basis: 'Both sloping roof edges' },
     { id: 'eave-flashing', role: 'Metal eave drip flashing', quantity: edgeLength, unit: 'm', basis: 'Directs water into the gutter' },
-    { id: 'wall-abutment', role: 'House-wall abutment flashing', quantity: edgeLength, unit: 'm', basis: 'Sealed connection at the high roof edge' },
+    { id: 'wall-abutment', role: 'Standing flashing (ståndskiva) at house wall', quantity: edgeLength, unit: 'm', basis: 'Sealed connection at the high roof edge' },
     { id: 'gutter', role: 'Half-round gutter', quantity: edgeLength, unit: 'm', basis: 'Front eave' },
     { id: 'downpipe', role: 'Downpipe and outlet', quantity: 1, unit: 'set', basis: 'One outlet at the right-hand end' },
     { id: 'fascia-fasteners', role: 'Corrosion-resistant trim fixings', quantity: 1, unit: 'allowance', basis: 'For fascia, bargeboards and flashings' }

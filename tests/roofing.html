@@ -6,6 +6,7 @@
 <script type="module">
 import { roofWidthRange, tileGaugeLimit } from '../js/roofing.js';
 import { rafterStarts } from '../js/framing.js';
+import { computeLoads, densities, roofCoveringMasses, roofEdgeMasses, roofLayerMasses, wallLayerMasses } from '../js/loads.js';
 
 const results = document.querySelector('#results');
 const key = 'farstu-designer-settings-v1';
@@ -45,6 +46,46 @@ try {
   close(rafters.at(-1)+45,2800);
   assert(rafters.every(x => x >= -500 && x+45 <= 2800),'Rafters escaped asymmetric roof');
   passed.push('Asymmetric roof width bounds, whole modules, odd slabs and edge rafters');
+
+  for (const remainder of [0,1,25,26,49]) {
+    const slope = .25;
+    const model = {
+      width:2800+remainder, length:2200+remainder, wallThickness:170, slabThickness:140,
+      footingColumns:3, footingRows:2, footingDiameter:251, footingDepth:400,
+      frontWallHeight:2350, slope, rear:2350+slope*(2200+remainder),
+      windows:{front:{start:950.5,end:1850.5,bottom:900,top:1900},right:{start:550.25,end:1450.25,bottom:900,top:1900}},
+      offset:550.5, doorWidth:1000, doorHeight:2100, studWidth:45, studDepth:170, studSpacing:600,
+      roofWidth:3160+remainder, doorSideOverhang:180, frontOverhang:350+remainder,
+      rafterWidth:45, rafterDepth:170, rafterSpacing:600, roofMaterial:'standingSeam',
+      baseBoardWidth:145, coverBoardWidth:95, claddingSpacing:200, trimWidth:95
+    };
+    const loads = computeLoads(model,{people:[]});
+    const run = model.length+model.frontOverhang;
+    const slopedRun = run*Math.hypot(1,slope);
+    close(loads.details['slab:concrete'],model.width*model.length*model.slabThickness*densities.concrete.value/1e9);
+    close(loads.details['roof:covering'],model.roofWidth*slopedRun/1e6*
+      (roofCoveringMasses.standingSeam+roofLayerMasses.deck+roofLayerMasses.underlayment));
+    close(loads.details['roof:rafters'],rafterStarts(model.roofWidth,model.doorSideOverhang,
+      model.rafterWidth,model.rafterSpacing).length*model.rafterWidth*model.rafterDepth*slopedRun*densities.timber.value/1e9);
+    close(loads.details['roof:edges'],model.roofWidth/1000*(roofEdgeMasses.eave+roofEdgeMasses.abutment)+
+      2*slopedRun/1000*roofEdgeMasses.verge+roofEdgeMasses.downpipe);
+    const sideLength = model.length-model.wallThickness;
+    const sideArea = (model.rear+(model.rear-slope*sideLength))/2*sideLength;
+    const solidArea = 2*sideArea+model.width*model.frontWallHeight-1000*2100-2*900*1000;
+    close(loads.details['walls:layers'],solidArea/1e6*wallLayerMasses(model).reduce((sum,layer) => sum+layer.kg,0));
+    close(loads.details['walls:insulation'],solidArea*densities.mineralWool.value*model.studDepth/1e9*
+      (1-model.studWidth/model.studSpacing));
+    const houseLoads = computeLoads(model,{people:[],rearSupport:'house'});
+    const roofMass = loads.details['roof:covering']+loads.details['roof:rafters']+loads.details['roof:edges'];
+    close(loads.totals.roof,roofMass);
+    close(houseLoads.totals.roof+houseLoads.totals.house,roofMass);
+    for (const result of [loads,houseLoads]) {
+      close(result.piers.reduce((sum,pier) => sum+pier.fromAbove,0),result.onPiers);
+      close(result.field.values.reduce((sum,value) => sum+value,0)*
+        model.width*model.length/(result.field.nx*result.field.ny)/1e6*1000/9.81,result.onPiers);
+    }
+  }
+  passed.push('Partial slab, wall and roof increments retain their full calculated loads');
 
   localStorage.removeItem(key);
   await load();

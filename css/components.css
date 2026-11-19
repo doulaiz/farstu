@@ -26,6 +26,8 @@
   .roof-guidance-warning { color:#76501a; font-weight:700; }
   .roof-standing-seam { fill:none; stroke:#e3e7e5; stroke-width:2; }
   .roof-eave-flashing, .roof-verge-flashing, .roof-abutment-flashing { stroke:#454b4d; stroke-width:.6; }
+  .roof-standing-flashing { stroke:#454b4d; stroke-width:.6; }
+  .roof-standing-flashing-edge { stroke:#555b5c; stroke-width:3; }
   .roof-bargeboard, .roof-bargeboard-secondary, .roof-eave-fascia, .roof-underlayment-edge {
     fill:none; stroke-linecap:square; stroke-linejoin:round;
   }

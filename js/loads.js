@@ -95,12 +95,15 @@ function wallLoads(model, add) {
         if (h > 0) add('walls', 'framing', ...at(u), h * (b - a) / n * studDepth * timber);
       }
     }
-    for (let u = step / 2; u < end; u += step) {
-      const du = Math.min(step, end - u + step / 2);
+    for (let start = 0; start < end;) {
+      const boundary = start < op.start ? op.start : start < op.end ? op.end : end;
+      const du = Math.min(step, end - start, boundary - start);
+      const u = start + du / 2;
       const inOpening = u > op.start && u < op.end;
       const solid = Math.max(0, top(u) - (inOpening ? op.top - op.bottom : 0));
       add('walls', 'layers', ...at(u), solid * du * layerKg);
       add('walls', 'insulation', ...at(u), solid * du * cavityKg);
+      start += du;
     }
     const area = (op.end - op.start) * (op.top - op.bottom) / 1e6;
     const unitKg = area * openingMasses[kind];
@@ -126,10 +129,14 @@ function roofLoads(model, add) {
   const point = (part, x, y, kg) => add('roof', part, x, y, kg);
   const step = 50;
   const ys = [];
-  for (let y = step / 2; y < L + F; y += step) ys.push([y, Math.min(step, L + F - y + step / 2)]);
+  for (let start = 0; start < L + F; start += step) {
+    const dy = Math.min(step, L + F - start);
+    ys.push([start + dy / 2, dy]);
+  }
   for (const x0 of rafters) for (const [y, dy] of ys) point('rafters', x0 + rafterWidth / 2, y, rafterKg * dy / (L + F));
-  for (let x = -S + step / 2; x < roofRight; x += step) {
-    const dx = Math.min(step, roofRight - x + step / 2);
+  for (let start = -S; start < roofRight; start += step) {
+    const dx = Math.min(step, roofRight - start);
+    const x = start + dx / 2;
     for (const [y, dy] of ys) point('covering', x, y, dx * dy * areaKg);
     point('edges', x, L + F, dx / 1000 * roofEdgeMasses.eave);
     point('edges', x, 0, dx / 1000 * roofEdgeMasses.abutment);
@@ -169,9 +176,11 @@ export function computeLoads(model, { people, rearSupport = 'beam' }) {
   }
 
   const slabKg = densities.concrete.value * slabThickness / 1e9;
-  for (let y = 25; y < L; y += 50) {
-    for (let x = 25; x < W; x += 50) {
-      add('slab', 'concrete', x, y, Math.min(50, W - x + 25) * Math.min(50, L - y + 25) * slabKg);
+  for (let y = 0; y < L; y += 50) {
+    const dy = Math.min(50, L - y);
+    for (let x = 0; x < W; x += 50) {
+      const dx = Math.min(50, W - x);
+      add('slab', 'concrete', x + dx / 2, y + dy / 2, dx * dy * slabKg);
     }
   }
   wallLoads(model, add);
