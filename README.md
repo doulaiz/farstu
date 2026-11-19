@@ -30,3 +30,5 @@ The BOM uses a Derome catalogue snapshot, not live stock or prices. Enter quoted
 Under **Parameters → Openings**, choose a muntin pattern for each porch window. Use **Front** or **Right** to see its casing and metal flashings, or **Plan** to see how the frame sits near the outside face of the wall. Window dimensions describe rough openings. The BOM includes the side and head casing only; it does not price window units or installation materials.
 
 Enter editable window widths and heights in 100 mm (10 cm) increments, starting at 100 mm. Clearances, offsets and sill heights are not restricted to these increments. Older saved window sizes are rounded down to the next valid size, with a minimum of 100 mm.
+
+Under **Parameters → Existing house → Wall dimensions**, set **Basement recession** to offset the concrete basement face behind the upper wall. The stepped profile is shown in the 3D drawing and the Left and Right elevations. Older saved configurations without this setting default to a 100 mm recession.

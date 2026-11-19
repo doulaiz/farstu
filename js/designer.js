@@ -95,7 +95,8 @@ export function initDesigner() {
     if (!saved || saved.version !== 1 || !saved.fields || !saved.trimColours ||
       !saved.layers || !saved.anchors) return false;
     for (const [key, input] of Object.entries(fields)) {
-      const value = saved.fields[key];
+      const value = key === 'houseBaseRecession' && saved.fields[key] === undefined
+        ? input.defaultValue : saved.fields[key];
       const minimum = Number(input.step) === windowSizeStep ? 1 : Number(input.min);
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value)) ||
         Number(value) < minimum || Number(value) > Number(input.max)) return false;
@@ -119,7 +120,8 @@ export function initDesigner() {
       hasOption(input,saved.windowMuntins?.[key]))) return false;
 
     for (const [key, input] of Object.entries(fields)) {
-      const value = saved.fields[key];
+      const value = key === 'houseBaseRecession' && saved.fields[key] === undefined
+        ? input.defaultValue : saved.fields[key];
       if (Number(input.step) === windowSizeStep && Number(value) % windowSizeStep !== 0) {
         input.value = Math.max(windowSizeStep,Math.floor(Number(value)/windowSizeStep)*windowSizeStep);
         adjustedWindowSizes = true;
@@ -264,7 +266,8 @@ export function initDesigner() {
     if (!latest) return;
     const { width: W, length: L, frontWallHeight: H, rear: R, eave: E, frontOverhang: F, sideOverhang: S,
       slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing,
-      windows, houseOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, pitch, slope,
+      windows, houseOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, houseBaseRecession,
+      hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, pitch, slope,
       studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise } = latest;
     const visible = (key) => layerInputs[key].checked;
     const roofTiles = roofDisplay.value === 'tiles';
@@ -290,6 +293,7 @@ export function initDesigner() {
     const planMargin = Math.max(360, S + 170);
     const houseA = (W-houseWallWidth)/2, houseB = houseA+houseWallWidth;
     const houseAt = (x,z) => [x,0,z];
+    const houseBaseAt = (x,z) => [x,-houseBaseRecession,z];
     const roofDepth = rafterDepth * Math.hypot(1,slope);
     const tileRun = tileLength/Math.hypot(1,slope);
     const houseReferenceTop = R + Math.max(330, roofDepth + 140, (R + L + W) * .045);
@@ -653,10 +657,22 @@ export function initDesigner() {
 
     function drawHouseFacade() {
       const section = (u,d,z) => [u,-d,z];
+      const baseSection = (u,d,z) => [u,-houseBaseRecession-d,z];
       const facade = {start:houseA,end:houseB,top:() => houseWallHeight};
       if (houseBaseHeight > 0) {
-        face([houseAt(houseA,slabBase),houseAt(houseB,slabBase),houseAt(houseB,houseBaseTop),houseAt(houseA,houseBaseTop)],
+        face([houseBaseAt(houseA,slabBase),houseBaseAt(houseB,slabBase),houseBaseAt(houseB,houseBaseTop),houseBaseAt(houseA,houseBaseTop)],
           houseBaseColor,{class:'face house-concrete-base'});
+        if (houseBaseRecession > 0) {
+          face([houseBaseAt(houseA,houseBaseTop),houseBaseAt(houseB,houseBaseTop),
+            houseAt(houseB,houseBaseTop),houseAt(houseA,houseBaseTop)],
+          '#c5c6b8',{class:'face house-base-reveal'});
+          face([houseBaseAt(houseA,slabBase),houseBaseAt(houseA,houseBaseTop),
+            houseAt(houseA,houseBaseTop),houseAt(houseA,slabBase)],
+          '#b9bbb2',{class:'face house-base-return'});
+          face([houseBaseAt(houseB,slabBase),houseAt(houseB,slabBase),
+            houseAt(houseB,houseBaseTop),houseBaseAt(houseB,houseBaseTop)],
+          '#b9bbb2',{class:'face house-base-return'});
+        }
       }
       face([houseAt(houseA,houseBaseTop),houseAt(houseB,houseBaseTop),houseAt(houseB,houseWallHeight),houseAt(houseA,houseWallHeight)],
         houseColor,{class:'face house-facade'});
@@ -668,7 +684,7 @@ export function initDesigner() {
         for (const w of houseOpenings.filter(w => w.key === 'houseLeft' || w.key === 'houseRight')) {
           const centreX = (w.left+w.right)/2;
           const halfWidth = Math.min(450,(w.right-w.left)/2);
-          drawWindow(face,section,{start:centreX-halfWidth,end:centreX+halfWidth,
+          drawWindow(face,baseSection,{start:centreX-halfWidth,end:centreX+halfWidth,
             bottom:centreZ-halfHeight,top:centreZ+halfHeight},facade,
           {key:`${w.key}-basement`,pattern:'cross',thickness:145,trim:0,flashing:false});
         }
@@ -678,6 +694,30 @@ export function initDesigner() {
           {key:w.key,pattern:'cross',thickness:145,trim:95,trimColour:'#f5efe1'});
       }
       note(houseAt(houseA,houseWallHeight),'Existing house',-9,'start');
+    }
+
+    function drawSideWallBasementJunction(which) {
+      if (!sideElevation || houseBaseRecession <= 0 || houseBaseHeight <= 0 ||
+        (!visible('cover') && !visible('studs'))) return;
+      const x = which === 'left' ? 0 : W;
+      const at = (y,z) => [x,y,z];
+      const foundationTop = Math.min(0,houseBaseTop);
+      if (foundationTop > slabBase) {
+        face([
+          at(-houseBaseRecession,slabBase),at(0,slabBase),
+          at(0,foundationTop),at(-houseBaseRecession,foundationTop)
+        ],'#8e9b92',{class:'face side-wall-basement-junction','data-layer':'cover'});
+      }
+      const wallBottom = Math.max(0,slabBase);
+      if (houseBaseTop > wallBottom) {
+        face([
+          at(-houseBaseRecession,wallBottom),at(0,wallBottom),
+          at(0,houseBaseTop),at(-houseBaseRecession,houseBaseTop)
+        ],visible('cover') ? wallColour.cover : wallColour.studs,
+        {class:'face side-wall-basement-junction','data-layer':visible('cover') ? 'cover' : 'studs'});
+      }
+      line(at(-houseBaseRecession,slabBase),at(-houseBaseRecession,houseBaseTop),
+        'face',{'data-layer':'cover'});
     }
 
     function doorTrim(at, key, op, wallLength, wallTop) {
@@ -918,12 +958,20 @@ export function initDesigner() {
       }
       if (iso || !front) {
         if (!iso) {
-          const referenceTop = Math.max(houseReferenceTop,houseBaseTop+80);
+          const referenceTop = Math.max(houseReferenceTop,houseWallHeight,houseBaseTop+80);
           if (houseBaseHeight > 0) {
-            line([0,0,slabBase],[0,0,houseBaseTop],'house-concrete-base',{stroke:houseBaseColor,'stroke-width':3});
+            line([0,-houseBaseRecession,slabBase],[0,-houseBaseRecession,houseBaseTop],
+              'house-concrete-base',{stroke:houseBaseColor,'stroke-width':3});
+            if (houseBaseRecession > 0) {
+              line([0,-houseBaseRecession,slabBase],[0,0,slabBase],
+                'house-concrete-base',{stroke:houseBaseColor,'stroke-width':3});
+              line([0,-houseBaseRecession,houseBaseTop],[0,0,houseBaseTop],
+                'house-base-reveal',{stroke:'#858b81','stroke-width':2});
+            }
           }
-          line([0,0,houseBaseTop],[0,0,referenceTop],'face',{style:'stroke:#778a7b;stroke-dasharray:5 4'});
-          note([0,0,referenceTop],'House wall',-9);
+          line([0,0,houseBaseTop],[0,0,houseWallHeight],'face',
+            {style:'stroke:#778a7b;stroke-width:2;stroke-dasharray:5 4'});
+          note([0,0,houseWallHeight],'House wall',-9);
         }
         foundation(sideAt(side === 'right' ? W : 0),L,'#8e9b92');
         drawWall(sideSection(side),L,wallTop,side === 'left' ? door : windows.right,side === 'left' ? 'door' : 'right');
@@ -931,6 +979,7 @@ export function initDesigner() {
         const baseline = groundHidden ? footingBase : slabBase;
         dimension([x,0,baseline],[x,L,baseline],[0,38],mm(L));
       }
+      if (sideElevation) drawSideWallBasementJunction(side);
       orderScene(wallScene);
       if (doorVisible) shapes.push(['door-leaf', []]);
       drawEntryStep();
@@ -1083,7 +1132,8 @@ export function initDesigner() {
         case 'houseWall': return [
           m('houseWallWidth','House wall width',houseAt(houseA,houseWallHeight),houseAt(houseB,houseWallHeight),onFacade),
           m('houseWallHeight','House wall height',houseAt(houseB,0),houseAt(houseB,houseWallHeight),onFacade,houseWallHeight,[15,0]),
-          m('houseBaseHeight','Concrete base height',houseAt(houseA,slabBase),houseAt(houseA,houseBaseTop),onFacade,houseBaseHeight,[-15,0])
+          m('houseBaseHeight','Concrete base height',houseBaseAt(houseA,slabBase),
+            houseBaseAt(houseA,houseBaseTop),onFacade,houseBaseHeight,[-15,0])
         ];
         case 'hedge': return [
           m('hedgeDistance','Distance from house',[0,0,slabBase],[0,hedgeDistance,slabBase],

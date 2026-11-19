@@ -143,7 +143,8 @@ export function createControls($) {
   addFields('houseWall', [
     ['houseWallWidth', 'House wall width', 10798, 1],
     ['houseWallHeight', 'House wall height', 4400, 1],
-    ['houseBaseHeight', 'Concrete base height', 600]
+    ['houseBaseHeight', 'Concrete base height', 600],
+    ['houseBaseRecession', 'Basement recession', 100, 0, 'mm', 1000]
   ]);
   addFields('hedge', [
     ['hedgeDistance', 'Distance from house', 3500],
