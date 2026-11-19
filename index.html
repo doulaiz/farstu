@@ -113,6 +113,12 @@
             <summary>Left-side door</summary>
             <div class="parameter-content">
               <div class="fields" id="door"></div>
+              <label class="door-window">Door window <select id="door-window" aria-describedby="door-window-hint">
+                <option value="none">No window</option>
+                <option value="vertical">Vertical skinny window (handle side)</option>
+                <option value="rectangular" selected>Rectangular window</option>
+                <option value="half-circle">Half-circle window</option>
+              </select></label>
               <label class="door-handing">Door swing <select id="door-handing">
                 <option value="ltr">LTR — hinges on the left</option>
                 <option value="rtl">RTL — hinges on the right</option>
@@ -120,6 +126,7 @@
               <p class="hint">Left is as seen facing the house. Offset is measured from the existing house wall to the nearest edge of the door.</p>
               <p class="hint">Hinge side is as seen from outside the door. Preview the outward swing in 3D, Left, or Plan.</p>
               <p class="hint">Door opening dimensions use Swedish modules. Leaf thickness (40–100 mm) controls the solid swing preview; the door mass remains an area-based estimate.</p>
+              <p class="hint" id="door-window-hint">Glazing styles follow common Swedish retail doors: a solid leaf, a narrow light above the handle, a framed upper rectangle, or a traditional semicircular fanlight with radial muntins. The narrow light follows the handle side. These are schematic proportions, not supplier glass-cutting dimensions; confirm the chosen door, safety glazing and performance with your supplier.</p>
               <p class="hint">The exterior step follows the door opening when its width or offset changes.</p>
             </div>
           </details>

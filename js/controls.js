@@ -53,6 +53,7 @@ export function createControls($) {
   const doorButton = $('toggle-door');
   const groundButton = $('toggle-ground');
   const doorHanding = $('door-handing');
+  const doorWindow = $('door-window');
   const fields = {};
   const anchors = { front: 'Bottom', right: 'Bottom' };
   const trimColours = {};
@@ -208,7 +209,7 @@ export function createControls($) {
   syncTimberSizes();
   return {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows, windowMuntins,
+    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows, windowMuntins,
     syncTimberSizes
   };
 }

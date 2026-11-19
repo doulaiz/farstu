@@ -19,7 +19,7 @@ export function initDesigner() {
   const { width: drawingWidth, height: drawingHeight } = svg.viewBox.baseVal;
   const {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows,
+    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows,
     windowMuntins, syncTimberSizes
   } = createControls($);
   const legacyBasementFields = new Set(Object.keys(houseBasementWindows)
@@ -178,6 +178,7 @@ export function initDesigner() {
       !['Bottom', 'Top'].includes(saved.anchors.right)) return false;
     if (saved.windowMuntins !== undefined && !Object.entries(windowMuntins).every(([key,input]) =>
       hasOption(input,saved.windowMuntins?.[key]))) return false;
+    if (saved.doorWindow !== undefined && !hasOption(doorWindow,saved.doorWindow)) return false;
 
     for (const [key, input] of Object.entries(fields)) {
       if (key !== 'studDepth' && key !== 'rafterDepth') input.value = savedFields[key];
@@ -195,6 +196,7 @@ export function initDesigner() {
     roofMaterial.value = savedRoofMaterial;
     roofFinish.value = savedRoofFinish;
     doorHanding.value = saved.doorHanding;
+    if (saved.doorWindow !== undefined) doorWindow.value = saved.doorWindow;
     view = saved.view;
     groundHidden = saved.groundHidden;
     anchors.front = saved.anchors.front;
@@ -214,6 +216,7 @@ export function initDesigner() {
       roofMaterial: roofMaterial.value,
       roofFinish: roofFinish.value,
       doorHanding: doorHanding.value,
+      doorWindow: doorWindow.value,
       view,
       groundHidden,
       anchors: { ...anchors }
@@ -1422,7 +1425,8 @@ export function initDesigner() {
         const path = swingArc.map((p,i) => `${i ? 'L' : 'M'}${project(p).join(',')}`).join(' ');
         node('path',{d:path,fill:'none',stroke:'#9a693c','stroke-dasharray':'4 4'});
       }
-      const leaf = node('g',{class:'door-leaf',opacity:timberOnly && !plan ? '.5' : '1','data-thickness':doorThickness});
+      const leaf = node('g',{class:'door-leaf',opacity:timberOnly && !plan ? '.5' : '1',
+        'data-thickness':doorThickness,'data-door-window':doorWindow.value});
       const w = doorWidth, h = doorHeight, d = doorThickness;
       const surfaces = [
         {name:'outer',normal:[0,-1,0],points:[[0,0,0],[w,0,0],[w,0,h],[0,0,h]],colour:'#f5ead7',depth:0},
@@ -1434,19 +1438,44 @@ export function initDesigner() {
       ];
       const inset = Math.min(42,w*.15,h*.12);
       for (const surface of surfaces) {
-        const polygon = (points,fill) => ({
-          points, attrs:{fill,class:'face','vector-effect':'non-scaling-stroke','data-door-face':surface.name}
+        const polygon = (points,fill,part) => ({
+          points, attrs:{fill,class:'face','vector-effect':'non-scaling-stroke',
+            'data-door-face':surface.name,...(part && {'data-door-part':part})}
         });
         surface.parts = [polygon(surface.points,surface.colour)];
         if (surface.depth === undefined) continue;
-        const rect = (a,b,low,high,fill) => polygon([
+        const rect = (a,b,low,high,fill,part) => polygon([
           [a,surface.depth,low],[b,surface.depth,low],[b,surface.depth,high],[a,surface.depth,high]
-        ],fill);
-        surface.parts.push(
-          rect(inset,w-inset,inset,h-inset,'#3d6052'),
-          rect(w*.2,w*.8,h*.5,h*.85,glassColor),
-          rect(w*.76,w*.87,h*.425,h*.435,'#edf8f7')
-        );
+        ],fill,part);
+        surface.parts.push(rect(inset,w-inset,inset,h-inset,'#3d6052'));
+        const rim = 22;
+        if (doorWindow.value === 'half-circle') {
+          const centre = w/2, radius = w*.3, base = h*.85-radius;
+          const arch = (r,apron = 0) => [
+            ...Array.from({length:25},(_,i) => [
+              centre+r*Math.cos(i*Math.PI/24),surface.depth,base+r*Math.sin(i*Math.PI/24)
+            ]),
+            ...(apron ? [[centre-r,surface.depth,base-apron],[centre+r,surface.depth,base-apron]] : [])
+          ];
+          surface.parts.push(polygon(arch(radius+rim,rim),surface.colour,'glazing-frame'),
+            polygon(arch(radius),glassColor,'glass'));
+          const half = 6, reach = Math.sqrt(radius*radius-half*half);
+          for (const angle of [Math.PI/4,Math.PI/2,3*Math.PI/4]) {
+            const sin = Math.sin(angle), cos = Math.cos(angle);
+            surface.parts.push(polygon([
+              [centre-half/sin,surface.depth,base],[centre+half/sin,surface.depth,base],
+              [centre+cos*reach+sin*half,surface.depth,base+sin*reach-cos*half],
+              [centre+cos*reach-sin*half,surface.depth,base+sin*reach+cos*half]
+            ],surface.colour,'muntin'));
+          }
+        } else if (doorWindow.value !== 'none') {
+          const narrow = doorWindow.value === 'vertical';
+          const a = w*(narrow ? .66 : .2), b = w*(narrow ? .82 : .8);
+          const low = h*(narrow ? .52 : .5), high = h*.85;
+          surface.parts.push(rect(a-rim,b+rim,low-rim,high+rim,surface.colour,'glazing-frame'),
+            rect(a,b,low,high,glassColor,'glass'));
+        }
+        surface.parts.push(rect(w*.76,w*.87,h*.425,h*.435,'#edf8f7','handle'));
       }
       const eye = plan ? [0,0,1] : iso ? camera : [-1,0,0];
       paintDoor = () => {
@@ -1589,6 +1618,7 @@ export function initDesigner() {
     clearTimeout(guideTimer);
     guideTimer = undefined;
     doorHanding.selectedIndex = 0;
+    doorWindow.value = [...doorWindow.options].find(option => option.defaultSelected).value;
     setDoor(false,false);
   }
   svg.addEventListener('wheel', (event) => {
@@ -1644,6 +1674,10 @@ export function initDesigner() {
   doorHanding.addEventListener('change', () => {
     persistenceEnabled = true;
     setDoor(false,false);
+    render();
+  });
+  doorWindow.addEventListener('change', () => {
+    persistenceEnabled = true;
     render();
   });
   for (const tab of tabs) tab.addEventListener('click', () => {

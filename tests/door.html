@@ -35,13 +35,21 @@ function overlaps(a, b) {
   }
   return false;
 }
-try {
-  localStorage.removeItem(key);
+async function load() {
   const ready = new Promise(resolve => frame.onload = resolve);
   frame.src = '../?door-regression';
   document.body.append(frame);
   await ready;
-  const doc = frame.contentDocument, win = frame.contentWindow;
+}
+try {
+  localStorage.removeItem(key);
+  await load();
+  let doc = frame.contentDocument, win = frame.contentWindow;
+  const reload = async () => {
+    await load();
+    doc = frame.contentDocument;
+    win = frame.contentWindow;
+  };
   const field = id => doc.getElementById(id);
   const edit = (id,value,event='input') => {
     field(id).value = String(value);
@@ -87,7 +95,58 @@ try {
     }
     assert(intersections > 0,'No projected trim/door overlap was exercised');
   }
-  for (const handing of ['ltr','rtl']) for (const thickness of [40,100]) {
+  const styles = ['none','vertical','rectangular','half-circle'];
+  assert(field('door-window').value === 'rectangular','Default door glazing changed');
+  assert(field('door-window').closest('.parameter-section').querySelector('#door'),
+    'Glazing selector is outside the door configuration');
+  const box = polygon => {
+    const points = vertices(polygon), xs = points.map(p=>p[0]), ys = points.map(p=>p[1]);
+    return {left:Math.min(...xs),right:Math.max(...xs),top:Math.min(...ys),bottom:Math.max(...ys)};
+  };
+  for (const style of styles) for (const handing of ['ltr','rtl']) {
+    edit('door-window',style,'change');
+    edit('door-handing',handing,'change');
+    for (const [width,height] of [[800,2000],[1100,2200]]) {
+      edit('doorWidth',width);
+      edit('doorHeight',height);
+      doc.querySelector('[data-view="left"]').click();
+      const glass = doc.querySelector('polygon[data-door-part="glass"]');
+      const rim = doc.querySelector('polygon[data-door-part="glazing-frame"]');
+      if (style === 'none') {
+        assert(!glass && !rim && !doc.querySelector('[data-door-part="muntin"]'),
+          'Solid door still has glazing');
+        continue;
+      }
+      assert(glass && rim,'Glazing or its frame is missing');
+      const points = vertices(glass), bounds = box(glass);
+      const body = doc.querySelector('polygon[data-door-face="outer"]:not([data-door-part])');
+      assert(points.every(([x,y]) => contains(vertices(body),x,y) && contains(vertices(rim),x,y)),
+        'Glass escaped the leaf or glazing frame');
+      assert(!overlaps(points,vertices(doc.querySelector('[data-door-part="handle"]'))),
+        'Glazing collides with the handle');
+      const paneWidth = bounds.right-bounds.left, paneHeight = bounds.bottom-bounds.top;
+      if (style === 'vertical') {
+        const leaf = box(body), centre = (bounds.left+bounds.right)/2, middle = (leaf.left+leaf.right)/2;
+        assert(paneHeight/paneWidth > 3,'Narrow light is not tall and skinny');
+        assert(handing === 'ltr' ? centre > middle : centre < middle,
+          'Narrow light did not mirror towards the handle side');
+      } else if (style === 'half-circle') {
+        const centre = (bounds.left+bounds.right)/2, radius = paneWidth/2;
+        assert(Math.abs(paneHeight-radius) < 1e-6,'Fanlight is not a true half-circle');
+        assert(points.every(([x,y]) => Math.abs(Math.hypot(x-centre,y-bounds.bottom)-radius) < 1e-6),
+          'Fanlight arc is distorted');
+        assert(doc.querySelectorAll('[data-door-part="muntin"]').length === 3,'Fanlight muntins missing');
+      } else {
+        assert(points.length === 4 && paneWidth > paneHeight/2,'Upper rectangular light is distorted');
+      }
+    }
+  }
+  edit('doorWidth',1000);
+  edit('doorHeight',2100);
+  passed.push('Four glazing styles, frame containment, handle clearance and mirrored proportions at door module limits');
+
+  for (const style of styles) for (const handing of ['ltr','rtl']) for (const thickness of [40,100]) {
+    edit('door-window',style,'change');
     edit('door-handing',handing,'change');
     edit('doorThickness',thickness);
     for (const view of ['3d','left','plan']) {
@@ -101,6 +160,11 @@ try {
       tick(start+1000);
       checkDrawing();
       if (view === '3d') checkOcclusion(true);
+      if (view === '3d' && style !== 'none') {
+        const face = handing === 'ltr' ? 'inner' : 'outer';
+        assert(doc.querySelector(`polygon[data-door-face="${face}"][data-door-part="glass"]`),
+          'Glazing is missing from the visible face of the open door');
+      }
       const close = win.performance.now();
       field('toggle-door').click();
       tick(close+275);
@@ -109,7 +173,7 @@ try {
       checkDrawing();
       if (view === '3d') checkOcclusion(false);
     }
-    passed.push(`${handing}, ${thickness} mm: trim occlusion and full animation in 3D, Left and Plan`);
+    passed.push(`${style}, ${handing}, ${thickness} mm: trim occlusion and full animation in 3D, Left and Plan`);
   }
   doc.querySelector('[data-view="3d"]').click();
   for (const width of [70,195]) {
@@ -135,6 +199,33 @@ try {
   doc.querySelector('#wall-layers').dispatchEvent(new win.Event('change',{bubbles:true}));
   assert(doc.querySelectorAll('[data-trim="door"]').length === 0,'Hidden door trim remains visible');
   passed.push('Trim sizes, colour, reduced motion, zero-width and hidden trim');
+  for (const style of styles) {
+    edit('door-window',style,'change');
+    assert(JSON.parse(localStorage.getItem(key)).doorWindow === style,'Door glazing was not saved');
+    await reload();
+    assert(field('door-window').value === style,'Saved door glazing did not restore');
+    assert(doc.querySelector('.door-leaf').dataset.doorWindow === style,'Restored glazing was not drawn');
+  }
+  let exported;
+  win.URL.createObjectURL = blob => { exported = blob; return 'blob:door-test'; };
+  win.HTMLAnchorElement.prototype.click = () => {};
+  field('export-settings').click();
+  assert(exported && JSON.parse(await exported.text()).doorWindow === 'half-circle','Export lost door glazing');
+  const saved = JSON.parse(localStorage.getItem(key));
+  delete saved.doorWindow;
+  localStorage.setItem(key,JSON.stringify(saved));
+  await reload();
+  assert(field('door-window').value === 'rectangular' && !field('storage-status').textContent,
+    'Old settings did not retain rectangular glazing');
+  localStorage.setItem(key,JSON.stringify({...saved,doorWindow:'diamond'}));
+  await reload();
+  assert(field('storage-status').textContent.includes('invalid') && field('door-window').value === 'rectangular',
+    'Unknown saved glazing was not rejected with a notice');
+  edit('door-window','none','change');
+  doc.querySelector('button[type="reset"]').click();
+  assert(field('door-window').value === 'rectangular' &&
+    JSON.parse(localStorage.getItem(key)).doorWindow === 'rectangular','Reset did not restore default glazing');
+  passed.push('All glazing choices persist; export, legacy settings, invalid settings and Reset are handled');
   results.textContent = `PASS (${passed.length})\n${passed.join('\n')}`;
 } catch (error) {
   results.textContent = `FAIL after ${passed.length} groups: ${error.message}\n${error.stack}`;

@@ -80,9 +80,9 @@
   .parameter-content > .hint:last-child { margin-bottom:0; }
   .fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 10px; }
   label { display:block; font-size:12px; font-weight:650; }
-  .door-handing { margin-top:10px; }
+  .door-handing, .door-window { margin-top:10px; }
   .footing-layout { margin-bottom:8px; }
-  .door-handing select, .footing-layout select { display:block; max-width:100%; min-height:36px; margin-top:3px; border:1px solid #bccbc1; border-radius:7px; background:#f9fbf8; padding:5px 8px; color:var(--ink); font:inherit; }
+  .door-handing select, .door-window select, .footing-layout select { display:block; max-width:100%; min-height:36px; margin-top:3px; border:1px solid #bccbc1; border-radius:7px; background:#f9fbf8; padding:5px 8px; color:var(--ink); font:inherit; }
   .footing-layout select[aria-invalid="true"] { border-color:#a0301f; background:#fff5ee; }
   button:disabled { opacity:.55; cursor:default; }
   .number { position:relative; display:block; margin-top:3px; }
