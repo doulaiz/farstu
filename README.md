@@ -1,33 +1,33 @@
 # Farstu Designer
 
-Farstu Designer is a browser-based porch planner with a lumber bill of materials (BOM) and price estimate. There is no build step or npm setup.
+Farstu Designer is a browser-based porch planner with a lumber bill of materials (BOM) and price estimate.
 
 ## Launch locally
 
-1. In VS Code, open the project folder and start a terminal in the folder containing [index.html](./index.html).
-2. With Python 3 installed, start a local web server:
+Open [index.html](./index.html) directly in a browser. Edit the porch in **Designer**, then select **Lumber BOM & prices** to see the estimate. No server, Python, or installation is needed to use the app; keep the accompanying `css` and `js` folders alongside the HTML file.
 
-   ```sh
-   python -m http.server 8000 --bind 127.0.0.1
-   ```
-
-   If `python` is not recognized, use `py -3` in Windows PowerShell or `python3` in WSL/macOS/Linux in place of `python`.
-
-3. Keep the terminal running and open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) in a browser. Edit the porch in **Designer**, then select **Lumber BOM & prices** to see the estimate.
-
-Press `Ctrl+C` in the terminal to stop the server.
-
-## If the BOM button does nothing
-
-- **Check the address bar.** Double-clicking [index.html](./index.html) opens it as a `file://` URL. The HTML can appear even when the browser blocks the JavaScript modules, leaving the buttons inactive. Use the `http://127.0.0.1:8000/` address instead.
-- **If you see a directory listing or a 404**, check that you started the server in the folder containing [index.html](./index.html).
-- **If port 8000 is in use**, try `8001` in both the command and the browser URL. Saved designs and quotes are specific to the browser and address (including the port).
+Design settings and quotes are saved in browser storage. Storage for local files varies between browsers and can be disabled. **Export settings** downloads a record of the design, but the app does not currently import it. Settings previously saved on `http://127.0.0.1:8000/` are separate from those saved when opening the file.
 
 The BOM uses a Derome catalogue snapshot, not live stock or prices. Enter quoted prices in SEK per piece or per metre to calculate totals.
 
 ## Development & regression checks
 
-The application uses native ES modules without third-party runtime dependencies. Domain calculations live in [framing.js](./js/framing.js), [bom.js](./js/bom.js), [roofing.js](./js/roofing.js) and [loads.js](./js/loads.js); the corresponding views handle DOM rendering. [controls.js](./js/controls.js) builds dimension controls, [storage.js](./js/storage.js) handles design persistence/export, and [designer.js](./js/designer.js) coordinates validation, the SVG scene and interaction.
+The application has no third-party runtime dependencies. Its source uses ES modules: domain calculations live in [framing.js](./js/framing.js), [bom.js](./js/bom.js), [roofing.js](./js/roofing.js) and [loads.js](./js/loads.js); the corresponding views handle DOM rendering. [controls.js](./js/controls.js) builds dimension controls, [storage.js](./js/storage.js) handles design persistence/export, and [designer.js](./js/designer.js) coordinates validation, the SVG scene and interaction.
+
+After changing JavaScript source, regenerate and commit [app.bundle.js](./js/app.bundle.js). With Node.js and npm installed, run:
+
+```sh
+npm ci
+npm run build
+```
+
+The bundle is included so users do not need to run these commands. The regression suites themselves use ES modules and still need a local server. For example, with Python 3:
+
+```sh
+python -m http.server 8000 --bind 127.0.0.1
+```
+
+Open the test URLs at `http://127.0.0.1:8000/`; stop the server with `Ctrl+C`.
 
 With the local server running, open each suite and check its final `PASS` result:
 
@@ -65,6 +65,8 @@ Tile dimensions are product-specific, not a single Swedish standard. The planner
 **Exposed tile length / batten gauge** is measured along the slope. The [manufacturer's laying guide, pages 5–6](https://docs.keskofiles.com/f/btt/ASSET_MISC_41480342) gives 310–320 mm at 14°–17°, 310–340 mm at 18°–21°, and up to 375 mm from 22°. The planner uses the lower band's limit until the next threshold, including fractional pitches. Headlap is 420 mm minus the gauge: 45–110 mm overall, at least 100 mm below 18°, and at least 80 mm below 22°. The default gauge is 310 mm. More exposed sites may require tighter spacing. Profile rise remains a schematic valley-to-crown setting rather than total tile construction height.
 
 Under **Roof → Pitch, width & overhangs**, configure **Total roof width** and **Door-side overhang (left)** separately. The opposite (right) overhang is calculated as `roof width - slab width - door-side overhang` and displayed below the controls. Both overhangs must be between 0 and 1000 mm, so the roof always covers the slab. Changing the door-side overhang shifts the roof sideways without changing its total width; the overhangs need not be equal. Door-side overhang accepts half-millimetre increments to preserve existing saved designs.
+
+In **3D** and **Plan**, a slightly darker ground patch shows the roof's vertical footprint, including both side overhangs and the front overhang. It is a straight-down projection, not a sunlight simulation, and remains visible with the roof covering hidden. **Hide ground** hides the patch as well.
 
 With tiles selected, `roof width = whole tile count × covering width`. The roof-width spinner uses 250 or 300 mm steps, and typed non-multiples are rejected without changing the last valid drawing. Switching to tiles, changing the tile system or loading a design aligns roof width to the nearest feasible module; ties round up. These adjustments never change the slab width or door-side overhang. Metal roofs use 1 mm width steps. Editing slab width or door-side overhang can make the chosen roof width invalid; adjust roof width to restore both overhangs to the allowed range. Drawing, rafter takeoff, roof schedule and load estimates use the same asymmetric roof position and width.
 

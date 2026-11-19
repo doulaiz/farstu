@@ -471,8 +471,8 @@ export function initDesigner() {
     const gradeMargin = Math.min(350,W*.2,L*.2);
     const hedgeHalfDepth = 450;
     const sideGradeEnd = Math.max(L,hedgeDistance+hedgeHalfDepth)+gradeMargin;
-    const grade = [[-gradeMargin,0,slabBase],[W+gradeMargin,0,slabBase],
-      [W+gradeMargin,L+gradeMargin,slabBase],[-gradeMargin,L+gradeMargin,slabBase]];
+    const grade = [[roofLeft-gradeMargin,0,slabBase],[roofRight+gradeMargin,0,slabBase],
+      [roofRight+gradeMargin,L+F+gradeMargin,slabBase],[roofLeft-gradeMargin,L+F+gradeMargin,slabBase]];
     const door = { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight };
     const rtl = doorHanding.value === 'rtl';
     const hingeY = rtl ? door.end : door.start;
@@ -1118,8 +1118,10 @@ export function initDesigner() {
     }
 
     if (!groundHidden) {
-      if (iso || plan) face(grade,'#d7e1ce',{class:'face ground-plane'});
-      else if (front) line(frontAt(-gradeMargin,slabBase),frontAt(W+gradeMargin,slabBase),'ground-line');
+      if (iso || plan) {
+        face(grade,'#d7e1ce',{class:'face ground-plane'});
+        face(roof.map(([x,y]) => [x,y,slabBase]),'#c6d1bc',{class:'roof-ground-projection',stroke:'none'});
+      } else if (front) line(frontAt(-gradeMargin,slabBase),frontAt(W+gradeMargin,slabBase),'ground-line');
       else line([0,0,slabBase],[0,sideGradeEnd,slabBase],'ground-line');
     }
     function orderScene(start) {

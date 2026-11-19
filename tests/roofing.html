@@ -199,6 +199,60 @@ try {
     }
   }
   passed.push('Asymmetric covering and rafters render in all five views');
+
+  localStorage.removeItem(key);
+  await load();
+  edit('width',2400);
+  edit('length',1800);
+  const points = polygon => polygon.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+  for (const [material,width,offset,overhang,pitch] of [
+    ['standingSeam',4201,1000,1000,14],['tiles',4200,800,650,45],['standingSeam',2400,0,0,14]
+  ]) {
+    edit('roof-material',material,'change');
+    edit('roofWidth',width);
+    edit('doorSideOverhang',offset);
+    edit('frontOverhang',overhang);
+    edit('pitch',pitch);
+    valid();
+    for (const mode of ['tiles','rafters','none']) {
+      edit('roof-display',mode,'change');
+      for (const view of ['3d','plan']) {
+        doc().querySelector(`[data-view="${view}"]`).click();
+        const ground = doc().querySelector('.ground-plane');
+        const shadow = doc().querySelector('.roof-ground-projection');
+        assert(shadow && shadow.previousElementSibling === ground,'Roof projection is missing or painted over the building');
+        const grade = points(ground), footprint = points(shadow);
+        const margin = Math.min(350,2400*.2,1800*.2);
+        const roofLength = 1800+overhang;
+        const offsets = [[margin,0],[margin+width,0],[margin+width,roofLength],[margin,roofLength]];
+        for (let i=0;i<4;i++) for (let axis=0;axis<2;axis++) {
+          close(footprint[i][axis],grade[0][axis] +
+            (grade[1][axis]-grade[0][axis])*offsets[i][0]/(width+2*margin) +
+            (grade[3][axis]-grade[0][axis])*offsets[i][1]/(roofLength+margin));
+        }
+        const rgb = element => frame.contentWindow.getComputedStyle(element).fill.match(/\d+/g).map(Number);
+        assert(rgb(shadow).every((channel,i) => channel < rgb(ground)[i] && rgb(ground)[i]-channel <= 30),
+          'Roof projection is not slightly darker than the ground');
+        assert(frame.contentWindow.getComputedStyle(shadow).stroke === 'none','Roof projection has a dark outline');
+        if (view === 'plan' && mode !== 'none') {
+          const outline = points(field('drawing').querySelector('polygon[stroke-dasharray="7 5"]'));
+          footprint.forEach((point,i) => point.forEach((value,axis) => close(value,outline[i][axis])));
+        }
+      }
+    }
+  }
+  for (const view of ['3d','plan']) {
+    doc().querySelector(`[data-view="${view}"]`).click();
+    field('toggle-ground').click();
+    assert(!doc().querySelector('.roof-ground-projection'),'Hidden ground retained the roof projection');
+    field('toggle-ground').click();
+    assert(doc().querySelector('.roof-ground-projection'),'Restored ground lost the roof projection');
+  }
+  for (const view of ['front','left','right']) {
+    doc().querySelector(`[data-view="${view}"]`).click();
+    assert(!doc().querySelector('.roof-ground-projection'),'An elevation rendered an edge-on ground polygon');
+  }
+  passed.push('Vertical roof footprint follows asymmetric dimensions, stays on grade, uses subtle shading and respects display toggles');
   results.textContent = `PASS (${passed.length})\n${passed.join('\n')}`;
 } catch (error) {
   results.textContent = `FAIL after ${passed.length} groups: ${error.message}\n${error.stack}`;
