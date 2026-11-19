@@ -222,13 +222,20 @@
         <summary>Existing house</summary>
         <div class="parameter-body">
           <details class="parameter-section" name="house-parameters" open>
+            <summary>Position and window spacing</summary>
+            <div class="parameter-content">
+              <div class="fields" id="housePosition"></div>
+              <p class="hint">The origin is on the ground directly below the left edge of the left house window, as seen facing the house. Distances increase to the right. The slab distance is to its left edge; the window gap is between the left window's right edge and the right window's left edge. A negative gap represents overlap.</p>
+            </div>
+          </details>
+          <details class="parameter-section" name="house-parameters">
             <summary>Wall dimensions</summary>
             <div class="parameter-content">
               <div class="fields" id="houseWall"></div>
-              <p class="hint">The wall is centred on the farstu. Wall height is measured from the top of the slab. Concrete base height is measured from the drawn ground level to the start of the timber cladding. Basement recession is how far the basement face is set back from the upper wall, toward the house.</p>
+              <p class="hint">The wall's left edge is measured from the origin. Wall and concrete base heights are measured above ground. Basement recession is how far the basement face is set back from the upper wall, toward the house.</p>
             </div>
           </details>
-          <p class="hint">Existing-house window widths and heights accept measured dimensions in 1 mm increments, including non-standard sizes. Horizontal offset is measured from the farstu centreline to the centre of each window. Use a negative value for left and a positive value for right in the Front view. Sill height is measured from the top of the slab.</p>
+          <p class="hint">Existing-house window widths and heights accept measured dimensions in 1 mm increments, including non-standard sizes. The upper window's centre is measured from the origin. Sill heights are measured above ground.</p>
           <details class="parameter-section" name="house-parameters">
             <summary>Left house window</summary>
             <div class="parameter-content fields" id="houseLeft"></div>
@@ -241,7 +248,7 @@
             <summary>Right house window</summary>
             <div class="parameter-content fields" id="houseRight"></div>
           </details>
-          <p class="hint">Basement window widths and heights also accept measured dimensions in 1 mm increments. Horizontal offset is measured from the farstu centreline; sill height is measured up from the bottom of the concrete base. Each basement window must fit within the base.</p>
+          <p class="hint">Basement window widths and heights also accept measured dimensions in 1 mm increments. Their centres are measured from the origin; sill height is measured up from the bottom of the concrete base. Each basement window must fit within the base.</p>
           <details class="parameter-section" name="house-parameters">
             <summary>Left basement window</summary>
             <div class="parameter-content fields" id="houseBasementLeft"></div>

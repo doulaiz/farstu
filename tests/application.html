@@ -47,6 +47,119 @@ async function check(name, run) {
   }
 }
 try {
+  function houseGeometry() {
+    const bounds = selector => {
+      const polygon = doc.querySelector(selector);
+      assert(polygon,`Missing ${selector}`);
+      const points = polygon.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+      const xs = points.map(point => point[0]), ys = points.map(point => point[1]);
+      return {left:Math.min(...xs),right:Math.max(...xs),top:Math.min(...ys),bottom:Math.max(...ys)};
+    };
+    const facade = bounds('.house-facade'), base = bounds('polygon.house-concrete-base');
+    const slab = bounds('.slab-edge');
+    const scale = (facade.right-facade.left)/Number(field('houseWallWidth').value);
+    const firstCover = bounds('polygon.cladding-cover:not([data-layer])');
+    const window = key => bounds(`polygon[data-window="${key}"][data-window-part="glass"]`);
+    const left = window('houseLeft'), right = window('houseRight'), upper = window('houseUpper');
+    const centre = rect => (rect.left+rect.right)/2;
+    return {
+      wallFromLeftCentre: (facade.left-centre(left))/scale,
+      slabFromLeftCentre: (slab.left-centre(left))/scale,
+      rightFromLeftCentre: (centre(right)-centre(left))/scale,
+      upperFromLeftCentre: (centre(upper)-centre(left))/scale,
+      firstCoverFromWall: (firstCover.right-facade.left)/scale,
+      leftHeight: (base.bottom-(left.top+left.bottom)/2)/scale,
+      wallHeight: (base.bottom-facade.top)/scale
+    };
+  }
+  function near(actual, expected, message) {
+    assert(Math.abs(actual-expected) < .01,`${message}: ${actual} != ${expected}`);
+  }
+
+  await check('House origin fixes windows and wall while slab position, size and thickness change',async () => {
+    await load(true);
+    doc.querySelector('[data-view="front"]').click();
+    const initial = houseGeometry();
+    near(initial.slabFromLeftCentre,3494-650,'Initial slab offset');
+    near(initial.wallFromLeftCentre,-505-650,'Initial wall offset');
+    near(initial.rightFromLeftCentre,7188+1300,'Initial window gap');
+    edit('slabOriginOffset',3694);
+    const moved = houseGeometry();
+    near(moved.slabFromLeftCentre,initial.slabFromLeftCentre+200,'Slab did not move relative to the window');
+    near(moved.wallFromLeftCentre,initial.wallFromLeftCentre,'Moving the slab moved the house wall');
+    near(moved.rightFromLeftCentre,initial.rightFromLeftCentre,'Moving the slab moved a house window');
+    near(moved.firstCoverFromWall,initial.firstCoverFromWall,'Moving the slab shifted the house cladding');
+    edit('width',2850);
+    edit('slabThickness',200);
+    const resized = houseGeometry();
+    near(resized.slabFromLeftCentre,moved.slabFromLeftCentre,'Resizing the slab moved its left edge');
+    near(resized.wallFromLeftCentre,initial.wallFromLeftCentre,'Resizing the slab moved the house wall');
+    near(resized.leftHeight,initial.leftHeight,'Slab thickness moved a house window above ground');
+    near(resized.wallHeight,initial.wallHeight,'Slab thickness changed house height above ground');
+    edit('houseWindowGap',6988);
+    const spaced = houseGeometry();
+    near(spaced.rightFromLeftCentre,initial.rightFromLeftCentre-200,'Window clear gap was not applied');
+    near(spaced.upperFromLeftCentre,initial.upperFromLeftCentre,'Window gap moved the upper window');
+    edit('houseLeftWidth',1301);
+    const wider = houseGeometry();
+    near(wider.slabFromLeftCentre,spaced.slabFromLeftCentre-.5,'Left window origin moved when resized');
+    near(wider.rightFromLeftCentre,spaced.rightFromLeftCentre+.5,'Window gap did not remain fixed');
+    await load();
+    assert(field('slabOriginOffset').value === '3694' && field('houseWindowGap').value === '6988' &&
+      field('houseLeftWidth').value === '1301','House reference settings did not survive reload');
+    near(houseGeometry().slabFromLeftCentre,wider.slabFromLeftCentre,'Saved layout changed on reload');
+    field('houseWindowGap').value = '20000';
+    field('houseWindowGap').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent.includes('extends beyond the sides of the house wall'),
+      'An out-of-wall window spacing was accepted');
+    near(houseGeometry().slabFromLeftCentre,wider.slabFromLeftCentre,'Invalid spacing changed the drawing');
+    edit('houseWindowGap',6988);
+    edit('slabOriginOffset',20000);
+    doc.querySelector('[data-view="plan"]').click();
+    assert(!doc.querySelector('.house-plan'),'An out-of-view house produced a phantom wall in plan');
+  });
+
+  await check('Legacy house coordinates migrate without moving the house or slab',async () => {
+    await load(true);
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    Object.assign(saved.fields, {
+      width:'2801',slabThickness:'141',houseLeftWidth:'1301',houseRightWidth:'1303',
+      houseLeftOffset:'-4100',houseRightOffset:'4100',houseUpperOffset:'111',
+      houseBasementLeftOffset:'-4001',houseBasementRightOffset:'4003',
+      houseLeftSill:'1250',houseRightSill:'1250',houseUpperSill:'3350',houseWallHeight:'4400'
+    });
+    for (const key of ['slabOriginOffset','houseWindowGap','houseWallLeft']) delete saved.fields[key];
+    saved.view = 'front';
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('storage-status').textContent.includes('left-window origin'),'Migration notice is missing');
+    assert(field('slabOriginOffset').value === '3350' && field('houseWallLeft').value === '-648.5' &&
+      field('houseWindowGap').value === '6898' && field('houseUpperOffset').value === '4861.5' &&
+      field('houseBasementLeftOffset').value === '749.5' && field('houseBasementRightOffset').value === '8753.5',
+      'Legacy horizontal coordinates were not converted');
+    assert(field('houseWallHeight').value === '4541' && field('houseLeftSill').value === '1391',
+      'Legacy heights were not converted to ground level');
+    const geometry = houseGeometry();
+    near(geometry.slabFromLeftCentre,2699.5,'Migration moved slab');
+    near(geometry.wallFromLeftCentre,-1299,'Migration moved wall');
+    near(geometry.rightFromLeftCentre,8200,'Migration moved the right window');
+    near(geometry.upperFromLeftCentre,4211,'Migration moved the upper window');
+    near(geometry.leftHeight,1941,'Migration moved the window above ground');
+    near(geometry.wallHeight,4541,'Migration changed the wall height above ground');
+    await load();
+    assert(!field('storage-status').textContent,'Migration repeated after saving');
+    near(houseGeometry().slabFromLeftCentre,geometry.slabFromLeftCentre,'Migrated layout changed on reload');
+    for (const prefix of ['houseBasementLeft','houseBasementRight']) {
+      for (const suffix of ['Width','Height','Offset','Sill']) delete saved.fields[prefix+suffix];
+    }
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('houseBasementLeftOffset').value === '506.5' &&
+      field('houseBasementRightOffset').value === '8994.5' &&
+      field('houseBasementLeftWidth').value === '900',
+      'Older designs without basement windows did not retain the legacy defaults');
+  });
+
   await check('Shared opening trims update every view, estimates, export and restored settings',async () => {
     await load(true);
     const section = field('trims').closest('details');

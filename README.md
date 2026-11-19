@@ -47,6 +47,8 @@ New porch windows use Swedish module dimensions M5–M15 (500–1500 mm) in 100 
 
 Existing-house and basement windows accept measured, non-standard sizes in 1 mm increments. Their dimensions are bounded for planning and must still fit the house façade or concrete base.
 
+Under **Parameters → Existing house → Position and window spacing**, the origin is at ground level directly below the left edge of the left main window, viewed facing the house. Set the signed distance to the slab's left edge and the clear gap between the main windows; a negative gap represents overlap. The wall's left edge and the upper and basement window centres are also measured from the origin. Window sills and wall height are measured above ground, independently of slab thickness. Moving or resizing the slab therefore does not move the existing house. Older saved designs are converted to these references without changing their geometry.
+
 Under **Parameters → Existing house → Wall dimensions**, set **Basement recession** to offset the concrete basement face behind the upper wall. The stepped profile is shown in the 3D drawing and the Left and Right elevations. Older saved configurations without this setting default to a 100 mm recession.
 
 Under **Parameters → Existing house**, configure the left and right basement windows independently. Their sill heights are measured from the bottom of the concrete base, and each opening must fit within the base. Older saved configurations use the default basement-window settings.

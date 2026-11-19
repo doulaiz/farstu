@@ -110,6 +110,7 @@ export function initDesigner() {
   const adjustedStockSizes = [];
   let adjustedRoofSettings = false;
   let adjustedTrims = false;
+  let migratedHouseReference = false;
   function restoreSettings(saved) {
     if (!saved || saved.version !== 1 || !saved.fields ||
       !saved.layers || !saved.anchors) return false;
@@ -119,6 +120,32 @@ export function initDesigner() {
       : Number(saved.fields.pitch) < 14 ? 'standingSeam' : roofMaterial.value;
     const savedRoofFinish = saved.roofFinish ?? roofFinish.value;
     const savedFields = { ...saved.fields };
+    if (savedFields.slabOriginOffset === undefined &&
+      savedFields.houseWindowGap === undefined && savedFields.houseWallLeft === undefined) {
+      const oldValue = (key, fallback) => {
+        const value = savedFields[key] === undefined ? fallback : savedFields[key];
+        return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))
+          ? Number(value) : NaN;
+      };
+      const width = oldValue('width'), leftWidth = oldValue('houseLeftWidth');
+      const leftOffset = oldValue('houseLeftOffset'), rightOffset = oldValue('houseRightOffset');
+      const rightWidth = oldValue('houseRightWidth'), wallWidth = oldValue('houseWallWidth');
+      const slabThickness = oldValue('slabThickness');
+      const origin = width/2+leftOffset-leftWidth/2;
+      const converted = {
+        slabOriginOffset: -origin,
+        houseWindowGap: width/2+rightOffset-rightWidth/2-origin-leftWidth,
+        houseWallLeft: (width-wallWidth)/2-origin,
+        houseUpperOffset: width/2+oldValue('houseUpperOffset')-origin,
+        houseBasementLeftOffset: width/2+oldValue('houseBasementLeftOffset','-4244')-origin,
+        houseBasementRightOffset: width/2+oldValue('houseBasementRightOffset','4244')-origin,
+        houseWallHeight: oldValue('houseWallHeight')+slabThickness
+      };
+      for (const key of Object.keys(houseWindows)) converted[key+'Sill'] = oldValue(key+'Sill')+slabThickness;
+      if (Object.values(converted).some(value => !Number.isFinite(value))) return false;
+      for (const [key,value] of Object.entries(converted)) savedFields[key] = String(value);
+      migratedHouseReference = true;
+    }
     const legacyTrims = savedFields.trimWidth === undefined && saved.trimColour === undefined;
     const savedTrimColour = legacyTrims ? saved.trimColours?.door : saved.trimColour;
     if (typeof savedTrimColour !== 'string' || !/^#[\da-f]{6}$/i.test(savedTrimColour)) return false;
@@ -145,7 +172,7 @@ export function initDesigner() {
     }
     for (const [key, input] of Object.entries(fields)) {
       if (isCalculatedClearance(key,saved.anchors)) continue;
-      const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth'].includes(key) || legacyBasementFields.has(key)) && saved.fields[key] === undefined
+      const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth'].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === undefined
         ? input.dataset.initial : savedFields[key];
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value))) return false;
       if (input.tagName === 'SELECT') {
@@ -297,7 +324,7 @@ export function initDesigner() {
     const sideSpan = v.length - v.wallThickness;
     const frontSpan = v.width - 2 * v.wallThickness;
     if (sideSpan <= 0 || frontSpan <= 0) flag('The wall thickness leaves no clear interior span.', 'wallThickness', 'width', 'length');
-    if (v.houseBaseHeight + 1 > v.houseWallHeight + v.slabThickness) {
+    if (v.houseBaseHeight + 1 > v.houseWallHeight) {
       flag('The concrete base must end below the top of the existing house wall.', 'houseBaseHeight', 'houseWallHeight');
     }
     if (![2,3].includes(footingColumns) || ![2,3].includes(footingRows)) {
@@ -348,26 +375,31 @@ export function initDesigner() {
       windows[side] = { start, end, bottom, top: bottom + h };
     }
 
+    const origin = -v.slabOriginOffset;
+    const houseA = origin+v.houseWallLeft, houseB = houseA+v.houseWallWidth;
     const houseOpenings = Object.keys(houseWindows).map((key) => {
-      const centre = v.width/2+v[key + 'Offset'];
-      const halfWidth = v[key + 'Width']/2;
-      const sill = v[key + 'Sill'];
+      const left = key === 'houseLeft' ? origin
+        : key === 'houseRight' ? origin+v.houseLeftWidth+v.houseWindowGap
+        : origin+v.houseUpperOffset-v.houseUpperWidth/2;
+      const right = left+v[key + 'Width'];
+      const sill = v[key + 'Sill']-v.slabThickness;
       const head = sill+v[key + 'Height'];
-      if (Math.abs(v[key + 'Offset'])+halfWidth > v.houseWallWidth/2) {
-        flag(`${houseWindows[key].label} extends beyond the sides of the house wall.`, 'houseWallWidth', key + 'Width', key + 'Offset');
+      if (left < houseA || right > houseB) {
+        flag(`${houseWindows[key].label} extends beyond the sides of the house wall.`,
+          'houseWallLeft','houseWallWidth',key+'Width',key === 'houseRight' ? 'houseWindowGap' : key+'Offset');
       }
-      if (head > v.houseWallHeight) {
+      if (head > v.houseWallHeight-v.slabThickness) {
         flag(`${houseWindows[key].label} extends above the house wall.`, 'houseWallHeight', key + 'Height', key + 'Sill');
       }
-      return { key, left: centre-halfWidth, right: centre+halfWidth, sill, head };
+      return { key, left, right, sill, head };
     });
     const basementOpenings = Object.entries(houseBasementWindows).map(([key, {label}]) => {
-      const centre = v.width/2+v[key + 'Offset'];
+      const centre = origin+v[key + 'Offset'];
       const halfWidth = v[key + 'Width']/2;
       const sill = v[key + 'Sill'];
       const head = sill+v[key + 'Height'];
-      if (Math.abs(v[key + 'Offset'])+halfWidth > v.houseWallWidth/2) {
-        flag(`${label} extends beyond the sides of the house wall.`, 'houseWallWidth', key + 'Width', key + 'Offset');
+      if (centre-halfWidth < houseA || centre+halfWidth > houseB) {
+        flag(`${label} extends beyond the sides of the house wall.`, 'houseWallLeft', 'houseWallWidth', key + 'Width', key + 'Offset');
       }
       if (v.houseBaseHeight > 0 && head > v.houseBaseHeight) {
         flag(`${label} extends beyond the concrete base.`, 'houseBaseHeight', key + 'Height', key + 'Sill');
@@ -397,7 +429,7 @@ export function initDesigner() {
         `Layout: ${v.roofWidth/v.tileWidth} whole covering modules × ${mm(v.tileWidth)} = ${mm(v.roofWidth)} roof width. ` +
         `Maximum batten gauge at this pitch: ${mm(tileGaugeLimit(v.pitch))}.`;
     }
-    latest = { ...v, rightOverhang, windows, houseOpenings, basementOpenings, slope, rear, eave,
+    latest = { ...v, houseA, houseB, rightOverhang, windows, houseOpenings, basementOpenings, slope, rear, eave,
       roofMaterial:roofMaterial.value, roofFinish:roofFinish.value };
     bom.update(latest, true);
     loads.update(latest, true);
@@ -414,7 +446,8 @@ export function initDesigner() {
     const { width: W, length: L, frontWallHeight: H, rear: R, eave: E, frontOverhang: F,
       roofWidth, doorSideOverhang, rightOverhang,
       slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing, baseBoardWidth, coverBoardWidth,
-      windows, houseOpenings, basementOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, houseBaseRecession,
+      windows, houseOpenings, basementOpenings, houseA, houseB, houseWallHeight: houseHeightAboveGround,
+      houseBaseHeight, houseBaseRecession, slabOriginOffset,
       hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, doorThickness, pitch, slope,
       studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise,
       roofMaterial:material, roofFinish:finish } = latest;
@@ -453,7 +486,7 @@ export function initDesigner() {
     const ground = (x,y) => [x,y,0];
     const roofLeft = -doorSideOverhang, roofRight = roofLeft+roofWidth;
     const planMargin = Math.max(360, doorSideOverhang + 170, rightOverhang + 170);
-    const houseA = (W-houseWallWidth)/2, houseB = houseA+houseWallWidth;
+    const houseWallHeight = houseHeightAboveGround-slabThickness;
     const houseAt = (x,z) => [x,0,z];
     const houseBaseAt = (x,z) => [x,-houseBaseRecession,z];
     const roofDepth = rafterDepth * Math.hypot(1,slope);
@@ -684,8 +717,8 @@ export function initDesigner() {
       const pitch = claddingSpacing;
       const halfCover = pitch*.27;
       const edge = Math.min(22,pitch*.08);
-      for (let i=Math.floor(start/pitch);i*pitch-halfCover<end;i++) {
-        const centre = i*pitch;
+      for (let i=0;start+i*pitch-halfCover<end;i++) {
+        const centre = start+i*pitch;
         const a = centre-halfCover, b = centre+halfCover;
         strip(a,b,bottom,high,i%3 ? '#fff7df' : '#f8dead','cladding-cover',.28);
         strip(a,a+edge,bottom,high,'#fff7e2','cladding-highlight',.62);
@@ -1137,7 +1170,10 @@ export function initDesigner() {
 
     if (plan) {
       const planA = Math.max(houseA,-planMargin), planB = Math.min(houseB,W+planMargin);
-      face([ground(planA,-Math.min(520,L*.22)),ground(planB,-Math.min(520,L*.22)),ground(planB,0),ground(planA,0)], houseColor);
+      if (planA < planB) {
+        face([ground(planA,-Math.min(520,L*.22)),ground(planB,-Math.min(520,L*.22)),ground(planB,0),ground(planA,0)],
+          houseColor,{class:'face house-plan'});
+      }
       face(slab, '#f8f6e8');
       if (groundHidden) drawPiers();
       if (groundHidden && (roofTiles || roofFraming)) face(roof,'none',{style:`stroke:${roofPaint}`,'stroke-dasharray':'7 5'});
@@ -1148,7 +1184,7 @@ export function initDesigner() {
       if (roofFraming) drawRafters();
       if (roofTiles) drawGutter();
       shapes.push(['door-leaf', []]);
-      note(ground(W/2,-Math.min(260,L*.11)),'Existing house',-7);
+      if (planA < planB) note(ground((planA+planB)/2,-Math.min(260,L*.11)),'Existing house',-7);
       note(ground(T,(door.start+door.end)/2),'Left door',-9,'start');
       dimension(ground(0,L+F), ground(W,L+F), [0,35], mm(W));
       dimension(ground(roofLeft,0), ground(roofLeft,L), [-43,0], mm(L));
@@ -1298,7 +1334,7 @@ export function initDesigner() {
         }
         case 'trims': return measurementSpecs(left ? 'door' : right ? 'right' : 'front').filter(spec => spec.key === 'trimWidth');
         case 'walls': {
-          const seam = (Math.floor(houseA/claddingSpacing)+1)*claddingSpacing;
+          const seam = houseA+claddingSpacing;
           const guideZ = houseBaseTop+(houseWallHeight-houseBaseTop)*.85;
           return [
             m('wallThickness','Wall thickness',[0,L/2,0],[T,L/2,0],plan),
@@ -1352,9 +1388,21 @@ export function initDesigner() {
               [roofLeft,startY+slope*perpendicular,startZ+perpendicular],roofFraming&&(left||right),rafterDepth)
           ];
         }
+        case 'housePosition': {
+          const first = houseOpenings.find(w => w.key === 'houseLeft');
+          const second = houseOpenings.find(w => w.key === 'houseRight');
+          return [
+            m('slabOriginOffset','Origin to slab left edge',houseAt(first.left,slabBase),houseAt(0,slabBase),
+              onFacade,slabOriginOffset,[0,20]),
+            m('houseWindowGap','Gap between main windows',houseAt(first.right,first.sill),houseAt(second.left,first.sill),
+              onFacade,latest.houseWindowGap,[0,13])
+          ];
+        }
         case 'houseWall': return [
+          m('houseWallLeft','Wall left edge from origin',houseAt(-slabOriginOffset,slabBase),houseAt(houseA,slabBase),
+            onFacade,latest.houseWallLeft,[0,20]),
           m('houseWallWidth','House wall width',houseAt(houseA,houseWallHeight),houseAt(houseB,houseWallHeight),onFacade),
-          m('houseWallHeight','House wall height',houseAt(houseB,0),houseAt(houseB,houseWallHeight),onFacade,houseWallHeight,[15,0]),
+          m('houseWallHeight','House wall height',houseAt(houseB,slabBase),houseAt(houseB,houseWallHeight),onFacade,houseHeightAboveGround,[15,0]),
           m('houseBaseHeight','Concrete base height',houseBaseAt(houseA,slabBase),
             houseBaseAt(houseA,houseBaseTop),onFacade,houseBaseHeight,[-15,0])
         ];
@@ -1372,7 +1420,7 @@ export function initDesigner() {
             return [
               m(section+'Width','Window width',houseBaseAt(basement.left,head),houseBaseAt(basement.right,head),onFacade),
               m(section+'Height','Window height',houseBaseAt(basement.left,sill),houseBaseAt(basement.left,head),onFacade,undefined,[-12,0]),
-              m(section+'Offset','Horizontal offset',houseBaseAt(W/2,sill),houseBaseAt(centre,sill),onFacade,undefined,[0,13]),
+              m(section+'Offset','Centre from origin',houseBaseAt(-slabOriginOffset,sill),houseBaseAt(centre,sill),onFacade,undefined,[0,13]),
               m(section+'Sill','Sill height',houseBaseAt(basement.right,slabBase),houseBaseAt(basement.right,sill),onFacade,undefined,[13,0])
             ];
           }
@@ -1382,8 +1430,9 @@ export function initDesigner() {
           return [
             m(section+'Width','Window width',houseAt(w.left,w.head),houseAt(w.right,w.head),onFacade),
             m(section+'Height','Window height',houseAt(w.left,w.sill),houseAt(w.left,w.head),onFacade,undefined,[-12,0]),
-            m(section+'Offset','Horizontal offset',houseAt(W/2,w.sill),houseAt(c,w.sill),onFacade,undefined,[0,13]),
-            m(section+'Sill','Sill height',houseAt(w.right,0),houseAt(w.right,w.sill),onFacade,undefined,[13,0])
+            ...(section === 'houseUpper' ? [m(section+'Offset','Centre from origin',
+              houseAt(-slabOriginOffset,w.sill),houseAt(c,w.sill),onFacade,undefined,[0,13])] : []),
+            m(section+'Sill','Sill height',houseAt(w.right,slabBase),houseAt(w.right,w.sill),onFacade,undefined,[13,0])
           ];
         }
       }
@@ -1714,11 +1763,12 @@ export function initDesigner() {
     resetParameters(true);
     storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
     update();
-  } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims)) {
+  } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference)) {
     const notices = [];
     if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map(key => `${key} = ${fields[key].value} mm`).join(', ')}. Review these changes before ordering.`);
     if (adjustedRoofSettings) notices.push('Saved roof settings were migrated to total roof width and door-side overhang, or adjusted to the selected tile module and pitch-dependent batten gauge.');
     if (adjustedTrims) notices.push('Saved opening trims were unified using the door trim width and colour.');
+    if (migratedHouseReference) notices.push('Saved house and slab positions were converted to the left-window origin without moving them.');
     storageStatus.textContent = [...notices,storageStatus.textContent].filter(Boolean).join(' ');
   }
 }
