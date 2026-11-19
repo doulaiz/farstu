@@ -1,3 +1,5 @@
+import { muntinPatterns } from './windows.js';
+
 export function createControls($) {
   const layerMenu = $('wall-layers');
   const roofDisplay = $('roof-display');
@@ -42,6 +44,7 @@ export function createControls($) {
   const fields = {};
   const anchors = { front: 'Bottom', right: 'Bottom' };
   const trimColours = {};
+  const windowMuntins = {};
   const houseWindows = {
     houseLeft: { label: 'Left house window', offset: -4244, sill: 1250, width: 1350, height: 1150 },
     houseUpper: { label: 'Upper house window', offset: 0, sill: 3350, width: 720, height: 500 },
@@ -84,6 +87,17 @@ export function createControls($) {
       [side + 'Width', 'Window width', 950, 1], [side + 'Height', 'Window height', 1000, 1],
       [side + 'Bottom', 'Bottom clearance', 900, 0, 'mm', 100000], [side + 'Top', 'Top clearance', 0, 0, 'mm', 100000]
     ]);
+    const label = document.createElement('label');
+    label.textContent = 'Muntins (spröjs)';
+    const select = document.createElement('select');
+    select.id = `${side}-muntins`;
+    select.setAttribute('aria-label',`${side} window muntins`);
+    for (const [value, {label:option}] of Object.entries(muntinPatterns)) {
+      select.add(new Option(option,value,value === 'cross',value === 'cross'));
+    }
+    label.append(select);
+    $(side).append(label);
+    windowMuntins[side] = select;
   }
   for (const [key,labelText] of [['door','Door'],['front','Front window'],['right','Right window']]) {
     addFields(key, [[key + 'TrimWidth', 'Trim width', 90, 0, 'mm', 1000]]);
@@ -134,6 +148,6 @@ export function createControls($) {
   ]);
   return {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, fields, anchors, trimColours, houseWindows
+    doorHanding, fields, anchors, trimColours, houseWindows, windowMuntins
   };
 }

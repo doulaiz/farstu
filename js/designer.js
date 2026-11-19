@@ -1,6 +1,7 @@
 import { createControls } from './controls.js';
 import { createBomView } from './bom-view.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
+import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
 
 export function initDesigner() {
@@ -14,7 +15,7 @@ export function initDesigner() {
   const { width: drawingWidth, height: drawingHeight } = svg.viewBox.baseVal;
   const {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, fields, anchors, trimColours, houseWindows
+    doorHanding, fields, anchors, trimColours, houseWindows, windowMuntins
   } = createControls($);
   const storageStatus = $('storage-status');
   const exportButton = $('export-settings');
@@ -112,9 +113,14 @@ export function initDesigner() {
       typeof saved.groundHidden !== 'boolean' ||
       !['Bottom', 'Top'].includes(saved.anchors.front) ||
       !['Bottom', 'Top'].includes(saved.anchors.right)) return false;
+    if (saved.windowMuntins !== undefined && !Object.entries(windowMuntins).every(([key,input]) =>
+      hasOption(input,saved.windowMuntins?.[key]))) return false;
 
     for (const [key, input] of Object.entries(fields)) input.value = saved.fields[key];
     for (const [key, input] of Object.entries(trimColours)) input.value = saved.trimColours[key];
+    if (saved.windowMuntins) {
+      for (const [key,input] of Object.entries(windowMuntins)) input.value = saved.windowMuntins[key];
+    }
     for (const [key, input] of Object.entries(layerInputs)) input.checked = saved.layers[key];
     footingLayout.value = saved.footingLayout;
     roofDisplay.value = saved.roofDisplay;
@@ -131,6 +137,7 @@ export function initDesigner() {
       version: 1,
       fields: Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value])),
       trimColours: Object.fromEntries(Object.entries(trimColours).map(([key, input]) => [key, input.value])),
+      windowMuntins: Object.fromEntries(Object.entries(windowMuntins).map(([key,input]) => [key,input.value])),
       layers: Object.fromEntries(Object.entries(layerInputs).map(([key, input]) => [key, input.checked])),
       footingLayout: footingLayout.value,
       roofDisplay: roofDisplay.value,
@@ -631,26 +638,9 @@ export function initDesigner() {
       }
     }
 
-    function opening(at, start, end, low, high, kind = 'window-opening', solidDetails = false) {
-      const w = end - start, h = high - low;
-      const inset = Math.min(42,w*.15,h*.12);
-      const rect = (l,r,b,t,fill,attrs) => face([at(l,b),at(r,b),at(r,t),at(l,t)], fill, attrs);
-      rect(start,end,low,high,'#f7f8ee', {class:`face ${kind}`});
-      rect(start+inset,end-inset,low+inset,high-inset,glassColor);
-      const middle = (start+end)/2;
-      const midZ = (low+high)/2;
-      if (solidDetails) {
-        const halfBar = Math.min(10,inset/4);
-        const attrs = {class:'cladding-facet'};
-        rect(middle-halfBar,middle+halfBar,low+inset,high-inset,'#edf8f7',attrs);
-        rect(start+inset,end-inset,midZ-halfBar,midZ+halfBar,'#edf8f7',attrs);
-      } else {
-        line(at(middle,low+inset),at(middle,high-inset),'glass-detail');
-        line(at(start+inset,midZ),at(end-inset,midZ),'glass-detail');
-      }
-    }
-
     function drawHouseFacade() {
+      const section = (u,d,z) => [u,-d,z];
+      const facade = {start:houseA,end:houseB,top:() => houseWallHeight};
       if (houseBaseHeight > 0) {
         face([houseAt(houseA,slabBase),houseAt(houseB,slabBase),houseAt(houseB,houseBaseTop),houseAt(houseA,houseBaseTop)],
           houseBaseColor,{class:'face house-concrete-base'});
@@ -665,18 +655,23 @@ export function initDesigner() {
         for (const w of houseOpenings.filter(w => w.key === 'houseLeft' || w.key === 'houseRight')) {
           const centreX = (w.left+w.right)/2;
           const halfWidth = Math.min(450,(w.right-w.left)/2);
-          opening(houseAt,centreX-halfWidth,centreX+halfWidth,centreZ-halfHeight,centreZ+halfHeight,'house-basement-window');
+          drawWindow(face,section,{start:centreX-halfWidth,end:centreX+halfWidth,
+            bottom:centreZ-halfHeight,top:centreZ+halfHeight},facade,
+          {key:`${w.key}-basement`,pattern:'cross',thickness:145,trim:0,flashing:false});
         }
       }
-      for (const w of houseOpenings) opening(houseAt,w.left,w.right,w.sill,w.head,'house-window');
+      for (const w of houseOpenings) {
+        drawWindow(face,section,{start:w.left,end:w.right,bottom:w.sill,top:w.head},facade,
+          {key:w.key,pattern:'cross',thickness:145,trim:95,trimColour:'#f5efe1'});
+      }
       note(houseAt(houseA,houseWallHeight),'Existing house',-9,'start');
     }
 
-    function trim(at, key, op, wallLength, wallTop) {
+    function doorTrim(at, key, op, wallLength, wallTop) {
       const width = latest[key + 'TrimWidth'];
       if (!width) return;
       const start = Math.max(0,op.start-width), end = Math.min(wallLength,op.end+width);
-      const low = Math.max(0,op.bottom-width), high = op.top+width;
+      const high = op.top+width;
       const colour = trimColours[key].value;
       function board(a,b,base,top) {
         if (b <= a) return;
@@ -692,7 +687,6 @@ export function initDesigner() {
       board(start,op.start,op.bottom,op.top);
       board(op.end,end,op.bottom,op.top);
       board(start,end,op.top,high);
-      if (key !== 'door') board(start,end,low,op.bottom);
     }
 
     const wallCourses = (key,end) => courses(key,end,claddingSpacing);
@@ -745,8 +739,8 @@ export function initDesigner() {
         drawWallFrame((u,d,z) => section(u,bands.studs[0]+d,z),0,isSide ? length-T : length,top,op);
       }
       const at = (u,z) => section(u,0,z);
-      if (visible('trim')) trim(at,name,op,length,top);
       if (name === 'door') {
+        if (visible('trim')) doorTrim(at,name,op,length,top);
         face([at(op.start,0),at(op.end,0),at(op.end,op.top),at(op.start,op.top)],
           'none',{class:'face door-opening'});
       } else {
@@ -754,7 +748,10 @@ export function initDesigner() {
           face([at(op.start,op.bottom),at(op.end,op.bottom),at(op.end,op.top),at(op.start,op.top)],
             'none',{class:'face opening-guide window-opening'});
         } else {
-          opening(at,op.start,op.end,op.bottom,op.top,'window-opening',iso);
+          drawWindow(face,section,op,{start:0,end:length,top},{
+            key:name,pattern:windowMuntins[name].value,thickness:T,
+            trim:visible('trim') ? latest[name+'TrimWidth'] : 0,trimColour:trimColours[name].value
+          });
         }
       }
     }
@@ -799,11 +796,20 @@ export function initDesigner() {
             {'data-layer':'trim',stroke:trimColours[key].value,'stroke-width':3});
         }
       }
-      const attrs = isDoor
-        ? {style:'stroke:#9a693c;stroke-width:3;stroke-dasharray:4 4'}
-        : {style:`stroke:${glassColor};stroke-width:4`};
-      const depth = T/2;
-      line(at(opening.start,depth),at(opening.end,depth),isDoor ? 'door-opening' : 'window-opening',attrs);
+      if (isDoor || timberOnly) {
+        line(at(opening.start,T/2),at(opening.end,T/2),isDoor ? 'door-opening' : 'window-opening',
+          {style:'stroke:#9a693c;stroke-width:2;stroke-dasharray:4 4'});
+        return;
+      }
+      const {gap,setBack,jamb,rim,glassDepth} = windowProfile(opening,T);
+      const l = opening.start+gap, r = opening.end-gap;
+      const partWindow = (a,b,d,e,fill,part) => face([at(a,d),at(b,d),at(b,e),at(a,e)],fill,
+        {class:`window-detail window-${part}`, 'data-window':keyForTrim, 'data-window-part':part});
+      partWindow(l,l+rim,setBack,setBack+jamb,'#ecebe0','frame');
+      partWindow(r-rim,r,setBack,setBack+jamb,'#ecebe0','frame');
+      partWindow(l+rim,r-rim,setBack,glassDepth,glassColor,'glass');
+      const extension = sillExtension(opening.end-opening.start);
+      partWindow(Math.max(0,opening.start-extension),Math.min(end,opening.end+extension),-sillProjection,0,'#aebec1','sill');
     }
 
     function drawHedge() {
@@ -1231,7 +1237,7 @@ export function initDesigner() {
   });
   form.addEventListener('input', ({target}) => {
     persistenceEnabled = true;
-    if (Object.values(trimColours).includes(target)) {
+    if (Object.values(trimColours).includes(target) || Object.values(windowMuntins).includes(target)) {
       render();
       return;
     }
@@ -1258,6 +1264,7 @@ export function initDesigner() {
   function resetParameters(resetView = false) {
     for (const input of Object.values(fields)) input.value = input.defaultValue;
     for (const colour of Object.values(trimColours)) colour.value = colour.defaultValue;
+    for (const input of Object.values(windowMuntins)) input.value = [...input.options].find(option => option.defaultSelected).value;
     anchors.front = anchors.right = 'Bottom';
     footingLayout.value = [...footingLayout.options].find(option => option.defaultSelected).value;
     for (const input of Object.values(layerInputs)) input.checked = input.defaultChecked;

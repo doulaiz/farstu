@@ -24,3 +24,7 @@ Press `Ctrl+C` in the terminal to stop the server.
 - **If port 8000 is in use**, try `8001` in both the command and the browser URL. Saved designs and quotes are specific to the browser and address (including the port).
 
 The BOM uses a Derome catalogue snapshot, not live stock or prices. Enter quoted prices in SEK per piece or per metre to calculate totals.
+
+## Windows
+
+Under **Parameters → Openings**, choose a muntin pattern for each porch window. Use **Front** or **Right** to see its casing and metal flashings, or **Plan** to see how the frame sits near the outside face of the wall. Window dimensions describe rough openings. The BOM includes the side and head casing only; it does not price window units or installation materials.

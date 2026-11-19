@@ -68,7 +68,6 @@ function takeoff(model) {
       for (const u of [op.start,op.end]) add('Opening trim','panel',trimWidth,22,Math.min(top(u),op.top)-op.bottom);
       const span = Math.min(face,op.end+trimWidth)-Math.max(0,op.start-trimWidth);
       add('Opening trim','panel',trimWidth,22,span);
-      if (key !== 'door' && op.bottom > 0) add('Opening trim','panel',trimWidth,22,span);
     }
   }
   for (const _ of rafterStarts(width,sideOverhang,rafterWidth,rafterSpacing)) {

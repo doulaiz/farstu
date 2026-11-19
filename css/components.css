@@ -29,6 +29,14 @@
   .pier { stroke:#5d5a78; }
   .ground-line { stroke:#76866b; stroke-width:1.5; stroke-dasharray:6 4; }
   .glass-detail { stroke:#edf8f7; stroke-width:1.6; }
+  .window-detail { stroke:none; }
+  .window-frame, .window-casing, .window-drip, .window-head {
+    stroke:#505d58; stroke-width:.6; stroke-linejoin:round;
+  }
+  .settings .fields select {
+    display:block; width:100%; min-height:36px; margin-top:3px; border:1px solid #bccbc1;
+    border-radius:7px; background:#f9fbf8; padding:5px 8px; color:var(--ink); font:inherit;
+  }
   .lumber { stroke:#725132; stroke-width:.9; }
   .opening-guide { fill:none; stroke:#4d777f; stroke-width:1.2; stroke-dasharray:4 3; }
   #framing-summary { margin:4px 0; }
