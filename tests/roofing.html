@@ -231,13 +231,16 @@ try {
             (grade[3][axis]-grade[0][axis])*offsets[i][1]/(roofLength+margin));
         }
         const rgb = element => frame.contentWindow.getComputedStyle(element).fill.match(/\d+/g).map(Number);
-        assert(rgb(shadow).every((channel,i) => channel < rgb(ground)[i] && rgb(ground)[i]-channel <= 30),
+        const grass = rgb(ground);
+        assert(grass[1] > grass[0] && grass[1] > grass[2],'Ground is not grass green');
+        assert(rgb(shadow).every((channel,i) => channel < grass[i] && grass[i]-channel <= 30),
           'Roof projection is not slightly darker than the ground');
+        assert(frame.contentWindow.getComputedStyle(ground).stroke === 'none','Ground has a visible outline');
         assert(frame.contentWindow.getComputedStyle(shadow).stroke === 'none','Roof projection has a dark outline');
-        if (view === 'plan' && mode !== 'none') {
-          const outline = points(field('drawing').querySelector('polygon[stroke-dasharray="7 5"]'));
-          footprint.forEach((point,i) => point.forEach((value,axis) => close(value,outline[i][axis])));
-        }
+        assert(frame.contentWindow.getComputedStyle(ground).filter.includes('blur('),'Ground edges are not softened');
+        assert(frame.contentWindow.getComputedStyle(shadow).filter.includes('blur('),'Roof shadow has a hard edge');
+        assert(!field('drawing').querySelector('polygon[stroke-dasharray="7 5"]'),
+          'Roof outline is visible over the shadow');
       }
     }
   }
@@ -245,6 +248,10 @@ try {
     doc().querySelector(`[data-view="${view}"]`).click();
     field('toggle-ground').click();
     assert(!doc().querySelector('.roof-ground-projection'),'Hidden ground retained the roof projection');
+    if (view === 'plan') {
+      edit('roof-display','tiles','change');
+      assert(doc().querySelector('polygon[stroke-dasharray="7 5"]'),'Hidden ground lost the roof outline');
+    }
     field('toggle-ground').click();
     assert(doc().querySelector('.roof-ground-projection'),'Restored ground lost the roof projection');
   }

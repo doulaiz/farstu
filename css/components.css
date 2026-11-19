@@ -37,6 +37,8 @@
   .downspout { stroke:#fff; stroke-width:4; }
   .downspout-outline { stroke:#626c6e; stroke-width:6; }
   .pier { stroke:#5d5a78; }
+  .ground-plane { stroke:none; filter:blur(3px); }
+  .roof-ground-projection { stroke:none; filter:blur(2px); }
   .ground-line { stroke:#76866b; stroke-width:1.5; stroke-dasharray:6 4; }
   .glass-detail { stroke:#edf8f7; stroke-width:1.6; }
   .window-detail { stroke:none; }

@@ -1119,8 +1119,8 @@ export function initDesigner() {
 
     if (!groundHidden) {
       if (iso || plan) {
-        face(grade,'#d7e1ce',{class:'face ground-plane'});
-        face(roof.map(([x,y]) => [x,y,slabBase]),'#c6d1bc',{class:'roof-ground-projection',stroke:'none'});
+        face(grade,'#a8c987',{class:'ground-plane'});
+        face(roof.map(([x,y]) => [x,y,slabBase]),'#94b575',{class:'roof-ground-projection'});
       } else if (front) line(frontAt(-gradeMargin,slabBase),frontAt(W+gradeMargin,slabBase),'ground-line');
       else line([0,0,slabBase],[0,sideGradeEnd,slabBase],'ground-line');
     }
@@ -1140,7 +1140,7 @@ export function initDesigner() {
       face([ground(planA,-Math.min(520,L*.22)),ground(planB,-Math.min(520,L*.22)),ground(planB,0),ground(planA,0)], houseColor);
       face(slab, '#f8f6e8');
       if (groundHidden) drawPiers();
-      if (roofTiles || roofFraming) face(roof,'none',{style:`stroke:${roofPaint}`,'stroke-dasharray':'7 5'});
+      if (groundHidden && (roofTiles || roofFraming)) face(roof,'none',{style:`stroke:${roofPaint}`,'stroke-dasharray':'7 5'});
       planWall((u,d) => ground(d,u),L-T,door,'door');
       planWall((u,d) => ground(W-d,u),L-T,windows.right,'right');
       planWall((u,d) => ground(u,L-d),W,windows.front,'front');
