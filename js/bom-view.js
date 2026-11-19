@@ -4,6 +4,9 @@ import { buildRoofSchedule } from './roofing.js';
 
 const storageKey = 'farstu-derome-quotes-v1';
 const roofStorageKey = 'farstu-roof-quotes-v1';
+const maxQuote = 10000000;
+const validQuote = amount => amount === null || (Number.isFinite(amount) && amount >= 0 && amount <= maxQuote);
+const invalidQuoteMessage = 'Enter a quote from 0 to 10,000,000 SEK or leave the field blank. The previous quote is unchanged.';
 const number = new Intl.NumberFormat('en', { maximumFractionDigits: 3 });
 const money = new Intl.NumberFormat('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const crossSection = item => `${item.width} × ${item.depth}`;
@@ -22,7 +25,7 @@ function readQuotes(status) {
     const quotes = JSON.parse(text);
     if (!Array.isArray(quotes) || !quotes.every(entry => Array.isArray(entry) && entry.length === 2 &&
       typeof entry[0] === 'string' && ['piece','metre'].includes(entry[1]?.unit) &&
-      (entry[1].amount === null || (Number.isFinite(entry[1].amount) && entry[1].amount >= 0)))) {
+      validQuote(entry[1].amount))) {
       throw new Error('Unrecognized quote format.');
     }
     return new Map(quotes);
@@ -40,7 +43,7 @@ function readRoofQuotes(status) {
     const quotes = JSON.parse(text);
     if (!Array.isArray(quotes) || !quotes.every(entry => Array.isArray(entry) && entry.length === 2 &&
       typeof entry[0] === 'string' &&
-      (entry[1] === null || (Number.isFinite(entry[1]) && entry[1] >= 0 && entry[1] <= 10000000)))) {
+      validQuote(entry[1]))) {
       throw new Error('Unrecognized roof quote format.');
     }
     return new Map(quotes);
@@ -62,7 +65,13 @@ export function createBomView($) {
   time.dateTime = time.textContent = catalogueDate;
   const quotes = readQuotes(priceStatus);
   const roofQuotes = readRoofQuotes(roofPriceStatus);
+  let quoteError = priceStatus.textContent, roofQuoteError = roofPriceStatus.textContent;
   let latest, rendered, valid;
+
+  function showPriceStatus(status, fields, error) {
+    const invalid = fields.some(({input}) => input?.hasAttribute('aria-invalid'));
+    status.textContent = [invalid ? invalidQuoteMessage : '',error].filter(Boolean).join(' ');
+  }
 
   function render() {
     if (!latest) {
@@ -78,7 +87,7 @@ export function createBomView($) {
     const priceFields = [];
     const roofPriceFields = [];
 
-    function refreshTotals() {
+    function refreshTotals(changedSku) {
       let subtotal = 0, priced = 0, unpriced = 0, unmatched = 0;
       for (const {row,output,input,unit} of priceFields) {
         if (!row.stock) {
@@ -87,13 +96,16 @@ export function createBomView($) {
         }
         const quote = quotes.get(row.stock.sku);
         const amount = quote?.amount;
-        if (input !== document.activeElement) input.value = amount ?? '';
-        unit.value = quote?.unit ?? 'piece';
+        if (row.stock.sku === changedSku || !input.hasAttribute('aria-invalid')) {
+          if (input !== document.activeElement) input.value = amount ?? '';
+          unit.value = quote?.unit ?? 'piece';
+          input.removeAttribute('aria-invalid');
+        }
         if (amount == null) {
           output.textContent = 'Quote needed';
           unpriced++;
         } else {
-          const factor = unit.value === 'metre' ? row.stock.length*row.count/1000 : row.count;
+          const factor = quote.unit === 'metre' ? row.stock.length*row.count/1000 : row.count;
           const cost = Math.round(amount*factor*100)/100;
           output.textContent = money.format(cost);
           subtotal += cost;
@@ -104,13 +116,17 @@ export function createBomView($) {
       total.textContent = `${partial ? 'Quoted subtotal' : 'Estimated lumber total'}: ${
         priced ? `${money.format(subtotal)} SEK` : 'not yet priced'}${unpriced ? ` · ${unpriced} unpriced rows` : ''}${
         unmatched ? ` · ${unmatched} cuts without a stock match` : ''}`;
+      showPriceStatus(priceStatus,priceFields,quoteError);
     }
 
-    function refreshRoofTotals() {
+    function refreshRoofTotals(changedId) {
       let subtotal = 0, priced = 0, unpriced = 0;
       for (const {row,output,input} of roofPriceFields) {
         const amount = roofQuotes.get(row.id);
-        if (input !== document.activeElement) input.value = amount ?? '';
+        if (row.id === changedId || !input.hasAttribute('aria-invalid')) {
+          if (input !== document.activeElement) input.value = amount ?? '';
+          input.removeAttribute('aria-invalid');
+        }
         if (amount == null) {
           output.textContent = 'Quote needed';
           unpriced++;
@@ -123,6 +139,7 @@ export function createBomView($) {
       }
       roofTotal.textContent = `${unpriced ? 'Quoted roof subtotal' : 'Estimated roof total'}: ${
         priced ? `${money.format(subtotal)} SEK` : 'not yet priced'}${unpriced ? ` · ${unpriced} unpriced rows` : ''}`;
+      showPriceStatus(roofPriceStatus,roofPriceFields,roofQuoteError);
     }
 
     for (const row of rows) {
@@ -168,7 +185,7 @@ export function createBomView($) {
       const controls = document.createElement('div');
       controls.className = 'bom-quote';
       const input = document.createElement('input');
-      Object.assign(input,{type:'number',step:'any',min:'0',max:'10000000',inputMode:'decimal'});
+      Object.assign(input,{type:'number',step:'any',min:'0',max:String(maxQuote),inputMode:'decimal'});
       input.setAttribute('aria-label',`Quoted SEK for ${row.role}, ${row.stock.sku}`);
       const unit = document.createElement('select');
       unit.setAttribute('aria-label',`Quote unit for ${row.role}, ${row.stock.sku}`);
@@ -180,19 +197,19 @@ export function createBomView($) {
       function saveQuote() {
         if (!input.validity.valid) {
           input.setAttribute('aria-invalid','true');
-          priceStatus.textContent = 'Enter a quote from 0 to 10,000,000 SEK or leave the field blank. The previous quote is unchanged.';
+          showPriceStatus(priceStatus,priceFields,quoteError);
           return;
         }
         input.removeAttribute('aria-invalid');
-        priceStatus.textContent = '';
+        quoteError = '';
         quotes.set(row.stock.sku,{amount:input.value === '' ? null : input.valueAsNumber, unit:unit.value});
-        refreshTotals();
         try {
           localStorage.setItem(storageKey,JSON.stringify([...quotes]));
         } catch (error) {
           console.warn('Derome quotes could not be saved.', error);
-          priceStatus.textContent = 'Your quote was applied but could not be saved in this browser.';
+          quoteError = 'Your quote was applied but could not be saved in this browser.';
         }
+        refreshTotals(row.stock.sku);
       }
       input.addEventListener('change',saveQuote);
       unit.addEventListener('change',saveQuote);
@@ -208,7 +225,7 @@ export function createBomView($) {
       cell(tr,item.unit);
       const quoteCell = cell(tr,'');
       const input = document.createElement('input');
-      Object.assign(input,{type:'number',step:'any',min:'0',max:'10000000',inputMode:'decimal'});
+      Object.assign(input,{type:'number',step:'any',min:'0',max:String(maxQuote),inputMode:'decimal'});
       input.setAttribute('aria-label',`Quoted SEK per ${item.unit} for ${item.role}`);
       quoteCell.append(input);
       const output = cell(tr,'—','numeric');
@@ -217,19 +234,19 @@ export function createBomView($) {
       input.addEventListener('change',() => {
         if (!input.validity.valid) {
           input.setAttribute('aria-invalid','true');
-          roofPriceStatus.textContent = 'Enter a quote from 0 to 10,000,000 SEK or leave the field blank. The previous quote is unchanged.';
+          showPriceStatus(roofPriceStatus,roofPriceFields,roofQuoteError);
           return;
         }
         input.removeAttribute('aria-invalid');
-        roofPriceStatus.textContent = '';
+        roofQuoteError = '';
         roofQuotes.set(item.id,input.value === '' ? null : input.valueAsNumber);
-        refreshRoofTotals();
         try {
           localStorage.setItem(roofStorageKey,JSON.stringify([...roofQuotes]));
         } catch (error) {
           console.warn('Roof quotes could not be saved.', error);
-          roofPriceStatus.textContent = 'Your roof quote was applied but could not be saved in this browser.';
+          roofQuoteError = 'Your roof quote was applied but could not be saved in this browser.';
         }
+        refreshRoofTotals(item.id);
       });
     }
     body.replaceChildren(fragment);

@@ -47,6 +47,7 @@ export function createLoadsView($) {
   let latest, valid;
   let custom;
   let dragging = null;
+  let renderFrame = 0;
   let focusIndex = null;
 
   const interior = model => ({ x0: model.wallThickness, x1: model.width - model.wallThickness, y0: 0, y1: model.length - model.wallThickness });
@@ -78,44 +79,61 @@ export function createLoadsView($) {
     peopleSelect.value = 'custom';
   }
 
-  function moveTo(index, point) {
+  function moveTo(index, point, defer = false) {
     const people = peopleFor(latest);
     people[index] = clampPerson(latest, point);
     storeCustom(latest, people);
-    render(true);
+    if (defer) {
+      if (!renderFrame) renderFrame = requestAnimationFrame(() => {
+        renderFrame = 0;
+        render();
+      });
+    } else render();
   }
 
   function svgPoint(event) {
     const point = svg.createSVGPoint();
     point.x = event.clientX;
     point.y = event.clientY;
-    return point.matrixTransform(svg.getScreenCTM().inverse());
+    const matrix = svg.getScreenCTM();
+    return matrix ? point.matrixTransform(matrix.inverse()) : null;
   }
 
   svg.addEventListener('pointerdown', event => {
     const person = event.target.closest('[data-person]');
-    if (!person || !latest) return;
+    if (!person || !latest || panel.hidden || event.button !== 0 || dragging) return;
+    const point = svgPoint(event);
+    if (!point) return;
     event.preventDefault();
     const index = Number(person.dataset.person);
-    const { x, y } = svgPoint(event);
+    const { x, y } = point;
     const current = peopleFor(latest)[index];
     dragging = { index, pointer: event.pointerId, dx: current.x - x, dy: current.y - y };
     svg.setPointerCapture(event.pointerId);
   });
   svg.addEventListener('pointermove', event => {
     if (!dragging || event.pointerId !== dragging.pointer) return;
-    const { x, y } = svgPoint(event);
-    moveTo(dragging.index, { x: x + dragging.dx, y: y + dragging.dy });
+    if (panel.hidden) {
+      stop(event);
+      return;
+    }
+    const point = svgPoint(event);
+    if (!point) return;
+    moveTo(dragging.index, { x: point.x + dragging.dx, y: point.y + dragging.dy },true);
   });
   const stop = event => {
-    if (dragging && event.pointerId === dragging.pointer) dragging = null;
+    if (!dragging || event.pointerId !== dragging.pointer) return;
+    dragging = null;
+    if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+    if (renderFrame) render();
   };
   svg.addEventListener('pointerup', stop);
   svg.addEventListener('pointercancel', stop);
+  svg.addEventListener('lostpointercapture', stop);
   svg.addEventListener('keydown', event => {
     const person = event.target.closest?.('[data-person]');
     const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
-    if (!person || !step || !latest) return;
+    if (!person || !step || !latest || panel.hidden) return;
     event.preventDefault();
     const index = Number(person.dataset.person);
     const current = peopleFor(latest)[index];
@@ -123,8 +141,8 @@ export function createLoadsView($) {
     focusIndex = index;
     moveTo(index, { x: current.x + step[0] * distance, y: current.y + step[1] * distance });
   });
-  rearSupport.addEventListener('change', () => render(true));
-  peopleSelect.addEventListener('change', () => render(true));
+  rearSupport.addEventListener('change', () => render());
+  peopleSelect.addEventListener('change', () => render());
 
   function drawDiagram(model, result, people) {
     const { width: W, length: L, wallThickness: T, roofWidth, doorSideOverhang: S, frontOverhang: F, windows, offset, doorWidth } = model;
@@ -299,15 +317,17 @@ export function createLoadsView($) {
   }
 
   let renderedKey;
-  function render(force = false) {
+  function render() {
+    cancelAnimationFrame(renderFrame);
+    renderFrame = 0;
     if (panel.hidden) return;
     if (!latest) {
       status.textContent = 'No valid design is available.';
       return;
     }
     status.textContent = valid ? '' : 'Showing the last valid design. Fix the highlighted parameters in Designer to update these loads.';
-    const key = [latest, rearSupport.value, peopleSelect.value];
-    if (!force && renderedKey && key.every((value, i) => value === renderedKey[i])) return;
+    const key = [latest, rearSupport.value, peopleSelect.value,custom];
+    if (renderedKey && key.every((value, i) => value === renderedKey[i])) return;
     renderedKey = key;
     const people = peopleFor(latest);
     const result = computeLoads(latest, { people, rearSupport: rearSupport.value });
@@ -321,7 +341,7 @@ export function createLoadsView($) {
   }
 
   return {
-    render: () => render(),
+    render,
     update(model, isValid) {
       latest = model;
       valid = isValid;

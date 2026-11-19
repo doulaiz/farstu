@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Application reliability regression tests</title>
+<pre id="results">Running...</pre>
+<script type="module">
+import { deromeCatalogue } from '../js/derome.js';
+
+const results = document.querySelector('#results');
+const settingsKey = 'farstu-designer-settings-v1';
+const lumberKey = 'farstu-derome-quotes-v1';
+const roofKey = 'farstu-roof-quotes-v1';
+const originals = new Map([settingsKey,lumberKey,roofKey].map(key => [key,localStorage.getItem(key)]));
+const frame = document.createElement('iframe');
+const passed = [], failed = [];
+let doc, win;
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+async function load(clear = false) {
+  if (clear) for (const key of originals.keys()) localStorage.removeItem(key);
+  const ready = new Promise(resolve => frame.onload = resolve);
+  frame.src = '../?application-regression';
+  if (!frame.isConnected) document.body.append(frame);
+  await ready;
+  doc = frame.contentDocument;
+  win = frame.contentWindow;
+  assert(doc.getElementById('app-error').hidden,'Application startup failed');
+}
+const field = id => doc.getElementById(id);
+function change(input, value) {
+  input.value = String(value);
+  input.dispatchEvent(new win.Event('change',{bubbles:true}));
+}
+function edit(id, value) {
+  field(id).value = String(value);
+  field(id).dispatchEvent(new win.Event('input',{bubbles:true}));
+  assert(!field('status').textContent,field('status').textContent);
+}
+async function check(name, run) {
+  try {
+    await run();
+    passed.push(name);
+  } catch (error) {
+    failed.push(`${name}: ${error.message}`);
+    console.error(name,error);
+  }
+}
+try {
+  await check('Calculated clearances round-trip; anchored limits and invalid-setting notices remain enforced',async () => {
+    await load(true);
+    edit('length',6000);
+    edit('pitch',60);
+    edit('frontWallHeight',3500);
+    for (const anchor of ['Bottom','Top']) {
+      if (anchor === 'Top') edit('rightTop',1000);
+      const derived = `right${anchor === 'Bottom' ? 'Top' : 'Bottom'}`;
+      assert(Number(field(derived).value) > Number(field(derived).max),'Large calculated clearance was not exercised');
+      await load();
+      assert(field('length').value === '6000' && Number(field(derived).value) > 5000,
+        'A valid saved design was replaced by defaults');
+      assert(!field('storage-status').textContent,'Valid saved clearances produced a warning');
+    }
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    saved.fields.rightBottom = 'stale derived value';
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('length').value === '6000' && Number(field('rightBottom').value) > 5000,
+      'Calculated values were trusted instead of recomputed');
+    saved.fields.rightTop = '5001';
+    saved.fields.tileWidth = '290';
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    const notice = field('storage-status').textContent;
+    assert(notice.includes('invalid') && !notice.includes('adjusted'),
+      'Invalid anchored values were accepted or reported as a successful migration');
+  });
+
+  await check('Stored lumber and roof quotes use the same bounds as entered prices',async () => {
+    await load(true);
+    const sku = deromeCatalogue[0].stock[0].sku;
+    localStorage.setItem(lumberKey,JSON.stringify([[sku,{amount:10000001,unit:'piece'}]]));
+    localStorage.setItem(roofKey,JSON.stringify([['roof-deck',10000001]]));
+    await load();
+    assert(field('bom-price-status').textContent.includes('could not be loaded'),'Oversized saved lumber quote was accepted');
+    assert(field('roof-price-status').textContent.includes('could not be loaded'),'Oversized saved roof quote was accepted');
+    localStorage.setItem(lumberKey,JSON.stringify([[sku,{amount:10000000,unit:'metre'}]]));
+    localStorage.setItem(roofKey,JSON.stringify([['roof-deck',10000000]]));
+    await load();
+    assert(!field('bom-price-status').textContent && !field('roof-price-status').textContent,
+      'A quote at the permitted upper limit was rejected');
+  });
+
+  await check('Duplicate article quotes synchronize values, units and validation state',async () => {
+    await load(true);
+    field('show-bom').click();
+    const groups = new Map();
+    for (const row of field('bom-rows').rows) {
+      const sku = row.querySelector('a')?.textContent;
+      if (!sku) continue;
+      if (!groups.has(sku)) groups.set(sku,[]);
+      groups.get(sku).push(row);
+    }
+    const duplicates = [...groups.values()].find(rows => rows.length > 1);
+    assert(duplicates,'No repeated stock article was exercised');
+    change(duplicates[0].querySelector('input'),-1);
+    change(duplicates[1].querySelector('input'),25);
+    for (const row of duplicates) {
+      const input = row.querySelector('input');
+      assert(input.value === '25' && !input.hasAttribute('aria-invalid'),'Synchronized quote retained a stale validation error');
+    }
+    change(duplicates[1].querySelector('select'),'metre');
+    assert(duplicates.every(row => row.querySelector('select').value === 'metre'),'Quote units did not synchronize');
+    assert(!field('bom-price-status').textContent,'Resolved quote still reports an error');
+  });
+
+  await check('Unrelated invalid quote drafts and notices survive other edits, then clear when rows rebuild',async () => {
+    await load(true);
+    field('show-bom').click();
+    const rows = [...field('bom-rows').rows].filter(row => row.querySelector('input'));
+    const first = rows[0], sku = first.querySelector('a').textContent;
+    const other = rows.find(row => row.querySelector('a').textContent !== sku);
+    const bad = first.querySelector('input');
+    change(bad,-1);
+    change(other.querySelector('input'),30);
+    assert(bad.value === '-1' && bad.getAttribute('aria-invalid') === 'true' &&
+      field('bom-price-status').textContent.includes('Enter a quote'),'Unrelated lumber edit hid an invalid draft or its notice');
+    const roof = field('roof-rows').querySelectorAll('input');
+    change(roof[0],-1);
+    change(roof[1],40);
+    assert(roof[0].value === '-1' && field('roof-price-status').textContent.includes('Enter a quote'),
+      'Unrelated roof edit hid an invalid draft or its notice');
+    field('show-designer').click();
+    edit('width',2810);
+    field('show-bom').click();
+    assert(!field('bom-price-status').textContent && !field('roof-price-status').textContent,
+      'Discarded draft validation errors survived a row rebuild');
+  });
+
+  await check('Quote storage failures remain visible without discarding applied prices',async () => {
+    await load(true);
+    field('show-bom').click();
+    win.Storage.prototype.setItem = () => { throw new win.DOMException('Test quota exceeded','QuotaExceededError'); };
+    const rows = field('roof-rows').querySelectorAll('input');
+    change(rows[0],50);
+    change(rows[1],-1);
+    const notice = field('roof-price-status').textContent;
+    assert(notice.includes('could not be saved') && notice.includes('Enter a quote'),
+      'Validation hid the quote persistence failure');
+    assert(rows[0].value === '50' && !field('roof-total').textContent.includes('not yet priced'),
+      'A storage failure discarded the applied price');
+  });
+
+  await check('Dragging coalesces redraws, flushes the last move and stops on capture loss or cancellation',async () => {
+    await load(true);
+    field('show-loads').click();
+    const svg = field('loads-diagram'), frames = new Map();
+    let next = 0, draws = 0, captured = false;
+    win.requestAnimationFrame = callback => { frames.set(++next,callback); return next; };
+    win.cancelAnimationFrame = id => frames.delete(id);
+    svg.setPointerCapture = () => { captured = true; };
+    svg.hasPointerCapture = () => captured;
+    svg.releasePointerCapture = () => { captured = false; };
+    const replace = svg.replaceChildren.bind(svg);
+    svg.replaceChildren = (...nodes) => { draws++; replace(...nodes); };
+    const person = () => svg.querySelector('[data-person="0"]');
+    const position = () => {
+      const circle = person().querySelector('circle');
+      return {x:Number(circle.getAttribute('cx')),y:Number(circle.getAttribute('cy'))+60};
+    };
+    const pointer = (target,type,point) => {
+      const screen = new win.DOMPoint(point.x,point.y).matrixTransform(svg.getScreenCTM());
+      target.dispatchEvent(new win.PointerEvent(type,{
+        bubbles:true,cancelable:true,pointerId:1,button:0,clientX:screen.x,clientY:screen.y
+      }));
+    };
+    const tick = () => {
+      const callbacks = [...frames.values()];
+      frames.clear();
+      callbacks.forEach(callback => callback(win.performance.now()));
+    };
+    const start = position();
+    pointer(person(),'pointerdown',start);
+    for (let i=1;i<=5;i++) pointer(svg,'pointermove',{x:start.x+20*i,y:start.y});
+    assert(draws === 0 && frames.size === 1,'Pointer moves rebuilt the diagram before the next animation frame');
+    tick();
+    assert(draws === 1 && Math.abs(position().x-start.x-100) < 1e-3,
+      `A frame did not render the latest drag position (${draws} redraws, ${position().x-start.x} mm movement)`);
+    pointer(svg,'pointermove',{x:start.x+150,y:start.y});
+    pointer(svg,'pointerup',{x:start.x+150,y:start.y});
+    assert(draws === 2 && frames.size === 0 && !captured &&
+      Math.abs(position().x-start.x-150) < 1e-3,'Pointer release lost the final move or left pending work');
+    for (const event of ['lostpointercapture','pointercancel']) {
+      const before = position();
+      pointer(person(),'pointerdown',before);
+      pointer(svg,'pointermove',{x:before.x+25,y:before.y});
+      pointer(svg,event,{x:before.x+25,y:before.y});
+      pointer(svg,'pointermove',{x:start.x+300,y:start.y});
+      assert(frames.size === 0 && !captured && Math.abs(position().x-before.x-25) < 1e-3,
+        `${event} did not flush pending movement and end dragging`);
+    }
+    person().focus();
+    const before = position();
+    person().dispatchEvent(new win.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
+    assert(Math.abs(position().x-before.x-100) < 1e-6 && doc.activeElement === person(),
+      'Keyboard movement lost the new position or focus');
+  });
+
+  results.textContent = failed.length
+    ? `FAIL (${failed.length})\n${failed.join('\n')}\nPASS (${passed.length})\n${passed.join('\n')}`
+    : `PASS (${passed.length})\n${passed.join('\n')}`;
+} finally {
+  frame.remove();
+  for (const [key,value] of originals) {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key,value);
+  }
+}
+</script>
+</html>

@@ -24,6 +24,8 @@ export function initDesigner() {
   } = createControls($);
   const legacyBasementFields = new Set(Object.keys(houseBasementWindows)
     .flatMap(key => ['Width','Height','Offset','Sill'].map(suffix => key + suffix)));
+  const isCalculatedClearance = (key, selectedAnchors = anchors) => Object.keys(anchors).some(side =>
+    key === side + (selectedAnchors[side] === 'Bottom' ? 'Top' : 'Bottom'));
   const roofGuidance = $('roof-guidance');
   const tileLayoutGuidance = $('tile-layout-guidance');
   const roofLayoutGuidance = $('roof-layout-guidance');
@@ -130,6 +132,7 @@ export function initDesigner() {
       adjustedRoofSettings = true;
     }
     for (const [key, input] of Object.entries(fields)) {
+      if (isCalculatedClearance(key,saved.anchors)) continue;
       const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth'].includes(key) || legacyBasementFields.has(key)) && saved.fields[key] === undefined
         ? input.dataset.initial : savedFields[key];
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value))) return false;
@@ -181,7 +184,9 @@ export function initDesigner() {
     if (saved.doorWindow !== undefined && !hasOption(doorWindow,saved.doorWindow)) return false;
 
     for (const [key, input] of Object.entries(fields)) {
-      if (key !== 'studDepth' && key !== 'rafterDepth') input.value = savedFields[key];
+      if (key !== 'studDepth' && key !== 'rafterDepth' && !isCalculatedClearance(key,saved.anchors)) {
+        input.value = savedFields[key];
+      }
     }
     syncTimberSizes();
     fields.studDepth.value = savedFields.studDepth;
@@ -256,8 +261,7 @@ export function initDesigner() {
     const [footingColumns, footingRows] = footingLayout.value.split('x').map(Number);
     const v = {footingColumns, footingRows};
     for (const [key, input] of Object.entries(fields)) {
-      if (Object.entries(anchors).some(([side, anchor]) =>
-        key === side + (anchor === 'Bottom' ? 'Top' : 'Bottom'))) continue;
+      if (isCalculatedClearance(key)) continue;
       v[key] = input.value === '' ? NaN : Number(input.value);
       if (!input.validity.valid || !Number.isFinite(v[key]) ||
         (input.tagName === 'SELECT' && ![...input.options].some(option => option.value === input.value))) {
@@ -446,7 +450,6 @@ export function initDesigner() {
     const houseBaseAt = (x,z) => [x,-houseBaseRecession,z];
     const roofDepth = rafterDepth * Math.hypot(1,slope);
     const tileRun = tileLength/Math.hypot(1,slope);
-    const houseReferenceTop = R + Math.max(330, roofDepth + 140, (R + L + W) * .045);
     const roof = [[roofLeft,0,R+roofDepth],[roofRight,0,R+roofDepth],[roofRight,L+F,E+roofDepth],[roofLeft,L+F,E+roofDepth]];
     const roofAt = (x,y,offset = 0) => [x,y,R-slope*y+roofDepth+offset];
     const slab = [ground(0,0), ground(W,0), ground(W,L), ground(0,L)];
@@ -1156,7 +1159,6 @@ export function initDesigner() {
       }
       if (iso || !front) {
         if (!iso) {
-          const referenceTop = Math.max(houseReferenceTop,houseWallHeight,houseBaseTop+80);
           if (houseBaseHeight > 0) {
             line([0,-houseBaseRecession,slabBase],[0,-houseBaseRecession,houseBaseTop],
               'house-concrete-base',{stroke:houseBaseColor,'stroke-width':3});
@@ -1702,7 +1704,7 @@ export function initDesigner() {
     resetParameters(true);
     storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
     update();
-  } else if (valid && (adjustedStockSizes.length || adjustedRoofSettings)) {
+  } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings)) {
     const notices = [];
     if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map(key => `${key} = ${fields[key].value} mm`).join(', ')}. Review these changes before ordering.`);
     if (adjustedRoofSettings) notices.push('Saved roof settings were migrated to total roof width and door-side overhang, or adjusted to the selected tile module and pitch-dependent batten gauge.');

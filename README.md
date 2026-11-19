@@ -25,6 +25,20 @@ Press `Ctrl+C` in the terminal to stop the server.
 
 The BOM uses a Derome catalogue snapshot, not live stock or prices. Enter quoted prices in SEK per piece or per metre to calculate totals.
 
+## Development & regression checks
+
+The application uses native ES modules without third-party runtime dependencies. Domain calculations live in [framing.js](./js/framing.js), [bom.js](./js/bom.js), [roofing.js](./js/roofing.js) and [loads.js](./js/loads.js); the corresponding views handle DOM rendering. [controls.js](./js/controls.js) builds dimension controls, [storage.js](./js/storage.js) handles design persistence/export, and [designer.js](./js/designer.js) coordinates validation, the SVG scene and interaction.
+
+With the local server running, open each suite and check its final `PASS` result:
+
+- [Application reliability](./tests/application.html): saved-design round trips, quote bounds and synchronization, validation/storage-error reporting, and frame-coalesced pointer interaction with keyboard fallback.
+- [Door rendering](./tests/door.html): glazing styles, trim occlusion, animation and saved settings.
+- [Roofing](./tests/roofing.html): modular widths, input limits, migration and consistency between views.
+
+Use a test-only origin or a separate browser profile. These tests temporarily replace and then restore local settings (the application suite also replaces quotes); do not run suites concurrently or edit another designer tab on the same origin while they run.
+
+Only the last-edited window clearance is an input: its opposite clearance is recalculated, including when restoring saved designs. A calculated clearance can exceed the manual input limit. Quote prices loaded from storage use the same 0–10,000,000 SEK bounds as entered prices. Invalid quote drafts remain visible while unrelated quotes are edited; changing the design rebuilds the estimate rows and discards uncommitted drafts. Storage failures are reported without discarding prices already applied to the current session.
+
 ## Windows
 
 Under **Parameters → Openings**, choose a muntin pattern for each porch window. Use **Front** or **Right** to see its casing and metal flashings, or **Plan** to see how the frame sits near the outside face of the wall. Window dimensions describe rough openings. The BOM includes the side and head casing only; it does not price window units or installation materials.
