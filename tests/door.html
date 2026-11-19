@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Door rendering regression tests</title>
+<pre id="results">Running...</pre>
+<script type="module">
+const results = document.querySelector('#results');
+const key = 'farstu-designer-settings-v1';
+const original = localStorage.getItem(key);
+const frame = document.createElement('iframe');
+const passed = [];
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+function vertices(polygon) {
+  return polygon.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+}
+function contains(points, x, y) {
+  let inside = false;
+  for (let i=0,j=points.length-1;i<points.length;j=i++) {
+    const [a,b] = points[i], [c,d] = points[j];
+    if ((b>y) !== (d>y) && x < (c-a)*(y-b)/(d-b)+a) inside = !inside;
+  }
+  return inside;
+}
+function overlaps(a, b) {
+  const left = Math.max(Math.min(...a.map(p=>p[0])),Math.min(...b.map(p=>p[0])));
+  const right = Math.min(Math.max(...a.map(p=>p[0])),Math.max(...b.map(p=>p[0])));
+  const top = Math.max(Math.min(...a.map(p=>p[1])),Math.min(...b.map(p=>p[1])));
+  const bottom = Math.min(Math.max(...a.map(p=>p[1])),Math.max(...b.map(p=>p[1])));
+  if (right-left < 1e-6 || bottom-top < 1e-6) return false;
+  for (let i=1;i<16;i++) for (let j=1;j<16;j++) {
+    const x = left+(right-left)*i/16, y = top+(bottom-top)*j/16;
+    if (contains(a,x,y) && contains(b,x,y)) return true;
+  }
+  return false;
+}
+try {
+  localStorage.removeItem(key);
+  const ready = new Promise(resolve => frame.onload = resolve);
+  frame.src = '../?door-regression';
+  document.body.append(frame);
+  await ready;
+  const doc = frame.contentDocument, win = frame.contentWindow;
+  const field = id => doc.getElementById(id);
+  const edit = (id,value,event='input') => {
+    field(id).value = String(value);
+    field(id).dispatchEvent(new win.Event(event,{bubbles:true}));
+    assert(!field('status').textContent,field('status').textContent);
+  };
+  const frames = new Map();
+  let nextFrame = 0;
+  win.requestAnimationFrame = callback => {
+    frames.set(++nextFrame,callback);
+    return nextFrame;
+  };
+  win.cancelAnimationFrame = id => frames.delete(id);
+  win.matchMedia = () => ({matches:false});
+  const tick = time => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach(callback => callback(time));
+  };
+  const parts = () => [...doc.querySelectorAll('.door-leaf polygon')]
+    .filter(p => p.closest('[data-door-face]') && !p.closest('[display="none"]'));
+  function checkDrawing() {
+    assert(parts().some(p => {
+      const points = vertices(p);
+      return Math.abs(points.reduce((sum,[x,y],i) => {
+        const [u,v] = points[(i+1)%points.length];
+        return sum+x*v-u*y;
+      },0)) > 1e-4;
+    }),'Door disappeared');
+    assert(!/NaN|Infinity/.test(field('drawing').innerHTML),'Invalid door coordinates');
+  }
+  function checkOcclusion(open) {
+    let intersections = 0;
+    for (const part of parts()) {
+      for (const trim of doc.querySelectorAll('polygon[data-trim="door"]')) {
+        if (!overlaps(vertices(part),vertices(trim))) continue;
+        intersections++;
+        const trimAfterDoor = Boolean(part.compareDocumentPosition(trim) & win.Node.DOCUMENT_POSITION_FOLLOWING);
+        assert(trimAfterDoor !== open,open
+          ? 'Trim covers the outward-open leaf'
+          : 'Recessed door thickness paints over the trim');
+      }
+    }
+    assert(intersections > 0,'No projected trim/door overlap was exercised');
+  }
+  for (const handing of ['ltr','rtl']) for (const thickness of [40,100]) {
+    edit('door-handing',handing,'change');
+    edit('doorThickness',thickness);
+    for (const view of ['3d','left','plan']) {
+      doc.querySelector(`[data-view="${view}"]`).click();
+      checkDrawing();
+      if (view === '3d') checkOcclusion(false);
+      const start = win.performance.now();
+      field('toggle-door').click();
+      tick(start+275);
+      checkDrawing();
+      tick(start+1000);
+      checkDrawing();
+      if (view === '3d') checkOcclusion(true);
+      const close = win.performance.now();
+      field('toggle-door').click();
+      tick(close+275);
+      checkDrawing();
+      tick(close+1000);
+      checkDrawing();
+      if (view === '3d') checkOcclusion(false);
+    }
+    passed.push(`${handing}, ${thickness} mm: trim occlusion and full animation in 3D, Left and Plan`);
+  }
+  doc.querySelector('[data-view="3d"]').click();
+  for (const width of [70,195]) {
+    edit('doorTrimWidth',width);
+    checkOcclusion(false);
+  }
+  const colour = doc.querySelector('input[aria-label="Door trim colour"]');
+  colour.value = '#bf4937';
+  colour.dispatchEvent(new win.Event('input',{bubbles:true}));
+  assert([...doc.querySelectorAll('polygon[data-trim="door"]')]
+    .every(p => p.getAttribute('fill') === '#bf4937'),'Door trim colour was lost');
+  win.matchMedia = () => ({matches:true});
+  field('toggle-door').click();
+  assert(frames.size === 0,'Reduced-motion swing scheduled animation frames');
+  checkDrawing();
+  checkOcclusion(true);
+  field('toggle-door').click();
+  checkOcclusion(false);
+  edit('doorTrimWidth',0);
+  assert(doc.querySelectorAll('[data-trim="door"]').length === 0,'Zero-width door trim remains visible');
+  edit('doorTrimWidth',95);
+  doc.querySelector('[data-wall-layer="trim"]').checked = false;
+  doc.querySelector('#wall-layers').dispatchEvent(new win.Event('change',{bubbles:true}));
+  assert(doc.querySelectorAll('[data-trim="door"]').length === 0,'Hidden door trim remains visible');
+  passed.push('Trim sizes, colour, reduced motion, zero-width and hidden trim');
+  results.textContent = `PASS (${passed.length})\n${passed.join('\n')}`;
+} catch (error) {
+  results.textContent = `FAIL after ${passed.length} groups: ${error.message}\n${error.stack}`;
+  console.error(error);
+} finally {
+  frame.remove();
+  if (original === null) localStorage.removeItem(key);
+  else localStorage.setItem(key,original);
+}
+</script>
+</html>

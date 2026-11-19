@@ -428,6 +428,7 @@ export function initDesigner() {
       : front ? ([x,,z]) => [x,-z]
       : ([,y,z]) => [side === 'left' ? y : -y,-z];
     const shapes = [];
+    const doorTrimFaces = [];
     const labels = [];
     const dims = [];
     const face = (points, fill, extra = {}) => shapes.push(['polygon', points, {class: 'face', fill, ...extra}]);
@@ -517,7 +518,7 @@ export function initDesigner() {
 
     // Split straddling faces at timber planes so a single long beam can be
     // behind one stud and in front of another in the same projection.
-    function orderFraming(polygons, output) {
+    function orderFraming(polygons, output, eye = camera) {
       if (!polygons.length) return;
       let pivot, best = Infinity;
       for (let i=0;i<Math.min(7,polygons.length);i++) {
@@ -557,10 +558,10 @@ export function initDesigner() {
           if (b.length>=3) negative.push({...polygon,points:b});
         }
       }
-      const facing = dot(pivot.normal,camera)>0;
-      orderFraming(facing ? negative : positive,output);
+      const facing = dot(pivot.normal,eye)>0;
+      orderFraming(facing ? negative : positive,output,eye);
       output.push(...coplanar);
-      orderFraming(facing ? positive : negative,output);
+      orderFraming(facing ? positive : negative,output,eye);
     }
 
     const wallPosts = (start,end,op) => posts(start,end,op,studWidth,studSpacing);
@@ -925,8 +926,10 @@ export function initDesigner() {
         }
         const point = (u,z) => at(u,Math.min(z,wallTop(u)));
         if (Math.min(top,wallTop(a))<=base) return;
-        face([point(a,base),point(b,base),...inner.reverse().map(u => point(u,top))],
-          colour,{class:'face opening-trim','data-trim':key,'data-layer':'trim'});
+        const points = [point(a,base),point(b,base),...inner.reverse().map(u => point(u,top))];
+        const normal = plane(points);
+        if (normal) doorTrimFaces.push({points,original:points,normal,offset:dot(normal,points[0]),
+          attrs:{fill:colour,class:'face opening-trim','data-trim':key,'data-layer':'trim'}});
       }
       board(start,op.start,op.bottom,op.top);
       board(op.end,end,op.bottom,op.top);
@@ -1236,7 +1239,9 @@ export function initDesigner() {
       parent.append(el);
       return el;
     }
-    function stroke(a,b,attrs) { node('line',{ x1:a[0],y1:a[1],x2:b[0],y2:b[1],...attrs }); }
+    function stroke(a,b,attrs,parent = layer) {
+      node('line',{ x1:a[0],y1:a[1],x2:b[0],y2:b[1],...attrs },undefined,parent);
+    }
     function measurementSpecs(section) {
       const m = (key,label,a,b,visible = true,value = latest[key],gap = [0,-12]) =>
         ({key,label,a,b,visible,value,gap,vertical:a[2] !== b[2] && a[0] === b[0] && a[1] === b[1]});
@@ -1429,9 +1434,8 @@ export function initDesigner() {
       ];
       const inset = Math.min(42,w*.15,h*.12);
       for (const surface of surfaces) {
-        surface.group = node('g',{'data-door-face':surface.name},undefined,leaf);
-        const polygon = (points,fill,extra = {}) => ({
-          points, element:node('polygon',{fill,class:'face','vector-effect':'non-scaling-stroke',...extra},undefined,surface.group)
+        const polygon = (points,fill) => ({
+          points, attrs:{fill,class:'face','vector-effect':'non-scaling-stroke','data-door-face':surface.name}
         });
         surface.parts = [polygon(surface.points,surface.colour)];
         if (surface.depth === undefined) continue;
@@ -1447,40 +1451,36 @@ export function initDesigner() {
       const eye = plan ? [0,0,1] : iso ? camera : [-1,0,0];
       paintDoor = () => {
         const sin = Math.sin(doorAngle), cos = Math.cos(doorAngle), direction = rtl ? -1 : 1;
+        const polygons = [...doorTrimFaces];
         for (const surface of surfaces) {
           const [u,d,z] = surface.normal;
           const normal = [-sin*u+cos*d,direction*(cos*u+sin*d),z];
-          surface.group.setAttribute('display',dot(normal,eye)>epsilon ? 'inline' : 'none');
+          if (dot(normal,eye)<=epsilon) continue;
           for (const part of surface.parts) {
-            part.element.setAttribute('points',part.points.map(([u,d,z]) =>
-              project(doorPoint(doorAngle,u,d,z)).join(',')).join(' '));
+            const points = part.points.map(([u,d,z]) => doorPoint(doorAngle,u,d,z));
+            polygons.push({points,original:points,normal,offset:dot(normal,points[0]),attrs:part.attrs});
           }
         }
+        const ordered = [];
+        orderFraming(polygons,ordered,eye);
+        leaf.replaceChildren();
+        for (const {points,original,attrs} of ordered) drawShape('polygon',points,attrs,original,leaf);
       };
       paintDoor();
     }
-    const names = { '3d':'3D porch sketch', front:'Front elevation', left:'Left elevation', right:'Right elevation', plan:'Top-down plan' };
-    node('title',{id:'drawing-title'},timberOnly ? `${names[view]} — wall timber` : names[view],group);
-    paintDoor = undefined;
-    doorButton.disabled = !doorVisible;
-    doorButton.title = doorVisible ? 'Preview the outward door swing' : 'Available in 3D, Left, and Plan';
-    for (const [tag,points,attrs,original] of shapes) {
-      if (tag === 'door-leaf') {
-        drawDoorLeaf();
-        continue;
-      }
+    function drawShape(tag,points,attrs,original,parent = layer) {
       const polygon = points.map(project);
       const coords = polygon.map(p => p.join(',')).join(' ');
       if (tag === 'line') {
-        stroke(...polygon,attrs);
-        continue;
+        stroke(...polygon,attrs,parent);
+        return;
       }
       if (!original || points === original) {
-        node(tag,{points:coords,...attrs});
-        continue;
+        node(tag,{points:coords,...attrs},undefined,parent);
+        return;
       }
-      if (attrs.fill!=='none') node('polygon',{points:coords,...attrs,style:'stroke:none'});
-      if (attrs.class.includes('cladding-facet')) continue;
+      if (attrs.fill!=='none') node('polygon',{points:coords,...attrs,style:'stroke:none'},undefined,parent);
+      if (attrs.class.includes('cladding-facet')) return;
       const edges = original.map((p,i) => [p,subtract(original[(i+1)%original.length],p)]);
       for (let i=0;i<points.length;i++) {
         const j=(i+1)%points.length;
@@ -1488,8 +1488,19 @@ export function initDesigner() {
           const tolerance=epsilon*Math.hypot(...d);
           return tolerance>0 && [points[i],points[j]].every(q => Math.hypot(...cross(subtract(q,p),d))<=tolerance);
         });
-        if (onEdge) stroke(polygon[i],polygon[j],{class:attrs.class,...(attrs['data-layer'] && {'data-layer':attrs['data-layer']})});
+        if (onEdge) stroke(polygon[i],polygon[j],{class:attrs.class,
+          ...(attrs['data-layer'] && {'data-layer':attrs['data-layer']}),
+          ...(attrs['vector-effect'] && {'vector-effect':attrs['vector-effect']})},parent);
       }
+    }
+    const names = { '3d':'3D porch sketch', front:'Front elevation', left:'Left elevation', right:'Right elevation', plan:'Top-down plan' };
+    node('title',{id:'drawing-title'},timberOnly ? `${names[view]} — wall timber` : names[view],group);
+    paintDoor = undefined;
+    doorButton.disabled = !doorVisible;
+    doorButton.title = doorVisible ? 'Preview the outward door swing' : 'Available in 3D, Left, and Plan';
+    for (const [tag,points,attrs,original] of shapes) {
+      if (tag === 'door-leaf') drawDoorLeaf();
+      else drawShape(tag,points,attrs,original);
     }
     for (const {a,b,gap,text} of dims) {
       const p=project(a), q=project(b);
