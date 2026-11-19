@@ -1,5 +1,8 @@
 import { createControls, windowSizeStep } from './controls.js';
 import { createBomView } from './bom-view.js';
+import { createLoadsView } from './loads-view.js';
+import { pierLayout } from './loads.js';
+import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
@@ -20,6 +23,12 @@ export function initDesigner() {
   const storageStatus = $('storage-status');
   const exportButton = $('export-settings');
   const bom = createBomView($);
+  const loads = createLoadsView($);
+  createWorkspaceTabs($, [
+    { button: 'show-designer', panel: 'designer-view' },
+    { button: 'show-bom', panel: 'bom-view', onShow: bom.render },
+    { button: 'show-loads', panel: 'loads-view', onShow: loads.render }
+  ]);
   const dimensions = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
   const fmt = (n) => dimensions.format(n);
   const mm = (n) => `${fmt(n)} mm`;
@@ -249,11 +258,13 @@ export function initDesigner() {
     if (messages.size) {
       settingsValid = false;
       bom.update(latest, false);
+      loads.update(latest, false);
       return false;
     }
     settingsValid = true;
     latest = { ...v, windows, houseOpenings, slope, rear, eave };
     bom.update(latest, true);
+    loads.update(latest, true);
     $('area').textContent = `${fmt(v.width * v.length / 1e6)} m\u00b2`;
     $('rear').textContent = mm(rear);
     $('rise').textContent = mm(slope * v.length);
@@ -305,12 +316,7 @@ export function initDesigner() {
     const houseBaseTop = slabBase + houseBaseHeight;
     const houseBaseColor = '#d5d5d5';
     const footingBase = slabBase - footingDepth;
-    const pierRadius = footingDiameter/2;
-    const pierInset = pierRadius+Math.min(100,(W-footingColumns*footingDiameter)/4,(L-footingRows*footingDiameter)/4);
-    const pierAxis = (span,count) => Array.from({length:count}, (_,i) =>
-      pierInset+i*(span-2*pierInset)/(count-1));
-    const pierRows = pierAxis(L,footingRows);
-    const pierColumns = pierAxis(W,footingColumns);
+    const { radius: pierRadius, rows: pierRows, columns: pierColumns } = pierLayout(latest);
     const gradeMargin = Math.min(350,W*.2,L*.2);
     const hedgeHalfDepth = 450;
     const sideGradeEnd = Math.max(L,hedgeDistance+hedgeHalfDepth)+gradeMargin;

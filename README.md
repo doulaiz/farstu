@@ -32,3 +32,9 @@ Under **Parameters → Openings**, choose a muntin pattern for each porch window
 Enter editable window widths and heights in 100 mm (10 cm) increments, starting at 100 mm. Clearances, offsets and sill heights are not restricted to these increments. Older saved window sizes are rounded down to the next valid size, with a minimum of 100 mm.
 
 Under **Parameters → Existing house → Wall dimensions**, set **Basement recession** to offset the concrete basement face behind the upper wall. The stepped profile is shown in the 3D drawing and the Left and Right elevations. Older saved configurations without this setting default to a 100 mm recession.
+
+## Floor & pier loads
+
+Select **Floor & pier loads** (beside the BOM button) for a top view of the slab and cylindrical piers. It estimates the dead weight of the slab, walls (from the stud layout, wall heights and openings) and roof, plus three standing adults of 80 kg each, and shows the load on each pier and the bearing pressure under its base. The shading shows where load is applied to the slab. The page updates whenever a Designer parameter changes.
+
+Choose whether the high roof edge rests on a beam between the side walls (whole roof on the slab) or on a ledger on the house wall. Place the adults with a preset, or drag them in the diagram (or focus one and use the arrow keys). Loads are shared between neighbouring piers with the lever rule, using typical material densities listed on the page. Snow, wind, furniture and dynamic loads are not included; this is not a structural design.

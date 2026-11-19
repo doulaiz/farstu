@@ -32,24 +32,13 @@ function readQuotes(status) {
 }
 
 export function createBomView($) {
-  const design = $('designer-view'), bom = $('bom-view');
-  const designButton = $('show-designer'), bomButton = $('show-bom');
+  const bom = $('bom-view');
   const status = $('bom-status'), priceStatus = $('bom-price-status'), total = $('bom-total');
   const body = $('bom-rows');
   const time = $('bom-catalogue-date');
   time.dateTime = time.textContent = catalogueDate;
   const quotes = readQuotes(priceStatus);
   let latest, rendered, valid;
-
-  function showBom(open) {
-    design.hidden = open;
-    bom.hidden = !open;
-    designButton.setAttribute('aria-pressed',String(!open));
-    bomButton.setAttribute('aria-pressed',String(open));
-    if (open) render();
-  }
-  designButton.addEventListener('click',() => showBom(false));
-  bomButton.addEventListener('click',() => showBom(true));
 
   function render() {
     if (!latest) {
@@ -167,7 +156,7 @@ export function createBomView($) {
     rendered = latest;
   }
 
-  return { update(model, isValid) {
+  return { render, update(model, isValid) {
     latest = model;
     valid = isValid;
     if (!bom.hidden) render();
