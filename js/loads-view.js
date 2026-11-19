@@ -260,7 +260,7 @@ export function createLoadsView($) {
       ['Windows, door & opening trim', details['walls:openings'], `Windows ${openingMasses.window} kg/m², door ${openingMasses.door} kg/m²`],
       ['Rafters', details['roof:rafters'], `${kgFormat.format(model.rafterWidth)} × ${kgFormat.format(model.rafterDepth)} mm at ${densities.timber.value} kg/m³`],
       [`Roof ${coveringLabel}, deck & underlayment`, details['roof:covering'], `${oneDecimal.format((roofCoveringMasses[covering] + roofLayerMasses.deck + roofLayerMasses.underlayment) * factor)} kg per m² of plan`],
-      ['Fascia, flashings, gutter, snow guards & walkway', details['roof:edges'], 'Line loads along the roof edges'],
+      ['Fascia, flashings & gutter', details['roof:edges'], 'Line loads along the roof edges'],
       [`${adultCount} adults`, details['people:adults'], `${adultMass} kg each, spread over ${adultFootprint} × ${adultFootprint} mm`]
     ];
     const out = document.createDocumentFragment();
@@ -288,7 +288,7 @@ export function createLoadsView($) {
       `Window units: ${openingMasses.window} kg/m²; exterior door: ${openingMasses.door} kg/m²`,
       ...Object.entries(roofCoveringMasses).map(([key, value]) => `${roofCoveringLabels[key]}: ${value} kg/m² of roof incl. battens`),
       `Roof deck, 22 mm boards: ${roofLayerMasses.deck} kg/m²; underlayment: ${roofLayerMasses.underlayment} kg/m²`,
-      `Eave (fascia, drip flashing, gutter, snow guards): ${roofEdgeMasses.eave} kg/m; each verge (two bargeboards, flashing): ${roofEdgeMasses.verge} kg/m; walkway: ${roofEdgeMasses.walkway} kg/m; downpipe: ${roofEdgeMasses.downpipe} kg`,
+      `Eave (fascia, drip flashing, gutter): ${roofEdgeMasses.eave} kg/m; each verge (two bargeboards, flashing): ${roofEdgeMasses.verge} kg/m; downpipe: ${roofEdgeMasses.downpipe} kg`,
       `Average adult: ${adultMass} kg; gravity ${gravity} m/s²`
     ];
     assumptions.replaceChildren(...items.map(item => {

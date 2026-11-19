@@ -27,20 +27,16 @@ export const openingMasses = { window: 35, door: 30 };
 
 export const roofCoveringMasses = {
   tiles: 45,
-  standingSeam: 6,
-  profiledMetal: 7,
-  membrane: 6
+  standingSeam: 6
 };
 export const roofCoveringLabels = {
   tiles: 'Concrete or clay tiles',
-  standingSeam: 'Standing-seam metal',
-  profiledMetal: 'Profiled metal sheets',
-  membrane: 'Welded membrane'
+  standingSeam: 'Standing-seam metal'
 };
 // Designs without a covering choice use tiles, the original roof covering.
 export const roofCovering = ({ roofMaterial }) => roofMaterial in roofCoveringMasses ? roofMaterial : 'tiles';
 export const roofLayerMasses = { deck: 10, underlayment: 1.5 };
-export const roofEdgeMasses = { eave: 6, verge: 3.6, abutment: 1, walkway: 5, downpipe: 5 };
+export const roofEdgeMasses = { eave: 6, verge: 3.6, abutment: 1, downpipe: 5 };
 
 export function pierLayout({ width, length, footingColumns, footingRows, footingDiameter }) {
   const radius = footingDiameter / 2;
@@ -138,7 +134,6 @@ function roofLoads(model, add) {
   }
   for (const [y, dy] of ys) {
     for (const x of [-S, W + S]) point('edges', x, y, dy / 1000 * factor * roofEdgeMasses.verge);
-    point('edges', W + S - 175, y, dy / 1000 * factor * roofEdgeMasses.walkway);
   }
   point('edges', W - T / 2, L + F, roofEdgeMasses.downpipe);
 }

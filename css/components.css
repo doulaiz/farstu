@@ -23,6 +23,16 @@
   .cladding-facet { stroke:none; }
   .tile-joint { fill:none; stroke:#572b20; opacity:.55; stroke-width:1; }
   .tile-facet { stroke:none; }
+  .roof-guidance-warning { color:#76501a; font-weight:700; }
+  .roof-standing-seam { fill:none; stroke:#e3e7e5; stroke-width:2; }
+  .roof-eave-flashing, .roof-verge-flashing, .roof-abutment-flashing { stroke:#454b4d; stroke-width:.6; }
+  .roof-bargeboard, .roof-bargeboard-secondary, .roof-eave-fascia, .roof-underlayment-edge {
+    fill:none; stroke-linecap:square; stroke-linejoin:round;
+  }
+  .roof-bargeboard { stroke:#765738; stroke-width:5; }
+  .roof-bargeboard-secondary { stroke:#a17b51; stroke-width:2.5; }
+  .roof-eave-fascia { stroke:#705236; stroke-width:5; }
+  .roof-underlayment-edge { stroke:#51473d; stroke-width:2; stroke-dasharray:5 2; }
   .downspout, .downspout-outline { stroke-linecap:round; }
   .downspout { stroke:#fff; stroke-width:4; }
   .downspout-outline { stroke:#626c6e; stroke-width:6; }
@@ -37,6 +47,7 @@
     display:block; width:100%; min-height:36px; margin-top:3px; border:1px solid #bccbc1;
     border-radius:7px; background:#f9fbf8; padding:5px 8px; color:var(--ink); font:inherit;
   }
+  .settings .fields select[aria-invalid="true"] { border-color:#a0301f; background:#fff5ee; }
   .lumber { stroke:#725132; stroke-width:.9; }
   .opening-guide { fill:none; stroke:#4d777f; stroke-width:1.2; stroke-dasharray:4 3; }
   #framing-summary { margin:4px 0; }

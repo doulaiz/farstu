@@ -5,6 +5,7 @@ import { pierLayout } from './loads.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
+import { roofPitchGuidance } from './roofing.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
 
 export function initDesigner() {
@@ -18,8 +19,9 @@ export function initDesigner() {
   const { width: drawingWidth, height: drawingHeight } = svg.viewBox.baseVal;
   const {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, fields, anchors, trimColours, houseWindows, windowMuntins
+    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, windowMuntins
   } = createControls($);
+  const roofGuidance = $('roof-guidance');
   const storageStatus = $('storage-status');
   const exportButton = $('export-settings');
   const bom = createBomView($);
@@ -33,7 +35,6 @@ export function initDesigner() {
   const fmt = (n) => dimensions.format(n);
   const mm = (n) => `${fmt(n)} mm`;
   const houseColor = 'var(--house-color)';
-  const roofColor = 'var(--tile-color)';
   const glassColor = '#80a9b0';
   const footingColor = '#8c88a5';
   let latest;
@@ -100,12 +101,24 @@ export function initDesigner() {
 
 
   let adjustedWindowSizes = false;
+  let adjustedRoofSettings = false;
   function restoreSettings(saved) {
     if (!saved || saved.version !== 1 || !saved.fields || !saved.trimColours ||
       !saved.layers || !saved.anchors) return false;
+    const hasOption = (select, value) => [...select.options].some(option => option.value === value);
+    const savedRoofMaterial = saved.roofMaterial && hasOption(roofMaterial, saved.roofMaterial)
+      ? saved.roofMaterial
+      : Number(saved.fields.pitch) < 14 ? 'standingSeam' : roofMaterial.value;
+    const savedRoofFinish = saved.roofFinish ?? roofFinish.value;
+    const savedFields = { ...saved.fields };
+    if (savedRoofMaterial !== saved.roofMaterial) adjustedRoofSettings = true;
+    if (savedRoofMaterial === 'standingSeam' && Number(savedFields.pitch) < 6) {
+      savedFields.pitch = '6';
+      adjustedRoofSettings = true;
+    }
     for (const [key, input] of Object.entries(fields)) {
       const value = key === 'houseBaseRecession' && saved.fields[key] === undefined
-        ? input.defaultValue : saved.fields[key];
+        ? input.defaultValue : savedFields[key];
       const minimum = Number(input.step) === windowSizeStep ? 1 : Number(input.min);
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value)) ||
         Number(value) < minimum || Number(value) > Number(input.max)) return false;
@@ -117,9 +130,10 @@ export function initDesigner() {
     for (const [key] of Object.entries(layerInputs)) {
       if (typeof saved.layers[key] !== 'boolean') return false;
     }
-    const hasOption = (select, value) => [...select.options].some(option => option.value === value);
     if (!hasOption(footingLayout, saved.footingLayout) ||
       !hasOption(roofDisplay, saved.roofDisplay) ||
+      !hasOption(roofMaterial, savedRoofMaterial) ||
+      !hasOption(roofFinish, savedRoofFinish) ||
       !hasOption(doorHanding, saved.doorHanding) ||
       !['3d', 'front', 'left', 'right', 'plan'].includes(saved.view) ||
       typeof saved.groundHidden !== 'boolean' ||
@@ -130,7 +144,7 @@ export function initDesigner() {
 
     for (const [key, input] of Object.entries(fields)) {
       const value = key === 'houseBaseRecession' && saved.fields[key] === undefined
-        ? input.defaultValue : saved.fields[key];
+        ? input.defaultValue : savedFields[key];
       if (Number(input.step) === windowSizeStep && Number(value) % windowSizeStep !== 0) {
         input.value = Math.max(windowSizeStep,Math.floor(Number(value)/windowSizeStep)*windowSizeStep);
         adjustedWindowSizes = true;
@@ -145,6 +159,8 @@ export function initDesigner() {
     for (const [key, input] of Object.entries(layerInputs)) input.checked = saved.layers[key];
     footingLayout.value = saved.footingLayout;
     roofDisplay.value = saved.roofDisplay;
+    roofMaterial.value = savedRoofMaterial;
+    roofFinish.value = savedRoofFinish;
     doorHanding.value = saved.doorHanding;
     view = saved.view;
     groundHidden = saved.groundHidden;
@@ -162,6 +178,8 @@ export function initDesigner() {
       layers: Object.fromEntries(Object.entries(layerInputs).map(([key, input]) => [key, input.checked])),
       footingLayout: footingLayout.value,
       roofDisplay: roofDisplay.value,
+      roofMaterial: roofMaterial.value,
+      roofFinish: roofFinish.value,
       doorHanding: doorHanding.value,
       view,
       groundHidden,
@@ -196,6 +214,11 @@ export function initDesigner() {
     }
 
     const slope = Math.tan(v.pitch * Math.PI / 180);
+    const pitchGuidance = roofPitchGuidance(roofMaterial.value,v.pitch);
+    roofGuidance.textContent = pitchGuidance.valid ? pitchGuidance.message : '';
+    roofGuidance.classList.toggle('roof-guidance-warning',
+      pitchGuidance.valid && roofMaterial.value === 'tiles' && v.pitch < 22);
+    if (!pitchGuidance.valid) flag(pitchGuidance.message,'pitch','roof-material');
     const rear = v.frontWallHeight + slope * v.length;
     const eave = v.frontWallHeight - slope * v.frontOverhang;
     const sideSpan = v.length - v.wallThickness;
@@ -250,7 +273,9 @@ export function initDesigner() {
       }
       return { key, left: centre-halfWidth, right: centre+halfWidth, sill, head };
     });
-    for (const [key, input] of Object.entries({...fields, [footingLayout.id]:footingLayout})) {
+    for (const [key, input] of Object.entries({
+      ...fields, [footingLayout.id]:footingLayout, 'roof-material':roofMaterial
+    })) {
       if (bad.has(key)) input.setAttribute('aria-invalid', 'true');
       else input.removeAttribute('aria-invalid');
     }
@@ -262,7 +287,8 @@ export function initDesigner() {
       return false;
     }
     settingsValid = true;
-    latest = { ...v, windows, houseOpenings, slope, rear, eave };
+    latest = { ...v, windows, houseOpenings, slope, rear, eave,
+      roofMaterial:roofMaterial.value, roofFinish:roofFinish.value };
     bom.update(latest, true);
     loads.update(latest, true);
     $('area').textContent = `${fmt(v.width * v.length / 1e6)} m\u00b2`;
@@ -279,10 +305,22 @@ export function initDesigner() {
       slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing,
       windows, houseOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, houseBaseRecession,
       hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, pitch, slope,
-      studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise } = latest;
+      studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise,
+      roofMaterial:material, roofFinish:finish } = latest;
     const visible = (key) => layerInputs[key].checked;
     const roofTiles = roofDisplay.value === 'tiles';
     const roofFraming = roofDisplay.value === 'rafters';
+    const roofPaint = ({
+      terracotta:'#a9573f', classicRed:'#96362e', darkGray:'#45494a', matteBlack:'#292c2d'
+    })[finish];
+    const tileTones = finish === 'matteBlack' || finish === 'darkGray'
+      ? ['#292c2d','#3a3e3f','#484c4d','#55595a','#494d4e','#3b3f40','#303435','#252829']
+      : finish === 'classicRed'
+        ? ['#7a3028','#8e382f','#a44437','#b14c3d','#a34235','#923a31','#80332c','#702c25']
+        : ['#8f4938','#ab5c47','#c37759','#ce8162','#bf6f53','#ab5a46','#964b39','#824233'];
+    const tileEdgeTones = finish === 'matteBlack' || finish === 'darkGray'
+      ? ['#292c2d','#45494a']
+      : finish === 'classicRed' ? ['#7a3028','#a44437'] : ['#a14f3d','#c0755a'];
     const timberOnly = visible('studs') && wallLayers.every(([key]) => key === 'studs' || !visible(key));
     const iso = view === '3d';
     const side = iso || view === 'left' ? 'left' : 'right';
@@ -309,6 +347,7 @@ export function initDesigner() {
     const tileRun = tileLength/Math.hypot(1,slope);
     const houseReferenceTop = R + Math.max(330, roofDepth + 140, (R + L + W) * .045);
     const roof = [[-S,0,R+roofDepth],[W+S,0,R+roofDepth],[W+S,L+F,E+roofDepth],[-S,L+F,E+roofDepth]];
+    const roofAt = (x,y,offset = 0) => [x,y,R-slope*y+roofDepth+offset];
     const slab = [ground(0,0), ground(W,0), ground(W,L), ground(0,L)];
     const frontAt = (x,z) => [x,L,z];
     const sideAt = (x) => (y,z) => [x,y,z];
@@ -602,11 +641,11 @@ export function initDesigner() {
           const a = Math.max(0,b-tileRun);
           const shoulder = b-Math.min((b-a)*.22,55);
           face([at(x,a,0),at(x,b,0),at(x,b,tileRise),at(x,shoulder,tileRise),at(x,a,tileRise*.6)],
-            row%2 ? '#b2644e' : '#c0755a',{class:'face tile-course-side'});
+            tileEdgeTones[row%2],{class:'face tile-course-side'});
         }
         return;
       }
-      const tones = ['#8f4938','#ab5c47','#c37759','#ce8162','#bf6f53','#ab5a46','#964b39','#824233'];
+      const tones = tileTones;
       const strips = [];
       for (let tile=0; tile<count; tile++) {
         const x = start+tile*tileWidth;
@@ -631,6 +670,54 @@ export function initDesigner() {
       for (const {a,b,h1,h2,tone} of strips) {
         face([at(a,eaveY,0),at(b,eaveY,0),at(b,eaveY,h2),at(a,eaveY,h1)],tone,{class:'tile-facet tile-profile'});
       }
+    }
+
+    function drawRoofCovering() {
+      if (material === 'tiles') {
+        drawTiles();
+        return;
+      }
+      const span = W+2*S;
+      const spacing = Math.max(350,span/120);
+      for (let x=-S+spacing;x<W+S;x+=spacing) {
+        line(roofAt(x,0,8),roofAt(x,L+F,8),'roof-standing-seam');
+        if (pitch < 14 && x+10 < W+S) {
+          line(roofAt(x+10,0,9),roofAt(x+10,L+F,9),'roof-standing-seam');
+        }
+      }
+    }
+
+    function drawRoofEdgeDetails() {
+      const start=-S, end=W+S, eave=L+F;
+      const metal='#555b5c';
+      face([
+        roofAt(start,eave-35,-10),roofAt(end,eave-35,-10),
+        roofAt(end,eave,-10),roofAt(start,eave,-10)
+      ],metal,{class:'face roof-eave-flashing'});
+      face([
+        roofAt(start,0,-10),roofAt(start+22,0,-10),
+        roofAt(start+22,eave,-10),roofAt(start,eave,-10)
+      ],metal,{class:'face roof-verge-flashing'});
+      face([
+        roofAt(end-22,0,-10),roofAt(end,0,-10),
+        roofAt(end,eave,-10),roofAt(end-22,eave,-10)
+      ],metal,{class:'face roof-verge-flashing'});
+      face([
+        roofAt(start,0,-10),roofAt(end,0,-10),
+        roofAt(end,30,-10),roofAt(start,30,-10)
+      ],metal,{class:'face roof-abutment-flashing'});
+      for (const x of rafterStarts(W,S,rafterWidth,rafterSpacing)) {
+        face([
+          roofAt(x,eave,-roofDepth+10),roofAt(x+rafterWidth,eave,-roofDepth+10),
+          roofAt(x+rafterWidth,eave,-10),roofAt(x,eave,-10)
+        ],'#c18a5f',{class:'face roof-rafter-tail'});
+      }
+      line(roofAt(start,0,-15),roofAt(start,eave,-15),'roof-bargeboard');
+      line(roofAt(start+25,0,-18),roofAt(start+25,eave,-18),'roof-bargeboard-secondary');
+      line(roofAt(end,0,-15),roofAt(end,eave,-15),'roof-bargeboard');
+      line(roofAt(end-25,0,-18),roofAt(end-25,eave,-18),'roof-bargeboard-secondary');
+      line(roofAt(start,eave,-15),roofAt(end,eave,-15),'roof-eave-fascia');
+      line(roofAt(start,0,-20),roofAt(end,0,-20),'roof-underlayment-edge');
     }
 
     function drawPiers() {
@@ -936,7 +1023,7 @@ export function initDesigner() {
       face([ground(planA,-Math.min(520,L*.22)),ground(planB,-Math.min(520,L*.22)),ground(planB,0),ground(planA,0)], houseColor);
       face(slab, '#f8f6e8');
       if (groundHidden) drawPiers();
-      if (roofTiles || roofFraming) face(roof,'none',{style:`stroke:${roofColor}`,'stroke-dasharray':'7 5'});
+      if (roofTiles || roofFraming) face(roof,'none',{style:`stroke:${roofPaint}`,'stroke-dasharray':'7 5'});
       planWall((u,d) => ground(d,u),L-T,door,'door');
       planWall((u,d) => ground(W-d,u),L-T,windows.right,'right');
       planWall((u,d) => ground(u,L-d),W,windows.front,'front');
@@ -994,18 +1081,20 @@ export function initDesigner() {
         drawRafters();
         orderScene(rafters);
       } else if (roofTiles && (iso || front)) {
-        if (iso) face([roof[0],roof[3],[-S,L+F,E],[-S,0,R]], '#7d4232');
-        face(roof,roofColor,{class:'face roof-covering'});
-        face([roof[2],roof[3],[-S,L+F,E],[W+S,L+F,E]], '#68382a');
-        drawTiles();
+        if (iso) face([roof[0],roof[3],[-S,L+F,E],[-S,0,R]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
+        face(roof,roofPaint,{class:'face roof-covering'});
+        face([roof[2],roof[3],[-S,L+F,E],[W+S,L+F,E]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
+        drawRoofCovering();
+        drawRoofEdgeDetails();
       }
       if (!iso && !front) {
         if (roofTiles) {
-          face([[0,0,R],[0,L+F,E],[0,L+F,E+roofDepth],[0,0,R+roofDepth]],'#7d4232');
-          drawTiles();
+          face([[0,0,R],[0,L+F,E],[0,L+F,E+roofDepth],[0,0,R+roofDepth]],roofPaint);
+          drawRoofCovering();
+          drawRoofEdgeDetails();
         }
         if (roofTiles || roofFraming) {
-          note([0,(L+F)/2,(R+E)/2+roofDepth+(roofTiles ? tileRise : 0)],`${fmt(pitch)}\u00b0 pitch`,-13);
+          note([0,(L+F)/2,(R+E)/2+roofDepth+(roofTiles&&material==='tiles' ? tileRise : 0)],`${fmt(pitch)}\u00b0 pitch`,-13);
         }
       }
       if (roofTiles) drawGutter();
@@ -1116,10 +1205,10 @@ export function initDesigner() {
         case 'roofTiles': {
           const y = L+F, x = -S, z = E+roofDepth;
           return [
-            m('tileWidth','Tile width',[x,y,z],[x+tileWidth,y,z],roofTiles&&onFacade&&tileWidth<=W+2*S),
-            m('tileLength','Exposed tile length',[x,y,z],[x,y-tileRun,z+slope*tileRun],roofTiles&&(iso||left||right)&&tileRun<=y),
+            m('tileWidth','Tile width',[x,y,z],[x+tileWidth,y,z],roofTiles&&material==='tiles'&&onFacade&&tileWidth<=W+2*S),
+            m('tileLength','Exposed tile length',[x,y,z],[x,y-tileRun,z+slope*tileRun],roofTiles&&material==='tiles'&&(iso||left||right)&&tileRun<=y),
             m('tileRise','Profile rise',[x+tileWidth/2,y,z],[x+tileWidth/2,y,z+tileRise],
-              roofTiles&&!plan&&tileWidth/2<=W+2*S,tileRise,[8,0])
+              roofTiles&&material==='tiles'&&!plan&&tileWidth/2<=W+2*S,tileRise,[8,0])
           ];
         }
         case 'rafters': {
@@ -1338,6 +1427,8 @@ export function initDesigner() {
     footingLayout.value = [...footingLayout.options].find(option => option.defaultSelected).value;
     for (const input of Object.values(layerInputs)) input.checked = input.defaultChecked;
     roofDisplay.selectedIndex = 0;
+    roofMaterial.value = [...roofMaterial.options].find(option => option.defaultSelected).value;
+    roofFinish.value = [...roofFinish.options].find(option => option.defaultSelected).value;
     groundHidden = false;
     if (resetView) view = '3d';
     for (const tab of tabs) tab.setAttribute('aria-pressed',String(tab.dataset.view === view));
@@ -1382,6 +1473,14 @@ export function initDesigner() {
     persistenceEnabled = true;
     render();
   });
+  roofMaterial.addEventListener('change', () => {
+    persistenceEnabled = true;
+    update();
+  });
+  roofFinish.addEventListener('change', () => {
+    persistenceEnabled = true;
+    update();
+  });
   groundButton.addEventListener('click', () => {
     persistenceEnabled = true;
     groundHidden = !groundHidden;
@@ -1415,8 +1514,10 @@ export function initDesigner() {
     resetParameters(true);
     storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
     update();
-  } else if (valid && adjustedWindowSizes) {
-    const notice = 'Older saved window sizes were adjusted to 100 mm increments.';
-    storageStatus.textContent = [notice,storageStatus.textContent].filter(Boolean).join(' ');
+  } else if (valid && (adjustedWindowSizes || adjustedRoofSettings)) {
+    const notices = [];
+    if (adjustedWindowSizes) notices.push('Older saved window sizes were adjusted to 100 mm increments.');
+    if (adjustedRoofSettings) notices.push('Saved roof settings were adjusted to the available coverings and pitch range.');
+    storageStatus.textContent = [...notices,storageStatus.textContent].filter(Boolean).join(' ');
   }
 }

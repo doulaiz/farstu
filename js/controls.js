@@ -5,6 +5,8 @@ export const windowSizeStep = 100;
 export function createControls($) {
   const layerMenu = $('wall-layers');
   const roofDisplay = $('roof-display');
+  const roofMaterial = $('roof-material');
+  const roofFinish = $('roof-finish');
   const footingLayout = $('footing-layout');
   const layerOptions = layerMenu.querySelector('.layer-options');
   if (!layerOptions) throw new Error('The wall layer controls are missing.');
@@ -118,7 +120,7 @@ export function createControls($) {
     ['frontWallHeight', 'Front wall height', 2350, 1]
   ]);
   addFields('roof', [
-    ['pitch', 'Roof angle', 12, 0, '\u00b0', 60],
+    ['pitch', 'Roof angle', 14, 0, '\u00b0', 60],
     ['frontOverhang', 'Front overhang', 350, 0, 'mm', 10000], ['sideOverhang', 'Side overhang', 180, 0, 'mm', 10000]
   ]);
   addFields('roofTiles', [
@@ -152,6 +154,6 @@ export function createControls($) {
   ]);
   return {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, fields, anchors, trimColours, houseWindows, windowMuntins
+    doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, windowMuntins
   };
 }
