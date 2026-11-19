@@ -1,11 +1,11 @@
-import { createControls, windowSizeStep } from './controls.js';
+import { createControls, timberSections } from './controls.js';
 import { createBomView } from './bom-view.js';
 import { createLoadsView } from './loads-view.js';
 import { pierLayout } from './loads.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
-import { roofPitchGuidance } from './roofing.js';
+import { roofPitchGuidance, tileGaugeLimit, tileRoofLayout, tileSystems } from './roofing.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
 
 export function initDesigner() {
@@ -20,11 +20,12 @@ export function initDesigner() {
   const {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
     doorHanding, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows,
-    windowMuntins
+    windowMuntins, syncTimberSizes
   } = createControls($);
   const legacyBasementFields = new Set(Object.keys(houseBasementWindows)
     .flatMap(key => ['Width','Height','Offset','Sill'].map(suffix => key + suffix)));
   const roofGuidance = $('roof-guidance');
+  const tileLayoutGuidance = $('tile-layout-guidance');
   const storageStatus = $('storage-status');
   const exportButton = $('export-settings');
   const bom = createBomView($);
@@ -103,7 +104,7 @@ export function initDesigner() {
   }
 
 
-  let adjustedWindowSizes = false;
+  const adjustedStockSizes = [];
   let adjustedRoofSettings = false;
   function restoreSettings(saved) {
     if (!saved || saved.version !== 1 || !saved.fields || !saved.trimColours ||
@@ -120,11 +121,35 @@ export function initDesigner() {
       adjustedRoofSettings = true;
     }
     for (const [key, input] of Object.entries(fields)) {
-      const value = (key === 'houseBaseRecession' || legacyBasementFields.has(key)) && saved.fields[key] === undefined
-        ? input.defaultValue : savedFields[key];
-      const minimum = Number(input.step) === windowSizeStep ? 1 : Number(input.min);
-      if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value)) ||
-        Number(value) < minimum || Number(value) > Number(input.max)) return false;
+      const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth'].includes(key) || legacyBasementFields.has(key)) && saved.fields[key] === undefined
+        ? input.dataset.initial : savedFields[key];
+      if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value))) return false;
+      if (input.tagName === 'SELECT') {
+        if (Number(value) < 0 || Number(value) > 50000 ||
+          (Number(value) === 0 && !hasOption(input,'0'))) return false;
+        const choices = key === 'studDepth' || key === 'rafterDepth'
+          ? [...new Set(timberSections.map(item => item.depth))]
+          : [...input.options].map(option => Number(option.value));
+        const nearest = choices.reduce((best,n) => Math.abs(n-Number(value)) < Math.abs(best-Number(value)) ? n : best);
+        savedFields[key] = String(nearest);
+        if (nearest !== Number(value)) adjustedStockSizes.push(key);
+      } else {
+        if (Number(value) < Number(input.min) || Number(value) > Number(input.max)) return false;
+        savedFields[key] = value;
+      }
+    }
+    if (savedRoofMaterial === 'tiles' && Number(savedFields.tileLength) > tileGaugeLimit(Number(savedFields.pitch))) {
+      savedFields.tileLength = String(tileGaugeLimit(Number(savedFields.pitch)));
+      adjustedRoofSettings = true;
+    }
+    for (const prefix of ['stud','rafter']) {
+      const width = Number(savedFields[prefix+'Width']), depth = Number(savedFields[prefix+'Depth']);
+      if (!timberSections.some(item => item.width === width && item.depth === depth)) {
+        const choices = timberSections.filter(item => item.width === width);
+        savedFields[prefix+'Depth'] = String(choices.reduce((best,item) =>
+          Math.abs(item.depth-depth) < Math.abs(best.depth-depth) ? item : best).depth);
+        adjustedStockSizes.push(prefix+'Depth');
+      }
     }
     for (const key of Object.keys(trimColours)) {
       if (typeof saved.trimColours[key] !== 'string' ||
@@ -146,15 +171,11 @@ export function initDesigner() {
       hasOption(input,saved.windowMuntins?.[key]))) return false;
 
     for (const [key, input] of Object.entries(fields)) {
-      const value = (key === 'houseBaseRecession' || legacyBasementFields.has(key)) && saved.fields[key] === undefined
-        ? input.defaultValue : savedFields[key];
-      if (Number(input.step) === windowSizeStep && Number(value) % windowSizeStep !== 0) {
-        input.value = Math.max(windowSizeStep,Math.floor(Number(value)/windowSizeStep)*windowSizeStep);
-        adjustedWindowSizes = true;
-      } else {
-        input.value = value;
-      }
+      if (key !== 'studDepth' && key !== 'rafterDepth') input.value = savedFields[key];
     }
+    syncTimberSizes();
+    fields.studDepth.value = savedFields.studDepth;
+    fields.rafterDepth.value = savedFields.rafterDepth;
     for (const [key, input] of Object.entries(trimColours)) input.value = saved.trimColours[key];
     if (saved.windowMuntins) {
       for (const [key,input] of Object.entries(windowMuntins)) input.value = saved.windowMuntins[key];
@@ -195,6 +216,8 @@ export function initDesigner() {
   }
 
   function update() {
+    tileLayoutGuidance.textContent = '';
+    tileLayoutGuidance.hidden = roofMaterial.value !== 'tiles';
     const bad = new Set();
     const messages = new Set();
     function flag(message, ...keys) {
@@ -206,10 +229,12 @@ export function initDesigner() {
     for (const [key, input] of Object.entries(fields)) {
       if (Object.entries(anchors).some(([side, anchor]) =>
         key === side + (anchor === 'Bottom' ? 'Top' : 'Bottom'))) continue;
-      v[key] = input.valueAsNumber;
-      if (!input.validity.valid || !Number.isFinite(v[key])) {
+      v[key] = input.value === '' ? NaN : Number(input.value);
+      if (!input.validity.valid || !Number.isFinite(v[key]) ||
+        (input.tagName === 'SELECT' && ![...input.options].some(option => option.value === input.value))) {
         const label = input.getAttribute('aria-label');
-        flag(input.validity.stepMismatch && !input.validity.rangeUnderflow && !input.validity.rangeOverflow
+        flag(input.tagName === 'SELECT' ? `Choose a listed standard size for ${label}.`
+          : input.validity.stepMismatch && !input.validity.rangeUnderflow && !input.validity.rangeOverflow
           ? `${label} must be in increments of ${input.step} mm.`
           : `${label} must be between ${input.min} and ${input.max}.`, key);
         v[key] = NaN;
@@ -222,6 +247,10 @@ export function initDesigner() {
     roofGuidance.classList.toggle('roof-guidance-warning',
       pitchGuidance.valid && roofMaterial.value === 'tiles' && v.pitch < 22);
     if (!pitchGuidance.valid) flag(pitchGuidance.message,'pitch','roof-material');
+    if (roofMaterial.value === 'tiles' && Number.isFinite(v.pitch) && v.tileLength > tileGaugeLimit(v.pitch)) {
+      flag(`At ${fmt(v.pitch)}° these tiles need a batten gauge from 310 to ${tileGaugeLimit(v.pitch)} mm. Reduce the exposed tile length.`,
+        'tileLength');
+    }
     const rear = v.frontWallHeight + slope * v.length;
     const eave = v.frontWallHeight - slope * v.frontOverhang;
     const sideSpan = v.length - v.wallThickness;
@@ -237,6 +266,16 @@ export function initDesigner() {
         footingLayout.id,'footingDiameter');
     }
     if (v.studDepth > v.wallThickness) flag('Stud depth exceeds the overall wall thickness.', 'studDepth', 'wallThickness');
+    if (v.baseBoardWidth > v.claddingSpacing || v.coverBoardWidth > v.claddingSpacing ||
+      v.baseBoardWidth + v.coverBoardWidth < v.claddingSpacing + 40) {
+      flag('Cladding boards must fit their spacing with at least 20 mm overlap on each side of the joint.',
+        'baseBoardWidth','coverBoardWidth','claddingSpacing');
+    }
+    for (const prefix of ['stud','rafter']) {
+      if (!timberSections.some(item => item.width === v[prefix+'Width'] && item.depth === v[prefix+'Depth'])) {
+        flag(`Choose a listed timber section for the ${prefix}s.`,prefix+'Width',prefix+'Depth');
+      }
+    }
     if (v.studWidth >= v.studSpacing) flag('Stud width must be less than the centre-to-centre spacing.', 'studWidth', 'studSpacing');
     if (v.rafterWidth >= v.rafterSpacing) flag('Rafter width must be less than the centre-to-centre spacing.', 'rafterWidth', 'rafterSpacing');
     if (2 * v.rafterWidth > v.width + 2 * v.sideOverhang) flag('The two edge rafters do not fit within the roof width.', 'rafterWidth', 'width', 'sideOverhang');
@@ -303,6 +342,17 @@ export function initDesigner() {
       return false;
     }
     settingsValid = true;
+    if (roofMaterial.value === 'tiles') {
+      const layout = tileRoofLayout(v.width,v.sideOverhang,v.tileWidth,Number(fields.sideOverhang.max));
+      v.sideOverhang = layout.sideOverhang;
+      fields.sideOverhang.value = String(layout.sideOverhang);
+      const tile = tileSystems[v.tileWidth];
+      tileLayoutGuidance.textContent = `${tile.label}: ${mm(tile.width)} wide × ${mm(tile.length)} long; ` +
+        `${mm(tile.width-v.tileWidth)} side overlap and ${mm(tile.length-v.tileLength)} headlap. ` +
+        `Automatic layout: ${layout.columns} whole covering modules × ${mm(v.tileWidth)} = ${mm(layout.width)} roof width; ` +
+        `equal side overhangs ${mm(layout.sideOverhang)}. Slab width is unchanged. ` +
+        `Maximum batten gauge at this pitch: ${mm(tileGaugeLimit(v.pitch))}.`;
+    }
     latest = { ...v, windows, houseOpenings, basementOpenings, slope, rear, eave,
       roofMaterial:roofMaterial.value, roofFinish:roofFinish.value };
     bom.update(latest, true);
@@ -318,9 +368,9 @@ export function initDesigner() {
   function render() {
     if (!latest) return;
     const { width: W, length: L, frontWallHeight: H, rear: R, eave: E, frontOverhang: F, sideOverhang: S,
-      slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing,
+      slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing, baseBoardWidth, coverBoardWidth,
       windows, houseOpenings, basementOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, houseBaseRecession,
-      hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, pitch, slope,
+      hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, doorThickness, pitch, slope,
       studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise,
       roofMaterial:material, roofFinish:finish } = latest;
     const visible = (key) => layerInputs[key].checked;
@@ -382,6 +432,10 @@ export function initDesigner() {
     const hingeY = rtl ? door.end : door.start;
     const swingPoint = (angle, distance, height = 0) =>
       [-Math.sin(angle)*distance, hingeY+(rtl ? -1 : 1)*Math.cos(angle)*distance, height];
+    const doorPoint = (angle, distance, depth, height) => {
+      const [x,y,z] = swingPoint(angle,distance,height);
+      return [x+Math.cos(angle)*depth,y+(rtl ? -1 : 1)*Math.sin(angle)*depth,z];
+    };
     const swingArc = Array.from({length:25}, (_,i) => swingPoint(i*Math.PI/48,doorWidth));
     const doorVisible = plan || iso || view === 'left';
     const wallTop = (y) => R - slope * y;
@@ -642,7 +696,7 @@ export function initDesigner() {
 
     function drawTiles() {
       const start = -S, end = W+S, eaveY = L+F;
-      const count = Math.ceil((end-start)/tileWidth);
+      const count = Math.round((end-start)/tileWidth);
       const courses = Math.ceil(eaveY/tileRun);
       const elevation = !iso && !front;
       if (elevation ? courses > 80 : count > 65 || (iso && count*courses > 1800)) {
@@ -662,15 +716,16 @@ export function initDesigner() {
         return;
       }
       const tones = tileTones;
+      const waves = tileSystems[tileWidth].waves;
+      const facets = tones.length*waves;
       const strips = [];
       for (let tile=0; tile<count; tile++) {
         const x = start+tile*tileWidth;
-        const profile = (u) => tileRise*Math.sin(Math.PI*(u-x)/tileWidth);
-        for (let i=0; i<tones.length; i++) {
-          const a = x+tileWidth*i/tones.length;
-          if (a >= end) break;
-          const b = Math.min(end,x+tileWidth*(i+1)/tones.length);
-          strips.push({a,b,h1:profile(a),h2:profile(b),tone:tones[i]});
+        const profile = (u) => tileRise*Math.abs(Math.sin(Math.PI*waves*(u-x)/tileWidth));
+        for (let i=0; i<facets; i++) {
+          const a = x+tileWidth*i/facets;
+          const b = x+tileWidth*(i+1)/facets;
+          strips.push({a,b,h1:profile(a),h2:profile(b),tone:tones[i%tones.length]});
         }
       }
       if (iso) {
@@ -847,7 +902,7 @@ export function initDesigner() {
       board(start,end,op.top,high);
     }
 
-    const wallCourses = (key,end) => courses(key,end,claddingSpacing);
+    const wallCourses = (key,end) => courses(key,end,claddingSpacing,baseBoardWidth,coverBoardWidth);
 
     function drawWall(section, length, top, op, name) {
       const isSide = name !== 'front';
@@ -883,8 +938,9 @@ export function initDesigner() {
             paint(a,b,low,low+12,'#745430','cladding-drip',.5);
           }
         } else if (['nailers','service','serviceFill'].includes(key)) {
+          const battenWidth = key === 'nailers' ? 48 : 70;
           for (let z=0;z<high;z+=600) {
-            paint(0,end,z+(key === 'serviceFill' ? 45 : 0),key === 'serviceFill' ? z+600 : z+45);
+            paint(0,end,z+(key === 'serviceFill' ? battenWidth : 0),key === 'serviceFill' ? z+600 : z+battenWidth);
           }
         } else {
           paint(0,end,0,high);
@@ -1122,7 +1178,13 @@ export function initDesigner() {
     else if (front) bounds.push(frontAt(-gradeMargin,slabBase),frontAt(W+gradeMargin,slabBase));
     else bounds.push([0,sideGradeEnd,slabBase]);
     if (!plan) bounds.push([0,0,footingBase],[W,L,footingBase],[0,L,footingBase]);
-    if (doorVisible) bounds.push(...swingArc,...swingArc.map(([x,y]) => [x,y,doorHeight]));
+    if (doorVisible) {
+      for (let i=0;i<=24;i++) {
+        for (const distance of [0,doorWidth]) for (const depth of [0,doorThickness]) {
+          for (const height of [0,doorHeight]) bounds.push(doorPoint(i*Math.PI/48,distance,depth,height));
+        }
+      }
+    }
     const unscaled = bounds.map(raw);
     const xs = unscaled.map(([x]) => x), ys = unscaled.map(([,y]) => y);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
@@ -1164,6 +1226,7 @@ export function initDesigner() {
         case 'door': return [
           m('doorWidth','Door width',[0,door.start,0],[0,door.end,0],doorVisible),
           m('doorHeight','Door height',[0,door.start,0],[0,door.start,door.top],iso||left,doorHeight,[-14,0]),
+          m('doorThickness','Leaf thickness',[0,hingeY,door.top],[doorThickness,hingeY,door.top],plan||iso,doorThickness),
           m('offset','Offset from house',[0,0,0],[0,door.start,0],doorVisible,offset,[0,12]),
           m('doorTrimWidth','Trim width',[0,door.start-latest.doorTrimWidth,door.top/2],[0,door.start,door.top/2],
             visible('trim')&&(iso||left)&&latest.doorTrimWidth<=door.start)
@@ -1217,9 +1280,9 @@ export function initDesigner() {
         case 'roofTiles': {
           const y = L+F, x = -S, z = E+roofDepth;
           return [
-            m('tileWidth','Tile width',[x,y,z],[x+tileWidth,y,z],roofTiles&&material==='tiles'&&onFacade&&tileWidth<=W+2*S),
+            m('tileWidth','Tile covering width',[x,y,z],[x+tileWidth,y,z],roofTiles&&material==='tiles'&&onFacade&&tileWidth<=W+2*S),
             m('tileLength','Exposed tile length',[x,y,z],[x,y-tileRun,z+slope*tileRun],roofTiles&&material==='tiles'&&(iso||left||right)&&tileRun<=y),
-            m('tileRise','Profile rise',[x+tileWidth/2,y,z],[x+tileWidth/2,y,z+tileRise],
+            m('tileRise','Profile rise',[x+tileWidth/(2*tileSystems[tileWidth].waves),y,z],[x+tileWidth/(2*tileSystems[tileWidth].waves),y,z+tileRise],
               roofTiles&&material==='tiles'&&!plan&&tileWidth/2<=W+2*S,tileRise,[8,0])
           ];
         }
@@ -1317,29 +1380,49 @@ export function initDesigner() {
       });
     }
     function drawDoorLeaf() {
-      const [x,y] = project(swingPoint(0,0));
       if (plan) {
         const path = swingArc.map((p,i) => `${i ? 'L' : 'M'}${project(p).join(',')}`).join(' ');
         node('path',{d:path,fill:'none',stroke:'#9a693c','stroke-dasharray':'4 4'});
       }
-      const leaf = node('g',{class:'door-leaf',opacity:timberOnly && !plan ? '.5' : '1'});
-      function part(tag, attrs) {
-        node(tag,{...attrs,'vector-effect':'non-scaling-stroke'},undefined,leaf);
+      const leaf = node('g',{class:'door-leaf',opacity:timberOnly && !plan ? '.5' : '1','data-thickness':doorThickness});
+      const w = doorWidth, h = doorHeight, d = doorThickness;
+      const surfaces = [
+        {name:'outer',normal:[0,-1,0],points:[[0,0,0],[w,0,0],[w,0,h],[0,0,h]],colour:'#f5ead7',depth:0},
+        {name:'inner',normal:[0,1,0],points:[[0,d,0],[w,d,0],[w,d,h],[0,d,h]],colour:'#e7d8bd',depth:d},
+        {name:'hinge',normal:[-1,0,0],points:[[0,0,0],[0,d,0],[0,d,h],[0,0,h]],colour:'#365b4b'},
+        {name:'latch',normal:[1,0,0],points:[[w,0,0],[w,d,0],[w,d,h],[w,0,h]],colour:'#294c3d'},
+        {name:'top',normal:[0,0,1],points:[[0,0,h],[w,0,h],[w,d,h],[0,d,h]],colour:'#64816d'},
+        {name:'bottom',normal:[0,0,-1],points:[[0,0,0],[w,0,0],[w,d,0],[0,d,0]],colour:'#294c3d'}
+      ];
+      const inset = Math.min(42,w*.15,h*.12);
+      for (const surface of surfaces) {
+        surface.group = node('g',{'data-door-face':surface.name},undefined,leaf);
+        const polygon = (points,fill,extra = {}) => ({
+          points, element:node('polygon',{fill,class:'face','vector-effect':'non-scaling-stroke',...extra},undefined,surface.group)
+        });
+        surface.parts = [polygon(surface.points,surface.colour)];
+        if (surface.depth === undefined) continue;
+        const rect = (a,b,low,high,fill) => polygon([
+          [a,surface.depth,low],[b,surface.depth,low],[b,surface.depth,high],[a,surface.depth,high]
+        ],fill);
+        surface.parts.push(
+          rect(inset,w-inset,inset,h-inset,'#3d6052'),
+          rect(w*.2,w*.8,h*.5,h*.85,glassColor),
+          rect(w*.76,w*.87,h*.425,h*.435,'#edf8f7')
+        );
       }
-      if (plan) {
-        part('line',{x1:0,y1:0,x2:doorWidth,y2:0,stroke:'#245a47','stroke-width':3});
-        node('circle',{cx:x,cy:y,r:3,fill:'#245a47'});
-      } else {
-        const inset = Math.min(42,doorWidth*.15,doorHeight*.12);
-        part('rect',{x:0,y:0,width:doorWidth,height:doorHeight,fill:'#f5ead7',class:'face'});
-        part('rect',{x:inset,y:inset,width:doorWidth-2*inset,height:doorHeight-2*inset,fill:'#3d6052',class:'face'});
-        part('rect',{x:doorWidth*.2,y:doorHeight*.5,width:doorWidth*.6,height:doorHeight*.35,fill:glassColor,class:'face'});
-        part('line',{x1:doorWidth*.76,x2:doorWidth*.87,y1:doorHeight*.43,y2:doorHeight*.43,class:'glass-detail','stroke-linecap':'round'});
-      }
+      const eye = plan ? [0,0,1] : iso ? camera : [-1,0,0];
       paintDoor = () => {
-        const [u,v] = project(swingPoint(doorAngle,1));
-        const [a,b] = plan ? [x-(v-y),y+(u-x)] : project([0,hingeY,1]);
-        leaf.setAttribute('transform',`matrix(${u-x} ${v-y} ${a-x} ${b-y} ${x} ${y})`);
+        const sin = Math.sin(doorAngle), cos = Math.cos(doorAngle), direction = rtl ? -1 : 1;
+        for (const surface of surfaces) {
+          const [u,d,z] = surface.normal;
+          const normal = [-sin*u+cos*d,direction*(cos*u+sin*d),z];
+          surface.group.setAttribute('display',dot(normal,eye)>epsilon ? 'inline' : 'none');
+          for (const part of surface.parts) {
+            part.element.setAttribute('points',part.points.map(([u,d,z]) =>
+              project(doorPoint(doorAngle,u,d,z)).join(',')).join(' '));
+          }
+        }
       };
       paintDoor();
     }
@@ -1426,6 +1509,7 @@ export function initDesigner() {
       if (target.name === side + 'Top') anchors[side] = 'Top';
       if (target.name === side + 'Bottom') anchors[side] = 'Bottom';
     }
+    if (target === fields.studWidth || target === fields.rafterWidth) syncTimberSizes();
     update();
     if (fields[target.id] === target) showMeasurements(target.id);
   });
@@ -1443,7 +1527,10 @@ export function initDesigner() {
   });
   const tabs = [...document.querySelectorAll('[data-view]')];
   function resetParameters(resetView = false) {
-    for (const input of Object.values(fields)) input.value = input.defaultValue;
+    for (const input of Object.values(fields)) input.value = input.dataset.initial;
+    syncTimberSizes();
+    fields.studDepth.value = fields.studDepth.dataset.initial;
+    fields.rafterDepth.value = fields.rafterDepth.dataset.initial;
     for (const colour of Object.values(trimColours)) colour.value = colour.defaultValue;
     for (const input of Object.values(windowMuntins)) input.value = [...input.options].find(option => option.defaultSelected).value;
     anchors.front = anchors.right = 'Bottom';
@@ -1537,10 +1624,10 @@ export function initDesigner() {
     resetParameters(true);
     storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
     update();
-  } else if (valid && (adjustedWindowSizes || adjustedRoofSettings)) {
+  } else if (valid && (adjustedStockSizes.length || adjustedRoofSettings)) {
     const notices = [];
-    if (adjustedWindowSizes) notices.push('Older saved window sizes were adjusted to 100 mm increments.');
-    if (adjustedRoofSettings) notices.push('Saved roof settings were adjusted to the available coverings and pitch range.');
+    if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map(key => `${key} = ${fields[key].value} mm`).join(', ')}. Review these changes before ordering.`);
+    if (adjustedRoofSettings) notices.push('Saved roof settings were adjusted to the available coverings and pitch-dependent batten gauge.');
     storageStatus.textContent = [...notices,storageStatus.textContent].filter(Boolean).join(' ');
   }
 }

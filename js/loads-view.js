@@ -255,7 +255,7 @@ export function createLoadsView($) {
     const lines = [
       ['Concrete slab', details['slab:concrete'], `${kgFormat.format(model.width)} × ${kgFormat.format(model.length)} × ${kgFormat.format(model.slabThickness)} mm at ${densities.concrete.value} kg/m³`],
       ['Wall studs, plates, sills & headers', details['walls:framing'], `Stud layout from the Designer at ${densities.timber.value} kg/m³`],
-      ['Wall cladding, battens, boards & linings', details['walls:layers'], `${oneDecimal.format(wallLayerMasses.reduce((s, l) => s + l.kg, 0))} kg/m² of solid wall`],
+      ['Wall cladding, battens, boards & linings', details['walls:layers'], `${oneDecimal.format(wallLayerMasses(model).reduce((s, l) => s + l.kg, 0))} kg/m² of solid wall`],
       ['Stud-bay insulation', details['walls:insulation'], `${densities.mineralWool.value} kg/m³ mineral wool, ${kgFormat.format(model.studDepth)} mm deep`],
       ['Windows, door & opening trim', details['walls:openings'], `Windows ${openingMasses.window} kg/m², door ${openingMasses.door} kg/m²`],
       ['Rafters', details['roof:rafters'], `${kgFormat.format(model.rafterWidth)} × ${kgFormat.format(model.rafterDepth)} mm at ${densities.timber.value} kg/m³`],
@@ -284,7 +284,7 @@ export function createLoadsView($) {
 
     const items = [
       ...Object.values(densities).map(d => `${d.label}: ${d.value} kg/m³`),
-      ...wallLayerMasses.map(l => `${l.label}: ${oneDecimal.format(l.kg)} kg/m²`),
+      ...wallLayerMasses(model).map(l => `${l.label}: ${oneDecimal.format(l.kg)} kg/m²`),
       `Window units: ${openingMasses.window} kg/m²; exterior door: ${openingMasses.door} kg/m²`,
       ...Object.entries(roofCoveringMasses).map(([key, value]) => `${roofCoveringLabels[key]}: ${value} kg/m² of roof incl. battens`),
       `Roof deck, 22 mm boards: ${roofLayerMasses.deck} kg/m²; underlayment: ${roofLayerMasses.underlayment} kg/m²`,

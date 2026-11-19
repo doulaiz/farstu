@@ -1,4 +1,5 @@
 import { clippedHeight, rafterStarts, wallMembers } from './framing.js';
+import { roofMaterials } from './roofing.js';
 
 export const gravity = 9.81;
 export const adultMass = 80;
@@ -13,9 +14,9 @@ export const densities = {
   mineralWool: { value: 30, label: 'Mineral-wool insulation' }
 };
 
-export const wallLayerMasses = [
-  { key: 'cladding', label: 'Board-on-board cladding, 22 mm', kg: (0.725 + 0.6) * 0.022 * 450 },
-  { key: 'battens', label: 'Nailers and counter-battens, 45 × 25 @ 600', kg: 2 * 0.045 * 0.025 / 0.6 * 450 },
+export const wallLayerMasses = ({baseBoardWidth, coverBoardWidth, claddingSpacing}) => [
+  { key: 'cladding', label: 'Board-on-board cladding, 22 mm', kg: (baseBoardWidth + coverBoardWidth) / claddingSpacing * 0.022 * densities.timber.value },
+  { key: 'battens', label: 'Nailers and counter-battens, 48 × 25 @ 600', kg: 2 * 0.048 * 0.025 / 0.6 * 450 },
   { key: 'wind', label: 'Wind-barrier board, 9 mm', kg: 7 },
   { key: 'vapour', label: 'Vapour control membrane', kg: 0.2 },
   { key: 'service', label: 'Service battens 70 × 28 @ 600 with insulation', kg: 0.07 * 0.028 / 0.6 * 450 + 0.028 * 30 },
@@ -30,8 +31,8 @@ export const roofCoveringMasses = {
   standingSeam: 6
 };
 export const roofCoveringLabels = {
-  tiles: 'Concrete or clay tiles',
-  standingSeam: 'Standing-seam metal'
+  tiles: roofMaterials.tiles.label,
+  standingSeam: roofMaterials.standingSeam.label
 };
 // Designs without a covering choice use tiles, the original roof covering.
 export const roofCovering = ({ roofMaterial }) => roofMaterial in roofCoveringMasses ? roofMaterial : 'tiles';
@@ -75,7 +76,7 @@ function wallLoads(model, add) {
   const { width: W, length: L, wallThickness: T, studWidth, studDepth, studSpacing,
     rear, slope, frontWallHeight, windows, offset, doorWidth, doorHeight } = model;
   const timber = densities.timber.value / 1e9;
-  const layerKg = wallLayerMasses.reduce((sum, layer) => sum + layer.kg, 0) / 1e6;
+  const layerKg = wallLayerMasses(model).reduce((sum, layer) => sum + layer.kg, 0) / 1e6;
   const cavityKg = densities.mineralWool.value * studDepth / 1e9 * Math.max(0, 1 - studWidth / studSpacing);
   const sideTop = u => rear - slope * u;
   const walls = [

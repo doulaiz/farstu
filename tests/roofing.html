@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Roof tile regression tests</title>
+<pre id="results">Running...</pre>
+<script type="module">
+import { tileRoofLayout, tileGaugeLimit } from '../js/roofing.js';
+
+const results = document.querySelector('#results');
+const key = 'farstu-designer-settings-v1';
+const original = localStorage.getItem(key);
+const frame = document.createElement('iframe');
+const passed = [];
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+function close(actual, expected) {
+  assert(Math.abs(actual-expected) < 1e-8, `${actual} != ${expected}`);
+}
+async function load() {
+  const ready = new Promise(resolve => frame.onload = resolve);
+  frame.src = '../?roofing-regression';
+  document.body.append(frame);
+  await ready;
+}
+try {
+  for (const tile of [250,300]) {
+    for (let width=1200; width<=6000; width++) {
+      for (const overhang of [0,.5,180,499.5,999.5,1000]) {
+        const layout = tileRoofLayout(width,overhang,tile,1000);
+        assert(layout.sideOverhang >= 0 && layout.sideOverhang <= 1000, 'Overhang escaped bounds');
+        assert(Number.isInteger(layout.columns), 'Partial tile column');
+        close(width+2*layout.sideOverhang,layout.columns*tile);
+        const distance = Math.abs(layout.sideOverhang-overhang);
+        for (const adjacent of [layout.sideOverhang-tile/2,layout.sideOverhang+tile/2]) {
+          if (adjacent >= 0 && adjacent <= 1000) {
+            assert(distance <= Math.abs(adjacent-overhang), 'Not the nearest feasible width');
+          }
+        }
+      }
+    }
+  }
+  close(tileRoofLayout(2800,175,300,1000).sideOverhang,250);
+  passed.push('Nearest whole modules, ties, odd widths and both overhang bounds');
+
+  localStorage.removeItem(key);
+  await load();
+  const doc = () => frame.contentDocument;
+  const field = id => doc().getElementById(id);
+  const edit = (id,value,event='input') => {
+    field(id).value = String(value);
+    field(id).dispatchEvent(new frame.contentWindow.Event(event,{bubbles:true}));
+  };
+  const valid = () => assert(!field('status').textContent,field('status').textContent);
+  edit('roof-material','tiles','change');
+  valid();
+  close(Number(field('width').value),2800);
+  close(Number(field('sideOverhang').value),250);
+  assert(field('tile-layout-guidance').textContent.includes('30 mm side overlap'), 'Missing overlap');
+  for (const [width,overhang,tile] of [[2801,180,300],[2999,0,300],[2801,1000,300],[2801,180,250]]) {
+    edit('width',width);
+    edit('sideOverhang',overhang);
+    edit('tileWidth',tile);
+    valid();
+    const total = width+2*Number(field('sideOverhang').value);
+    assert(Number.isInteger(total/tile), 'UI roof is not modular');
+    close(Number(field('width').value),width);
+    const facets = tile === 300 ? 16 : 8;
+    close(doc().querySelectorAll('.tile-profile').length,total/tile*facets);
+  }
+  passed.push('Live edits snap equal overhangs, preserve slab width and draw whole tile columns');
+
+  for (const [pitch,max] of [[14,320],[17.99,320],[18,340],[21.99,340],[22,375]]) {
+    close(tileGaugeLimit(pitch),max);
+    edit('tileLength',310);
+    edit('pitch',pitch);
+    edit('tileLength',max);
+    valid();
+    edit('tileLength',max+1);
+    assert(field('tileLength').getAttribute('aria-invalid') === 'true','Excessive batten gauge accepted');
+  }
+  edit('tileLength',310);
+  edit('pitch',14);
+  valid();
+  const before = field('drawing').innerHTML;
+  for (const invalid of ['',-1,1001,.25]) {
+    edit('sideOverhang',invalid);
+    assert(field('sideOverhang').getAttribute('aria-invalid') === 'true','Invalid overhang accepted');
+    assert(field('drawing').innerHTML === before,'Invalid input changed drawing');
+  }
+  edit('sideOverhang',180);
+  valid();
+  edit('roof-material','standingSeam','change');
+  edit('sideOverhang',181);
+  valid();
+  close(Number(field('sideOverhang').value),181);
+  assert(field('tile-layout-guidance').hidden,'Tile guidance shown for metal');
+  passed.push('Pitch-dependent headlap, invalid input preservation and unrestricted metal roofs');
+
+  edit('roof-material','tiles','change');
+  valid();
+  const saved = JSON.parse(localStorage.getItem(key));
+  await load();
+  valid();
+  assert(field('sideOverhang').value === saved.fields.sideOverhang,'Saved width did not round-trip');
+  saved.fields.tileWidth = '290';
+  saved.fields.tileLength = '330';
+  saved.fields.sideOverhang = '180';
+  localStorage.setItem(key,JSON.stringify(saved));
+  await load();
+  valid();
+  close(Number(field('tileWidth').value),300);
+  close(Number(field('tileLength').value),320);
+  const total = Number(field('width').value)+2*Number(field('sideOverhang').value);
+  assert(Number.isInteger(total/300),'Legacy width not snapped');
+  assert(field('storage-status').textContent.includes('adjusted'),'Missing migration notice');
+  passed.push('Saved layouts round-trip and legacy tile dimensions migrate with notice');
+
+  const factor = Math.hypot(1,Math.tan(Number(field('pitch').value)*Math.PI/180));
+  const area = total*(Number(field('length').value)+Number(field('frontOverhang').value))*factor/1e6;
+  field('show-bom').click();
+  const covering = [...doc().querySelectorAll('#roof-rows tr')]
+    .find(row => row.textContent.includes('Benders concrete tiles covering'));
+  close(Number(covering.querySelector('td').textContent.replaceAll(',','')),Number((area*1.1).toFixed(2)));
+  field('show-loads').click();
+  const roofLoad = [...doc().querySelectorAll('#loads-view tr')]
+    .find(row => row.textContent.includes('Roof benders concrete tiles, deck'));
+  const actualKg = Number(roofLoad.querySelector('td').textContent.replaceAll(',',''));
+  assert(Math.abs(actualKg-area*56.5) <= 1,'Load estimate uses a different roof width');
+  passed.push('Roof schedule and load estimate use the snapped covering area');
+  results.textContent = `PASS (${passed.length})\n${passed.join('\n')}`;
+} catch (error) {
+  results.textContent = `FAIL after ${passed.length} groups: ${error.message}\n${error.stack}`;
+  console.error(error);
+} finally {
+  frame.remove();
+  if (original === null) localStorage.removeItem(key);
+  else localStorage.setItem(key,original);
+}
+</script>
+</html>

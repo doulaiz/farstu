@@ -50,10 +50,10 @@ export function rafterStarts(width, overhang, rafterWidth, spacing) {
   return [...starts,rightEdge];
 }
 
-export function wallCourses(key, end, claddingSpacing) {
-  const [fraction,phase,pitch] = key === 'cover' ? [.27,0,claddingSpacing] :
-    key === 'base' ? [.34,.5,claddingSpacing] : [.5,0,600];
-  const half = (key === 'counter' ? 45 : pitch)*fraction;
+export function wallCourses(key, end, claddingSpacing, baseBoardWidth, coverBoardWidth) {
+  const [width,phase,pitch] = key === 'cover' ? [coverBoardWidth,0,claddingSpacing] :
+    key === 'base' ? [baseBoardWidth,.5,claddingSpacing] : [48,0,600];
+  const half = width/2;
   const spans = [];
   for (let centre=phase*pitch;centre-half<end;centre+=pitch) {
     spans.push([Math.max(0,centre-half),Math.min(end,centre+half)]);

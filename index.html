@@ -75,7 +75,7 @@
     </section>
     <form class="card settings" id="settings">
       <div class="bar"><h2>Parameters</h2><div class="parameter-actions"><button type="button" id="export-settings">Export settings</button><button type="reset">Reset</button></div></div>
-      <p class="hint">Open a section to edit its settings and see temporary measurement arrows. Focus a number to show its arrow again. Measurements are in millimetres unless marked otherwise.</p>
+      <p class="hint">Open a section to edit its settings and see temporary measurement arrows. Focus a dimension to show its arrow again. Measurements are in millimetres unless marked otherwise. Listed stock sizes are planning choices, not structural approvals or live store availability.</p>
       <p class="status" id="status" role="status"></p>
       <p class="status" id="storage-status" role="status"></p>
       <details class="parameter-group" name="parameters" open>
@@ -101,6 +101,7 @@
               </label>
               <div class="fields" id="footings"></div>
               <p class="hint" id="footing-hint">The first number is across the slab width; the second is along its length, from the house out. Piers are evenly spaced on each axis. Depth is measured below the slab. Choose Hide ground, then Plan, to see every pier.</p>
+              <p class="hint">Diameters follow <a href="https://k-bygg.se/kategori/byggmaterial/block-sten-och-sand/gjutror">Swedish retail casting tubes</a>: 150, 190, 251, 302 and 403 mm. Depth is site-designed, not determined by tube size; verify frost protection and bearing capacity.</p>
             </div>
           </details>
         </div>
@@ -118,6 +119,7 @@
               </select></label>
               <p class="hint">Left is as seen facing the house. Offset is measured from the existing house wall to the nearest edge of the door.</p>
               <p class="hint">Hinge side is as seen from outside the door. Preview the outward swing in 3D, Left, or Plan.</p>
+              <p class="hint">Door opening dimensions use Swedish modules. Leaf thickness (40–100 mm) controls the solid swing preview; the door mass remains an area-based estimate.</p>
               <p class="hint">The exterior step follows the door opening when its width or offset changes.</p>
             </div>
           </details>
@@ -129,7 +131,7 @@
             <summary>Right window</summary>
             <div class="parameter-content fields" id="right"></div>
           </details>
-          <p class="hint">Both windows are centred in their clear wall spans. Rough-opening widths and heights are in 100 mm steps; clearances can be entered independently. The last clearance edited stays fixed. Choose a muntin pattern for each window.</p>
+          <p class="hint">Both windows are centred in their clear wall spans. New windows use Swedish module sizes M5–M15 (500–1500 mm) in each direction; these are rough openings, not frame outer dimensions. Check the chosen width/height combination and glazing with your supplier. Clearances can be entered independently. The last clearance edited stays fixed. Choose a muntin pattern for each window.</p>
           <p class="hint">The casing runs along the sides and head; a sloped metal sill (fönsterbleck) replaces the bottom board. Head flashing (överbleck) is shown where there is room above the casing. Hiding Opening trim leaves the flashing visible. Plan shows the shallow frame setback.</p>
           <p class="hint">Schematic only. Window units, flashing, frame screws, bearing blocks and perimeter seals are not priced in the lumber BOM. Confirm clearance, mounting and the drained exterior, insulated gap and airtight interior details with the window supplier.</p>
         </div>
@@ -142,6 +144,7 @@
             <div class="parameter-content">
               <div class="fields" id="walls"></div>
               <p class="hint">Wall thickness applies to the three new walls. Cover-board spacing is measured centre to centre and also applies to the existing house façade. The lockpanel drawing shows a drip edge at least 200 mm above the drawn grade; it is not a construction detail.</p>
+              <p class="hint">New cladding and trim use 22 mm boards in listed retail widths. Set base-board and cover-board widths independently; allow at least 20 mm overlap on each side of the joint. Drawing, lumber takeoff and cladding weight follow these choices.</p>
             </div>
           </details>
           <details class="parameter-section" name="wall-parameters">
@@ -149,6 +152,7 @@
             <div class="parameter-content">
               <div class="fields" id="studs"></div>
               <p class="hint">Stud spacing is centre to centre. Width is along the wall; depth is through the wall. Studs next to corners and openings are positioned to suit the opening.</p>
+              <p class="hint">Studs and rafters use sections from the <a href="https://www.derome.se/handla-online/produkter/traeprodukter/plank-reglar/konstruktionsvirke-c24">Derome C24 catalogue</a>: 45 × 70–245 mm in listed depths, or 70 × 70 mm. Changing width filters the available depths. These are stock choices, not load-checked sizes.</p>
             </div>
           </details>
         </div>
@@ -163,7 +167,7 @@
               <div class="fields roof-options">
                 <label for="roof-material">Roof covering
                   <select id="roof-material">
-                    <option value="tiles">Concrete or clay tiles</option>
+                    <option value="tiles">Benders concrete tiles</option>
                     <option value="standingSeam" selected>Standing-seam metal</option>
                   </select>
                 </label>
@@ -178,6 +182,7 @@
               </div>
               <p class="hint">The shed roof slopes down toward the front. Overhangs are horizontal; the left and right share one setting. A continuous underlayment is shown below the covering. Tiles below 14° are rejected; tiles from 14° to 22° require a fully sealed high-grade underlayment. Standing-seam metal from 6° to 14° uses double-seamed joints. Manufacturer instructions and project-specific snow, wind, drainage, and building requirements take precedence.</p>
               <p class="hint" id="roof-guidance" role="status"></p>
+              <p class="hint" id="tile-layout-guidance" role="status" hidden></p>
               <p class="hint">The front eave includes a drip edge, half-round gutter, and right-hand downpipe. Bargeboards and verge flashing are schematic planning details. Snow retention and roof access equipment are not included; have them specified separately for the site and local requirements.</p>
             </div>
           </details>
@@ -185,7 +190,9 @@
             <summary>Tile covering</summary>
             <div class="parameter-content">
               <div class="fields" id="roofTiles"></div>
-              <p class="hint">Used only with the tile covering. Width is across the roof. Exposed length is measured up the slope between courses, excluding overlap. Profile rise is the height from valley to crown. The Left and Right views show overlapping tile courses.</p>
+              <p class="hint">Used only with the tile covering. Choose 300 mm covering width for <a href="https://www.benders.se/sortiment/tak/betongtakpannor/palema/">Benders Palema</a> (physical size 330 × 420 mm, two waves), or 250 mm for <a href="https://www.benders.se/sortiment/tak/betongtakpannor/exklusiv/">Benders Exklusiv</a> (280 × 420 mm, one wave). Both have 30 mm nominal side overlap. These are product sizes, not a universal standard for concrete or clay tiles.</p>
+              <p class="hint">Exposed length is the batten gauge along the slope: 310–320 mm below 18°, 310–340 mm from 18° to below 22°, and 310–375 mm from 22°. Headlap is 420 mm minus the gauge (45–110 mm). Follow the <a href="https://docs.keskofiles.com/f/btt/ASSET_MISC_41480342">manufacturer's laying instructions</a>; exposed sites may need tighter spacing. Profile rise is a schematic valley-to-crown height, not the manufacturer's total construction height.</p>
+              <p class="hint">For tiles, the roof's nominal covering width is snapped to a whole number of covering modules by adjusting both side overhangs equally (0–1000 mm), never the slab width. The nearest fitting width is used; ties round up. Metal roofs are not snapped. The last edge tile adds 30 mm beyond the nominal grid; coordinate that allowance with the verge flashing or special verge tiles before construction. The drawing does not detail this edge allowance.</p>
             </div>
           </details>
           <details class="parameter-section" name="roof-parameters">
@@ -207,7 +214,7 @@
               <p class="hint">The wall is centred on the farstu. Wall height is measured from the top of the slab. Concrete base height is measured from the drawn ground level to the start of the timber cladding. Basement recession is how far the basement face is set back from the upper wall, toward the house.</p>
             </div>
           </details>
-          <p class="hint">Window widths and heights are in 100 mm steps. Horizontal offset is measured from the farstu centreline to the centre of each window. Use a negative value for left and a positive value for right in the Front view. Sill height is measured from the top of the slab.</p>
+          <p class="hint">Existing-house window widths and heights accept measured dimensions in 1 mm increments, including non-standard sizes. Horizontal offset is measured from the farstu centreline to the centre of each window. Use a negative value for left and a positive value for right in the Front view. Sill height is measured from the top of the slab.</p>
           <details class="parameter-section" name="house-parameters">
             <summary>Left house window</summary>
             <div class="parameter-content fields" id="houseLeft"></div>
@@ -220,7 +227,7 @@
             <summary>Right house window</summary>
             <div class="parameter-content fields" id="houseRight"></div>
           </details>
-          <p class="hint">Basement window widths and heights are in 100 mm steps. Horizontal offset is measured from the farstu centreline; sill height is measured up from the bottom of the concrete base. Each basement window must fit within the base.</p>
+          <p class="hint">Basement window widths and heights also accept measured dimensions in 1 mm increments. Horizontal offset is measured from the farstu centreline; sill height is measured up from the bottom of the concrete base. Each basement window must fit within the base.</p>
           <details class="parameter-section" name="house-parameters">
             <summary>Left basement window</summary>
             <div class="parameter-content fields" id="houseBasementLeft"></div>

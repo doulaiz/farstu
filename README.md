@@ -29,13 +29,42 @@ The BOM uses a Derome catalogue snapshot, not live stock or prices. Enter quoted
 
 Under **Parameters → Openings**, choose a muntin pattern for each porch window. Use **Front** or **Right** to see its casing and metal flashings, or **Plan** to see how the frame sits near the outside face of the wall. Window dimensions describe rough openings. The BOM includes the side and head casing only; it does not price window units or installation materials.
 
-Enter editable window widths and heights in 100 mm (10 cm) increments, starting at 100 mm. Clearances, offsets and sill heights are not restricted to these increments. Older saved window sizes are rounded down to the next valid size, with a minimum of 100 mm.
+New porch windows use Swedish module dimensions M5–M15 (500–1500 mm) in 100 mm increments for width and height. These describe rough openings, not frame outer dimensions; verify the specific combination and window type with a supplier. See [Byggmax's explanation of window modules](https://www.byggmax.se/montera-fonster).
+
+Existing-house and basement windows accept measured, non-standard sizes in 1 mm increments. Their dimensions are bounded for planning and must still fit the house façade or concrete base.
 
 Under **Parameters → Existing house → Wall dimensions**, set **Basement recession** to offset the concrete basement face behind the upper wall. The stepped profile is shown in the 3D drawing and the Left and Right elevations. Older saved configurations without this setting default to a 100 mm recession.
 
 Under **Parameters → Existing house**, configure the left and right basement windows independently. Their sill heights are measured from the bottom of the concrete base, and each opening must fit within the base. Older saved configurations use the default basement-window settings.
 
-The roof remains a single-slope porch roof. Choose concrete or clay tiles, or standing-seam metal. The default pitch is 14°. Tile roofs below 14° are rejected; tiles from 14° to 22° need sealed high-grade underlayment. Standing-seam metal below 14° uses double-seamed joints and is rejected below 6°. The drawing and roof schedule cover the underlayment, fascia, flashings, gutter, and downpipe; the schedule accepts manual SEK quotes. Snow guards and roof-access equipment are not modeled. Confirm manufacturer limits, snow and wind loads, drainage, and local safety requirements before construction.
+The roof remains a single-slope porch roof. Choose Benders concrete tiles or standing-seam metal. The default pitch is 14°. Tile roofs below 14° are rejected; tiles from 14° to 22° need sealed high-grade underlayment. Standing-seam metal below 14° uses double-seamed joints and is rejected below 6°. The drawing and roof schedule cover the underlayment, fascia, flashings, gutter, and downpipe; the schedule accepts manual SEK quotes. Snow guards and roof-access equipment are not modeled. Confirm manufacturer limits, snow and wind loads, drainage, and local safety requirements before construction.
+
+## Roof tile modules and overlap
+
+Tile dimensions are product-specific, not a single Swedish standard. The planner offers these commonly sold concrete tile systems:
+
+| Tile | Physical width × length | Effective covering width | Nominal side overlap |
+| --- | --- | --- | --- |
+| [Benders Palema, two-wave](https://www.benders.se/sortiment/tak/betongtakpannor/palema/betongtakpanna-palema-2-kupig---0200xx/) | 330 × 420 mm | 300 mm | 30 mm |
+| [Benders Exklusiv, one-wave](https://www.benders.se/sortiment/tak/betongtakpannor/exklusiv/betongtakpanna-exklusiv-1-kupig---0100xx/) | 280 × 420 mm | 250 mm | 30 mm |
+
+**Exposed tile length / batten gauge** is measured along the slope. The [manufacturer's laying guide, pages 5–6](https://docs.keskofiles.com/f/btt/ASSET_MISC_41480342) gives 310–320 mm at 14°–17°, 310–340 mm at 18°–21°, and up to 375 mm from 22°. The planner uses the lower band's limit until the next threshold, including fractional pitches. Headlap is 420 mm minus the gauge: 45–110 mm overall, at least 100 mm below 18°, and at least 80 mm below 22°. The default gauge is 310 mm. More exposed sites may require tighter spacing. Profile rise remains a schematic valley-to-crown setting rather than total tile construction height.
+
+With tiles selected, `slab width + 2 × side overhang = whole tile count × covering width`. Editing slab width, covering width or side overhang, changing to tiles, and loading a design all apply this rule. Equal side overhangs are adjusted to the nearest feasible width while staying within 0–1000 mm; ties round up. Slab width never changes. Half-millimetre overhangs accommodate odd slab widths. The drawing, roof schedule and load estimates use the same adjusted width; metal roofs retain unrestricted width.
+
+This is a **nominal covering grid**, not a finished verge dimension: the guide notes that the final edge tile occupies an extra 30 mm beyond its covering module. That allowance and any special verge tiles must be coordinated with the bargeboards/flashing; the drawing does not model this edge allowance. Whole-width modules do not remove the need for course layout, eave/abutment cuts or project-specific detailing. Older saved covering widths migrate to the nearest listed module with a notice; saved batten gauges above the pitch limit are reduced with a notice.
+
+With the local server running, open [the roof tile regression tests](./tests/roofing.html) in a browser to check layout bounds, live edits, pitch limits, saved-design migration and estimate consistency. The tests temporarily replace and then restore the saved Designer settings.
+
+## Component dimensions
+
+- The door has a solid leaf, visible from both sides and edge-on while opening or closing in 3D, Left and Plan. Configure its visual thickness from 40 to 100 mm (default 70 mm). Opening width and height use Swedish module choices; thickness does not change the area-based mass assumption.
+- Studs and rafters offer the sections in the existing [Derome catalogue snapshot](./js/derome.js): 45 mm width with depths 70, 95, 120, 145, 170, 195, 220 or 245 mm, and 70 × 70 mm. Width selection filters the depth choices. Stud spacing is 300–600 mm; rafter spacing is 300–1200 mm.
+- New cladding base and cover boards and opening trim use 22 mm boards in retail widths 70, 95, 120, 145, 170 and 195 mm. Zero trim width hides the casing. Cladding widths are independent of spacing, with at least 20 mm overlap each side; the drawing, BOM and mass estimate use the selected sizes. Battens use the catalogue's 25 × 48 mm section.
+- Pier diameters are 150, 190, 251, 302 and 403 mm, following [K-Bygg casting tubes](https://k-bygg.se/kategori/byggmaterial/block-sten-och-sand/gjutror). The default is 403 mm. Depth is configurable from 300 to 3000 mm; this does not establish a safe foundation or frost-free depth.
+- Other geometry has bounded planning ranges, including slab dimensions 1200–6000 mm, slab thickness 80–400 mm, front wall height 2000–3500 mm, wall thickness 120–600 mm and overhangs 0–1000 mm. These limits prevent implausible inputs; they are not structural or regulatory checks.
+
+Older saved designs gain defaults for new fields. Non-standard stock dimensions are moved to the nearest listed choice with an explicit notice; existing-house measurements are preserved. Saved dimensions outside the new numeric bounds are rejected with a notice instead of being silently clamped. Stock choices are not guarantees of local availability, structural suitability or a particular supplier's window combinations.
 
 ## Floor & pier loads
 

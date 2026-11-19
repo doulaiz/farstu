@@ -1,6 +1,6 @@
 export const roofMaterials = {
   tiles: {
-    label: 'Concrete or clay tiles',
+    label: 'Benders concrete tiles',
     minimumPitch: 14
   },
   standingSeam: {
@@ -8,6 +8,22 @@ export const roofMaterials = {
     minimumPitch: 6
   }
 };
+
+export const tileSystems = {
+  250: { label: 'Benders Exklusiv', width: 280, length: 420, waves: 1 },
+  300: { label: 'Benders Palema', width: 330, length: 420, waves: 2 }
+};
+
+export function tileGaugeLimit(pitch) {
+  return pitch < 18 ? 320 : pitch < 22 ? 340 : 375;
+}
+
+export function tileRoofLayout(width, sideOverhang, tileWidth, maxSideOverhang) {
+  const minimum = Math.ceil(width/tileWidth);
+  const maximum = Math.floor((width+2*maxSideOverhang)/tileWidth);
+  const columns = Math.max(minimum,Math.min(maximum,Math.round((width+2*sideOverhang)/tileWidth)));
+  return { columns, width: columns*tileWidth, sideOverhang: (columns*tileWidth-width)/2 };
+}
 
 export function roofPitchGuidance(material, pitch) {
   const system = roofMaterials[material];

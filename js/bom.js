@@ -9,7 +9,7 @@ const roles = {
 function takeoff(model) {
   const {width, length, wallThickness, studWidth, studDepth, studSpacing, frontWallHeight, rear, slope,
     windows, offset, doorWidth, doorHeight, rafterWidth, rafterDepth, rafterSpacing,
-    sideOverhang, frontOverhang, slabThickness, claddingSpacing} = model;
+    sideOverhang, frontOverhang, slabThickness, claddingSpacing, baseBoardWidth, coverBoardWidth} = model;
   const factor = Math.hypot(1,slope);
   const groups = new Map();
   function add(role, family, width, depth, length) {
@@ -36,12 +36,12 @@ function takeoff(model) {
 
     const drip = Math.max(0,200-slabThickness);
     for (const [layer,role,stockWidth,depth] of [
-      ['base','Base cladding boards',Math.round(.725*claddingSpacing),22],
-      ['cover','Cover cladding boards',Math.round(.6*claddingSpacing),22],
-      ['counter','Vertical counter-battens',45,25]
+      ['base','Base cladding boards',baseBoardWidth,22],
+      ['cover','Cover cladding boards',coverBoardWidth,22],
+      ['counter','Vertical counter-battens',48,25]
     ]) {
       const base = layer === 'counter' ? 0 : drip;
-      const spans = wallCourses(layer,face,claddingSpacing);
+      const spans = wallCourses(layer,face,claddingSpacing,baseBoardWidth,coverBoardWidth);
       if (layer === 'base') spans.push([0,claddingSpacing*.19],[face-claddingSpacing*.19,face]);
       for (const [a,b] of spans) {
         const head = top(Math.max(0,a));
@@ -53,11 +53,11 @@ function takeoff(model) {
       }
     }
     for (const [role,family,stockWidth,depth] of [
-      ['Horizontal nailers','batten',45,25], ['Service battens','service',70,28]
+      ['Horizontal nailers','batten',48,25], ['Service battens','service',70,28]
     ]) {
       for (let z=0;z<top(0);z+=600) {
         const run = slope && key !== 'front' ? Math.min(face,(rear-z)/slope) : face;
-        if (z >= op.bottom && z+45 <= op.top && run > op.start) {
+        if (z >= op.bottom && z+stockWidth <= op.top && run > op.start) {
           add(role,family,stockWidth,depth,op.start);
           add(role,family,stockWidth,depth,run-op.end);
         } else add(role,family,stockWidth,depth,run);
