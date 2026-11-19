@@ -9,7 +9,7 @@ const roles = {
 function takeoff(model) {
   const {width, length, wallThickness, studWidth, studDepth, studSpacing, frontWallHeight, rear, slope,
     windows, offset, doorWidth, doorHeight, rafterWidth, rafterDepth, rafterSpacing,
-    sideOverhang, frontOverhang, slabThickness, claddingSpacing, baseBoardWidth, coverBoardWidth} = model;
+    roofWidth, doorSideOverhang, frontOverhang, slabThickness, claddingSpacing, baseBoardWidth, coverBoardWidth} = model;
   const factor = Math.hypot(1,slope);
   const groups = new Map();
   function add(role, family, width, depth, length) {
@@ -70,7 +70,7 @@ function takeoff(model) {
       add('Opening trim','panel',trimWidth,22,span);
     }
   }
-  for (const _ of rafterStarts(width,sideOverhang,rafterWidth,rafterSpacing)) {
+  for (const _ of rafterStarts(roofWidth,doorSideOverhang,rafterWidth,rafterSpacing)) {
     add('Rafters','frame',rafterWidth,rafterDepth,(length+frontOverhang)*factor);
   }
   return [...groups.values()];

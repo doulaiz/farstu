@@ -43,8 +43,8 @@ export function wallMembers(start, end, top, op, studWidth, studSpacing) {
 
 export const clippedHeight = (top, fn, u) => Math.max(0,Math.min(top(u),fn(u)));
 
-export function rafterStarts(width, overhang, rafterWidth, spacing) {
-  const rightEdge = width+overhang-rafterWidth;
+export function rafterStarts(roofWidth, overhang, rafterWidth, spacing) {
+  const rightEdge = roofWidth-overhang-rafterWidth;
   const starts = [-overhang];
   for (let x = -overhang+spacing; x+rafterWidth <= rightEdge; x += spacing) starts.push(x);
   return [...starts,rightEdge];

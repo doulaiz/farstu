@@ -5,7 +5,7 @@ import { pierLayout } from './loads.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
-import { roofPitchGuidance, tileGaugeLimit, tileRoofLayout, tileSystems } from './roofing.js';
+import { roofPitchGuidance, roofWidthRange, tileGaugeLimit, tileSystems } from './roofing.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
 
 export function initDesigner() {
@@ -26,6 +26,7 @@ export function initDesigner() {
     .flatMap(key => ['Width','Height','Offset','Sill'].map(suffix => key + suffix)));
   const roofGuidance = $('roof-guidance');
   const tileLayoutGuidance = $('tile-layout-guidance');
+  const roofLayoutGuidance = $('roof-layout-guidance');
   const storageStatus = $('storage-status');
   const exportButton = $('export-settings');
   const bom = createBomView($);
@@ -115,6 +116,14 @@ export function initDesigner() {
       : Number(saved.fields.pitch) < 14 ? 'standingSeam' : roofMaterial.value;
     const savedRoofFinish = saved.roofFinish ?? roofFinish.value;
     const savedFields = { ...saved.fields };
+    if (savedFields.roofWidth === undefined && savedFields.doorSideOverhang === undefined) {
+      const overhang = savedFields.sideOverhang;
+      if (typeof overhang !== 'string' || overhang.trim() === '' ||
+        !Number.isFinite(Number(overhang)) || Number(overhang) < 0 || Number(overhang) > 1000) return false;
+      savedFields.roofWidth = String(Number(savedFields.width)+2*Number(overhang));
+      savedFields.doorSideOverhang = overhang;
+      adjustedRoofSettings = true;
+    }
     if (savedRoofMaterial !== saved.roofMaterial) adjustedRoofSettings = true;
     if (savedRoofMaterial === 'standingSeam' && Number(savedFields.pitch) < 6) {
       savedFields.pitch = '6';
@@ -215,9 +224,26 @@ export function initDesigner() {
     storageStatus.textContent = saveSettings(settingsSnapshot());
   }
 
-  function update() {
+  function update(alignRoofWidth = false) {
     tileLayoutGuidance.textContent = '';
+    roofLayoutGuidance.textContent = '';
     tileLayoutGuidance.hidden = roofMaterial.value !== 'tiles';
+    const roofStep = roofMaterial.value === 'tiles' ? Number(fields.tileWidth.value) : 1;
+    fields.roofWidth.step = String(roofStep);
+    fields.roofWidth.min = '1200';
+    fields.roofWidth.max = '8000';
+    if (fields.width.validity.valid && fields.doorSideOverhang.validity.valid && fields.tileWidth.validity.valid) {
+      const range = roofWidthRange(Number(fields.width.value),Number(fields.doorSideOverhang.value),
+        roofStep,Number(fields.doorSideOverhang.max));
+      fields.roofWidth.min = String(range.min);
+      fields.roofWidth.max = String(range.max);
+      const previous = fields.roofWidth.value === '' ? NaN : Number(fields.roofWidth.value);
+      if (alignRoofWidth && Number.isFinite(previous) && previous >= 1200 && previous <= 8000) {
+        const next = Math.max(range.min,Math.min(range.max,Math.round(previous/roofStep)*roofStep));
+        fields.roofWidth.value = String(next);
+        if (next !== previous) adjustedRoofSettings = true;
+      }
+    }
     const bad = new Set();
     const messages = new Set();
     function flag(message, ...keys) {
@@ -278,7 +304,12 @@ export function initDesigner() {
     }
     if (v.studWidth >= v.studSpacing) flag('Stud width must be less than the centre-to-centre spacing.', 'studWidth', 'studSpacing');
     if (v.rafterWidth >= v.rafterSpacing) flag('Rafter width must be less than the centre-to-centre spacing.', 'rafterWidth', 'rafterSpacing');
-    if (2 * v.rafterWidth > v.width + 2 * v.sideOverhang) flag('The two edge rafters do not fit within the roof width.', 'rafterWidth', 'width', 'sideOverhang');
+    const rightOverhang = v.roofWidth-v.width-v.doorSideOverhang;
+    if (rightOverhang < 0 || rightOverhang > 1000) {
+      flag('The roof must cover the slab with each side overhang between 0 and 1000 mm.',
+        'roofWidth','doorSideOverhang','width');
+    }
+    if (2 * v.rafterWidth > v.roofWidth) flag('The two edge rafters do not fit within the roof width.', 'rafterWidth', 'roofWidth');
     const doorEnd = v.offset + v.doorWidth;
     if (doorEnd > sideSpan) flag('The left-side door extends into the front wall.', 'offset', 'doorWidth', 'length', 'wallThickness');
     if (v.doorHeight > rear - slope * doorEnd) flag('The left-side door reaches above the roofline at its front edge.', 'doorHeight', 'frontWallHeight', 'pitch');
@@ -342,18 +373,16 @@ export function initDesigner() {
       return false;
     }
     settingsValid = true;
+    roofLayoutGuidance.textContent = `Roof width: ${mm(v.roofWidth)}. Door-side (left) overhang: ${mm(v.doorSideOverhang)}. ` +
+      `Opposite (right) overhang: ${mm(rightOverhang)}. Width increments: ${mm(roofStep)}.`;
     if (roofMaterial.value === 'tiles') {
-      const layout = tileRoofLayout(v.width,v.sideOverhang,v.tileWidth,Number(fields.sideOverhang.max));
-      v.sideOverhang = layout.sideOverhang;
-      fields.sideOverhang.value = String(layout.sideOverhang);
       const tile = tileSystems[v.tileWidth];
       tileLayoutGuidance.textContent = `${tile.label}: ${mm(tile.width)} wide × ${mm(tile.length)} long; ` +
         `${mm(tile.width-v.tileWidth)} side overlap and ${mm(tile.length-v.tileLength)} headlap. ` +
-        `Automatic layout: ${layout.columns} whole covering modules × ${mm(v.tileWidth)} = ${mm(layout.width)} roof width; ` +
-        `equal side overhangs ${mm(layout.sideOverhang)}. Slab width is unchanged. ` +
+        `Layout: ${v.roofWidth/v.tileWidth} whole covering modules × ${mm(v.tileWidth)} = ${mm(v.roofWidth)} roof width. ` +
         `Maximum batten gauge at this pitch: ${mm(tileGaugeLimit(v.pitch))}.`;
     }
-    latest = { ...v, windows, houseOpenings, basementOpenings, slope, rear, eave,
+    latest = { ...v, rightOverhang, windows, houseOpenings, basementOpenings, slope, rear, eave,
       roofMaterial:roofMaterial.value, roofFinish:roofFinish.value };
     bom.update(latest, true);
     loads.update(latest, true);
@@ -367,7 +396,8 @@ export function initDesigner() {
 
   function render() {
     if (!latest) return;
-    const { width: W, length: L, frontWallHeight: H, rear: R, eave: E, frontOverhang: F, sideOverhang: S,
+    const { width: W, length: L, frontWallHeight: H, rear: R, eave: E, frontOverhang: F,
+      roofWidth, doorSideOverhang, rightOverhang,
       slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing, baseBoardWidth, coverBoardWidth,
       windows, houseOpenings, basementOpenings, houseWallWidth, houseWallHeight, houseBaseHeight, houseBaseRecession,
       hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, doorThickness, pitch, slope,
@@ -405,14 +435,15 @@ export function initDesigner() {
     const note = (at, text, dy = 0, anchor = 'middle') => labels.push({ at, text, dy, anchor });
     const dimension = (a, b, gap, text) => dims.push({ a, b, gap, text });
     const ground = (x,y) => [x,y,0];
-    const planMargin = Math.max(360, S + 170);
+    const roofLeft = -doorSideOverhang, roofRight = roofLeft+roofWidth;
+    const planMargin = Math.max(360, doorSideOverhang + 170, rightOverhang + 170);
     const houseA = (W-houseWallWidth)/2, houseB = houseA+houseWallWidth;
     const houseAt = (x,z) => [x,0,z];
     const houseBaseAt = (x,z) => [x,-houseBaseRecession,z];
     const roofDepth = rafterDepth * Math.hypot(1,slope);
     const tileRun = tileLength/Math.hypot(1,slope);
     const houseReferenceTop = R + Math.max(330, roofDepth + 140, (R + L + W) * .045);
-    const roof = [[-S,0,R+roofDepth],[W+S,0,R+roofDepth],[W+S,L+F,E+roofDepth],[-S,L+F,E+roofDepth]];
+    const roof = [[roofLeft,0,R+roofDepth],[roofRight,0,R+roofDepth],[roofRight,L+F,E+roofDepth],[roofLeft,L+F,E+roofDepth]];
     const roofAt = (x,y,offset = 0) => [x,y,R-slope*y+roofDepth+offset];
     const slab = [ground(0,0), ground(W,0), ground(W,L), ground(0,L)];
     const frontAt = (x,z) => [x,L,z];
@@ -570,11 +601,11 @@ export function initDesigner() {
     }
 
     function drawRafters() {
-      const starts = rafterStarts(W,S,rafterWidth,rafterSpacing);
+      const starts = rafterStarts(roofWidth,doorSideOverhang,rafterWidth,rafterSpacing);
       const y = L+F;
       const top = (x) => [[x,0,R+roofDepth],[x+rafterWidth,0,R+roofDepth],[x+rafterWidth,y,E+roofDepth],[x,y,E+roofDepth]];
       if (!plan && !iso && !front) {
-        const x = side === 'left' ? -S : W+S;
+        const x = side === 'left' ? roofLeft : roofRight;
         lumber([[x,0,R],[x,y,E],[x,y,E+roofDepth],[x,0,R+roofDepth]],'rafter');
         return;
       }
@@ -673,7 +704,7 @@ export function initDesigner() {
       const back = y-20, edge = y+110;
       const bottom = Math.max(0,lip-100);
       const at = (x,u,z) => [x,u,z];
-      const left = -S, right = W+S;
+      const left = roofLeft, right = roofRight;
       const outlet = W;
       if (!plan) {
         const elbow = Math.max(0,bottom-200);
@@ -695,7 +726,7 @@ export function initDesigner() {
     }
 
     function drawTiles() {
-      const start = -S, end = W+S, eaveY = L+F;
+      const start = roofLeft, end = roofRight, eaveY = L+F;
       const count = Math.round((end-start)/tileWidth);
       const courses = Math.ceil(eaveY/tileRun);
       const elevation = !iso && !front;
@@ -748,18 +779,18 @@ export function initDesigner() {
         drawTiles();
         return;
       }
-      const span = W+2*S;
+      const span = roofWidth;
       const spacing = Math.max(350,span/120);
-      for (let x=-S+spacing;x<W+S;x+=spacing) {
+      for (let x=roofLeft+spacing;x<roofRight;x+=spacing) {
         line(roofAt(x,0,8),roofAt(x,L+F,8),'roof-standing-seam');
-        if (pitch < 14 && x+10 < W+S) {
+        if (pitch < 14 && x+10 < roofRight) {
           line(roofAt(x+10,0,9),roofAt(x+10,L+F,9),'roof-standing-seam');
         }
       }
     }
 
     function drawRoofEdgeDetails() {
-      const start=-S, end=W+S, eave=L+F;
+      const start=roofLeft, end=roofRight, eave=L+F;
       const metal='#555b5c';
       face([
         roofAt(start,eave-35,-10),roofAt(end,eave-35,-10),
@@ -777,7 +808,7 @@ export function initDesigner() {
         roofAt(start,0,-10),roofAt(end,0,-10),
         roofAt(end,30,-10),roofAt(start,30,-10)
       ],metal,{class:'face roof-abutment-flashing'});
-      for (const x of rafterStarts(W,S,rafterWidth,rafterSpacing)) {
+      for (const x of rafterStarts(roofWidth,doorSideOverhang,rafterWidth,rafterSpacing)) {
         face([
           roofAt(x,eave,-roofDepth+10),roofAt(x+rafterWidth,eave,-roofDepth+10),
           roofAt(x+rafterWidth,eave,-10),roofAt(x,eave,-10)
@@ -1102,7 +1133,7 @@ export function initDesigner() {
       note(ground(W/2,-Math.min(260,L*.11)),'Existing house',-7);
       note(ground(T,(door.start+door.end)/2),'Left door',-9,'start');
       dimension(ground(0,L+F), ground(W,L+F), [0,35], mm(W));
-      dimension(ground(-S,0), ground(-S,L), [-43,0], mm(L));
+      dimension(ground(roofLeft,0), ground(roofLeft,L), [-43,0], mm(L));
     } else {
       if (iso || front) drawHouseFacade();
       if (groundHidden) drawPiers();
@@ -1149,9 +1180,9 @@ export function initDesigner() {
         drawRafters();
         orderScene(rafters);
       } else if (roofTiles && (iso || front)) {
-        if (iso) face([roof[0],roof[3],[-S,L+F,E],[-S,0,R]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
+        if (iso) face([roof[0],roof[3],[roofLeft,L+F,E],[roofLeft,0,R]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
         face(roof,roofPaint,{class:'face roof-covering'});
-        face([roof[2],roof[3],[-S,L+F,E],[W+S,L+F,E]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
+        face([roof[2],roof[3],[roofLeft,L+F,E],[roofRight,L+F,E]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
         drawRoofCovering();
         drawRoofEdgeDetails();
       }
@@ -1275,28 +1306,30 @@ export function initDesigner() {
         case 'roof': return [
           { key:'pitch',label:'Roof pitch',value:pitch,angle:true },
           m('frontOverhang','Front overhang',[0,L,E+roofDepth],[0,L+F,E+roofDepth],!front),
-          m('sideOverhang','Side overhang',[0,L,E+roofDepth],[-S,L,E+roofDepth],onFacade||plan)
+          m('roofWidth','Total roof width',[roofLeft,L,E+roofDepth],[roofRight,L,E+roofDepth],onFacade||plan),
+          m('doorSideOverhang','Door-side overhang',[0,L,E+roofDepth],[roofLeft,L,E+roofDepth],onFacade||plan),
+          m('rightOverhang','Opposite overhang',[W,L,E+roofDepth],[roofRight,L,E+roofDepth],onFacade||plan,rightOverhang)
         ];
         case 'roofTiles': {
-          const y = L+F, x = -S, z = E+roofDepth;
+          const y = L+F, x = roofLeft, z = E+roofDepth;
           return [
-            m('tileWidth','Tile covering width',[x,y,z],[x+tileWidth,y,z],roofTiles&&material==='tiles'&&onFacade&&tileWidth<=W+2*S),
+            m('tileWidth','Tile covering width',[x,y,z],[x+tileWidth,y,z],roofTiles&&material==='tiles'&&onFacade&&tileWidth<=roofWidth),
             m('tileLength','Exposed tile length',[x,y,z],[x,y-tileRun,z+slope*tileRun],roofTiles&&material==='tiles'&&(iso||left||right)&&tileRun<=y),
             m('tileRise','Profile rise',[x+tileWidth/(2*tileSystems[tileWidth].waves),y,z],[x+tileWidth/(2*tileSystems[tileWidth].waves),y,z+tileRise],
-              roofTiles&&material==='tiles'&&!plan&&tileWidth/2<=W+2*S,tileRise,[8,0])
+              roofTiles&&material==='tiles'&&!plan&&tileWidth/2<=roofWidth,tileRise,[8,0])
           ];
         }
         case 'rafters': {
-          const c = -S+rafterWidth/2, z = E+roofDepth;
+          const c = roofLeft+rafterWidth/2, z = E+roofDepth;
           const visible = roofFraming&&(onFacade||plan);
           const perpendicular = rafterDepth/Math.hypot(1,slope);
           const startY = (L+F)/2, startZ = R-slope*startY;
           return [
             m('rafterSpacing','Rafter centres',[c,L+F,z],[c+rafterSpacing,L+F,z],
-              visible&&-S+rafterSpacing+rafterWidth<=W+S-rafterWidth),
-            m('rafterWidth','Rafter width',[-S,L+F,z],[-S+rafterWidth,L+F,z],visible),
-            m('rafterDepth','Rafter depth',[-S,startY,startZ],
-              [-S,startY+slope*perpendicular,startZ+perpendicular],roofFraming&&(left||right),rafterDepth)
+              visible&&roofLeft+rafterSpacing+rafterWidth<=roofRight-rafterWidth),
+            m('rafterWidth','Rafter width',[roofLeft,L+F,z],[roofLeft+rafterWidth,L+F,z],visible),
+            m('rafterDepth','Rafter depth',[roofLeft,startY,startZ],
+              [roofLeft,startY+slope*perpendicular,startZ+perpendicular],roofFraming&&(left||right),rafterDepth)
           ];
         }
         case 'houseWall': return [
@@ -1510,7 +1543,7 @@ export function initDesigner() {
       if (target.name === side + 'Bottom') anchors[side] = 'Bottom';
     }
     if (target === fields.studWidth || target === fields.rafterWidth) syncTimberSizes();
-    update();
+    update(target === fields.tileWidth);
     if (fields[target.id] === target) showMeasurements(target.id);
   });
   form.addEventListener('submit', (event) => event.preventDefault());
@@ -1585,7 +1618,7 @@ export function initDesigner() {
   });
   roofMaterial.addEventListener('change', () => {
     persistenceEnabled = true;
-    update();
+    update(true);
   });
   roofFinish.addEventListener('change', () => {
     persistenceEnabled = true;
@@ -1618,7 +1651,7 @@ export function initDesigner() {
     storageStatus.textContent = 'Saved settings are invalid or incomplete; defaults were loaded.';
   }
   for (const tab of tabs) tab.setAttribute('aria-pressed',String(tab.dataset.view === view));
-  const valid = update();
+  const valid = update(true);
   if (!valid && restored) {
     persistenceEnabled = false;
     resetParameters(true);
@@ -1627,7 +1660,7 @@ export function initDesigner() {
   } else if (valid && (adjustedStockSizes.length || adjustedRoofSettings)) {
     const notices = [];
     if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map(key => `${key} = ${fields[key].value} mm`).join(', ')}. Review these changes before ordering.`);
-    if (adjustedRoofSettings) notices.push('Saved roof settings were adjusted to the available coverings and pitch-dependent batten gauge.');
+    if (adjustedRoofSettings) notices.push('Saved roof settings were migrated to total roof width and door-side overhang, or adjusted to the selected tile module and pitch-dependent batten gauge.');
     storageStatus.textContent = [...notices,storageStatus.textContent].filter(Boolean).join(' ');
   }
 }

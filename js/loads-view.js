@@ -127,21 +127,21 @@ export function createLoadsView($) {
   peopleSelect.addEventListener('change', () => render(true));
 
   function drawDiagram(model, result, people) {
-    const { width: W, length: L, wallThickness: T, sideOverhang: S, frontOverhang: F, windows, offset, doorWidth } = model;
+    const { width: W, length: L, wallThickness: T, roofWidth, doorSideOverhang: S, frontOverhang: F, windows, offset, doorWidth } = model;
     const { piers, layout, field } = result;
-    const span = Math.max(W + 2 * S, L + F);
+    const span = Math.max(roofWidth, L + F);
     const u = span / 640;
     const margin = 70 * u;
     const houseBand = 46 * u;
-    const minX = -S - margin, minY = -houseBand - 14 * u, maxX = W + S + margin, maxY = L + F + margin;
+    const minX = -S - margin, minY = -houseBand - 14 * u, maxX = roofWidth - S + margin, maxY = L + F + margin;
     svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
     svg.replaceChildren(...fixedNodes);
     const root = el('g', {}, svg);
 
     el('rect', { x: minX, y: -houseBand, width: maxX - minX, height: houseBand, class: 'loads-house' }, root);
     text(root, W / 2, -houseBand / 2, 'Existing house wall', 13 * u, { 'dominant-baseline': 'central', 'text-anchor': 'middle' });
-    el('rect', { x: -S, y: 0, width: W + 2 * S, height: L + F, class: 'loads-roof' }, root);
-    text(root, W + S - 4 * u, L + F - 6 * u, 'Roof outline', 10 * u, { 'text-anchor': 'end', class: 'loads-text loads-muted' });
+    el('rect', { x: -S, y: 0, width: roofWidth, height: L + F, class: 'loads-roof' }, root);
+    text(root, roofWidth - S - 4 * u, L + F - 6 * u, 'Roof outline', 10 * u, { 'text-anchor': 'end', class: 'loads-text loads-muted' });
 
     const max = Math.max(...field.values);
     const cw = W / field.nx, ch = L / field.ny;

@@ -116,10 +116,11 @@ function wallLoads(model, add) {
 }
 
 function roofLoads(model, add) {
-  const { width: W, length: L, wallThickness: T, sideOverhang: S, frontOverhang: F, slope,
+  const { width: W, length: L, wallThickness: T, roofWidth, doorSideOverhang: S, frontOverhang: F, slope,
     rafterWidth, rafterDepth, rafterSpacing } = model;
   const factor = Math.hypot(1, slope);
-  const rafters = rafterStarts(W, S, rafterWidth, rafterSpacing);
+  const roofRight = roofWidth-S;
+  const rafters = rafterStarts(roofWidth, S, rafterWidth, rafterSpacing);
   const rafterKg = rafterWidth * rafterDepth * (L + F) * factor * densities.timber.value / 1e9;
   const areaKg = (roofCoveringMasses[roofCovering(model)] + roofLayerMasses.deck + roofLayerMasses.underlayment) / 1e6 * factor;
   const point = (part, x, y, kg) => add('roof', part, x, y, kg);
@@ -127,14 +128,14 @@ function roofLoads(model, add) {
   const ys = [];
   for (let y = step / 2; y < L + F; y += step) ys.push([y, Math.min(step, L + F - y + step / 2)]);
   for (const x0 of rafters) for (const [y, dy] of ys) point('rafters', x0 + rafterWidth / 2, y, rafterKg * dy / (L + F));
-  for (let x = -S + step / 2; x < W + S; x += step) {
-    const dx = Math.min(step, W + S - x + step / 2);
+  for (let x = -S + step / 2; x < roofRight; x += step) {
+    const dx = Math.min(step, roofRight - x + step / 2);
     for (const [y, dy] of ys) point('covering', x, y, dx * dy * areaKg);
     point('edges', x, L + F, dx / 1000 * roofEdgeMasses.eave);
     point('edges', x, 0, dx / 1000 * roofEdgeMasses.abutment);
   }
   for (const [y, dy] of ys) {
-    for (const x of [-S, W + S]) point('edges', x, y, dy / 1000 * factor * roofEdgeMasses.verge);
+    for (const x of [-S, roofRight]) point('edges', x, y, dy / 1000 * factor * roofEdgeMasses.verge);
   }
   point('edges', W - T / 2, L + F, roofEdgeMasses.downpipe);
 }

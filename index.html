@@ -161,7 +161,7 @@
         <summary>Roof</summary>
         <div class="parameter-body">
           <details class="parameter-section" name="roof-parameters" open>
-            <summary>Pitch &amp; overhangs</summary>
+            <summary>Pitch, width &amp; overhangs</summary>
             <div class="parameter-content">
               <div class="fields" id="roof"></div>
               <div class="fields roof-options">
@@ -180,7 +180,9 @@
                   </select>
                 </label>
               </div>
-              <p class="hint">The shed roof slopes down toward the front. Overhangs are horizontal; the left and right share one setting. A continuous underlayment is shown below the covering. Tiles below 14° are rejected; tiles from 14° to 22° require a fully sealed high-grade underlayment. Standing-seam metal from 6° to 14° uses double-seamed joints. Manufacturer instructions and project-specific snow, wind, drainage, and building requirements take precedence.</p>
+              <p class="hint">The shed roof slopes down toward the front. Total roof width is independent of slab width. Door-side overhang is the horizontal distance beyond the left slab edge; the opposite overhang equals roof width minus slab width minus door-side overhang. Both sides must stay within 0–1000 mm, so the roof always covers the slab. The opposite overhang is calculated, not necessarily equal.</p>
+              <p class="hint" id="roof-layout-guidance" role="status"></p>
+              <p class="hint">Tiles below 14° are rejected; tiles from 14° to 22° require a fully sealed high-grade underlayment. Standing-seam metal from 6° to 14° uses double-seamed joints. Manufacturer instructions and project-specific snow, wind, drainage, and building requirements take precedence.</p>
               <p class="hint" id="roof-guidance" role="status"></p>
               <p class="hint" id="tile-layout-guidance" role="status" hidden></p>
               <p class="hint">The front eave includes a drip edge, half-round gutter, and right-hand downpipe. Bargeboards and verge flashing are schematic planning details. Snow retention and roof access equipment are not included; have them specified separately for the site and local requirements.</p>
@@ -192,7 +194,7 @@
               <div class="fields" id="roofTiles"></div>
               <p class="hint">Used only with the tile covering. Choose 300 mm covering width for <a href="https://www.benders.se/sortiment/tak/betongtakpannor/palema/">Benders Palema</a> (physical size 330 × 420 mm, two waves), or 250 mm for <a href="https://www.benders.se/sortiment/tak/betongtakpannor/exklusiv/">Benders Exklusiv</a> (280 × 420 mm, one wave). Both have 30 mm nominal side overlap. These are product sizes, not a universal standard for concrete or clay tiles.</p>
               <p class="hint">Exposed length is the batten gauge along the slope: 310–320 mm below 18°, 310–340 mm from 18° to below 22°, and 310–375 mm from 22°. Headlap is 420 mm minus the gauge (45–110 mm). Follow the <a href="https://docs.keskofiles.com/f/btt/ASSET_MISC_41480342">manufacturer's laying instructions</a>; exposed sites may need tighter spacing. Profile rise is a schematic valley-to-crown height, not the manufacturer's total construction height.</p>
-              <p class="hint">For tiles, the roof's nominal covering width is snapped to a whole number of covering modules by adjusting both side overhangs equally (0–1000 mm), never the slab width. The nearest fitting width is used; ties round up. Metal roofs are not snapped. The last edge tile adds 30 mm beyond the nominal grid; coordinate that allowance with the verge flashing or special verge tiles before construction. The drawing does not detail this edge allowance.</p>
+              <p class="hint">For tiles, total roof width moves in whole covering-width steps (250 or 300 mm); typed widths between steps are rejected. Switching to tiles or changing the tile system aligns roof width to the nearest fitting module, with ties rounded up, while preserving the door-side overhang and slab width. Metal uses 1 mm width steps. The last edge tile adds 30 mm beyond the nominal grid; coordinate that allowance with the verge flashing or special verge tiles before construction. The drawing does not detail this edge allowance.</p>
             </div>
           </details>
           <details class="parameter-section" name="roof-parameters">

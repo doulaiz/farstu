@@ -18,11 +18,11 @@ export function tileGaugeLimit(pitch) {
   return pitch < 18 ? 320 : pitch < 22 ? 340 : 375;
 }
 
-export function tileRoofLayout(width, sideOverhang, tileWidth, maxSideOverhang) {
-  const minimum = Math.ceil(width/tileWidth);
-  const maximum = Math.floor((width+2*maxSideOverhang)/tileWidth);
-  const columns = Math.max(minimum,Math.min(maximum,Math.round((width+2*sideOverhang)/tileWidth)));
-  return { columns, width: columns*tileWidth, sideOverhang: (columns*tileWidth-width)/2 };
+export function roofWidthRange(width, doorSideOverhang, step, maxOverhang) {
+  return {
+    min: Math.ceil((width+doorSideOverhang)/step)*step,
+    max: Math.floor((width+doorSideOverhang+maxOverhang)/step)*step
+  };
 }
 
 export function roofPitchGuidance(material, pitch) {
@@ -59,8 +59,7 @@ export function roofPitchGuidance(material, pitch) {
 }
 
 export function buildRoofSchedule(model) {
-  const { width, length, sideOverhang, frontOverhang, slope, pitch, roofMaterial } = model;
-  const widthWithOverhang = width + 2 * sideOverhang;
+  const { roofWidth: widthWithOverhang, length, frontOverhang, slope, pitch, roofMaterial } = model;
   const slopedRun = (length + frontOverhang) * Math.hypot(1, slope);
   const area = widthWithOverhang * slopedRun / 1e6;
   const edgeLength = widthWithOverhang / 1000;

@@ -4,7 +4,8 @@
 <title>Roof tile regression tests</title>
 <pre id="results">Running...</pre>
 <script type="module">
-import { tileRoofLayout, tileGaugeLimit } from '../js/roofing.js';
+import { roofWidthRange, tileGaugeLimit } from '../js/roofing.js';
+import { rafterStarts } from '../js/framing.js';
 
 const results = document.querySelector('#results');
 const key = 'farstu-designer-settings-v1';
@@ -24,24 +25,26 @@ async function load() {
   await ready;
 }
 try {
-  for (const tile of [250,300]) {
+  for (const step of [1,250,300]) {
     for (let width=1200; width<=6000; width++) {
       for (const overhang of [0,.5,180,499.5,999.5,1000]) {
-        const layout = tileRoofLayout(width,overhang,tile,1000);
-        assert(layout.sideOverhang >= 0 && layout.sideOverhang <= 1000, 'Overhang escaped bounds');
-        assert(Number.isInteger(layout.columns), 'Partial tile column');
-        close(width+2*layout.sideOverhang,layout.columns*tile);
-        const distance = Math.abs(layout.sideOverhang-overhang);
-        for (const adjacent of [layout.sideOverhang-tile/2,layout.sideOverhang+tile/2]) {
-          if (adjacent >= 0 && adjacent <= 1000) {
-            assert(distance <= Math.abs(adjacent-overhang), 'Not the nearest feasible width');
-          }
+        const range = roofWidthRange(width,overhang,step,1000);
+        assert(range.min <= range.max,'No feasible roof width');
+        for (const roofWidth of [range.min,range.max]) {
+          const right = roofWidth-width-overhang;
+          assert(right >= 0 && right <= 1000,'Opposite overhang escaped bounds');
+          assert(Number.isInteger(roofWidth/step),'Width not aligned to covering module');
         }
+        assert(range.min-step < width+overhang,'Minimum excludes a fitting width');
+        assert(range.max+step > width+overhang+1000,'Maximum excludes a fitting width');
       }
     }
   }
-  close(tileRoofLayout(2800,175,300,1000).sideOverhang,250);
-  passed.push('Nearest whole modules, ties, odd widths and both overhang bounds');
+  const rafters = rafterStarts(3300,500,45,600);
+  close(rafters[0],-500);
+  close(rafters.at(-1)+45,2800);
+  assert(rafters.every(x => x >= -500 && x+45 <= 2800),'Rafters escaped asymmetric roof');
+  passed.push('Asymmetric roof width bounds, whole modules, odd slabs and edge rafters');
 
   localStorage.removeItem(key);
   await load();
@@ -52,23 +55,57 @@ try {
     field(id).dispatchEvent(new frame.contentWindow.Event(event,{bubbles:true}));
   };
   const valid = () => assert(!field('status').textContent,field('status').textContent);
+  close(Number(field('roofWidth').value),3160);
+  edit('doorSideOverhang',300);
+  valid();
+  close(Number(field('roofWidth').value),3160);
+  assert(field('roof-layout-guidance').textContent.includes('Opposite (right) overhang: 60 mm'),'Wrong opposite overhang');
   edit('roof-material','tiles','change');
   valid();
   close(Number(field('width').value),2800);
-  close(Number(field('sideOverhang').value),250);
+  close(Number(field('roofWidth').value),3300);
+  close(Number(field('doorSideOverhang').value),300);
+  close(Number(field('roofWidth').step),300);
   assert(field('tile-layout-guidance').textContent.includes('30 mm side overlap'), 'Missing overlap');
-  for (const [width,overhang,tile] of [[2801,180,300],[2999,0,300],[2801,1000,300],[2801,180,250]]) {
+  for (const [width,overhang,total,tile] of [
+    [2801,180,3300,300],[2999,0,3000,300],[2801,1000,3900,300],
+    [2801,180,3250,250],[3000,0,3000,300],[3000,1000,5000,250]
+  ]) {
+    edit('roof-material','standingSeam','change');
+    edit('doorSideOverhang',overhang);
     edit('width',width);
-    edit('sideOverhang',overhang);
+    edit('roofWidth',total);
     edit('tileWidth',tile);
+    edit('roof-material','tiles','change');
     valid();
-    const total = width+2*Number(field('sideOverhang').value);
-    assert(Number.isInteger(total/tile), 'UI roof is not modular');
+    close(Number(field('roofWidth').value),total);
+    close(Number(field('doorSideOverhang').value),overhang);
     close(Number(field('width').value),width);
     const facets = tile === 300 ? 16 : 8;
     close(doc().querySelectorAll('.tile-profile').length,total/tile*facets);
+    field('roofWidth').stepUp();
+    field('roofWidth').dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
+    valid();
+    const stepped = Math.min(total+tile,Number(field('roofWidth').max));
+    close(Number(field('roofWidth').value),stepped);
+    field('roofWidth').stepDown();
+    field('roofWidth').dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
+    valid();
+    close(Number(field('roofWidth').value),stepped-tile);
+    edit('roofWidth',total);
   }
-  passed.push('Live edits snap equal overhangs, preserve slab width and draw whole tile columns');
+  edit('tileWidth',300);
+  valid();
+  close(Number(field('roofWidth').value),4800);
+  close(Number(field('doorSideOverhang').value),1000);
+  edit('roof-material','standingSeam','change');
+  edit('doorSideOverhang',180);
+  edit('width',2801);
+  edit('roofWidth',3250);
+  edit('tileWidth',250);
+  edit('roof-material','tiles','change');
+  valid();
+  passed.push('Independent door-side offset, tile-stepped roof width and whole drawn tile columns');
 
   for (const [pitch,max] of [[14,320],[17.99,320],[18,340],[21.99,340],[22,375]]) {
     close(tileGaugeLimit(pitch),max);
@@ -84,37 +121,52 @@ try {
   valid();
   const before = field('drawing').innerHTML;
   for (const invalid of ['',-1,1001,.25]) {
-    edit('sideOverhang',invalid);
-    assert(field('sideOverhang').getAttribute('aria-invalid') === 'true','Invalid overhang accepted');
+    edit('doorSideOverhang',invalid);
+    assert(field('doorSideOverhang').getAttribute('aria-invalid') === 'true','Invalid overhang accepted');
     assert(field('drawing').innerHTML === before,'Invalid input changed drawing');
   }
-  edit('sideOverhang',180);
+  edit('doorSideOverhang',180);
+  valid();
+  for (const invalid of ['',3001,2750,4000]) {
+    edit('roofWidth',invalid);
+    assert(field('roofWidth').getAttribute('aria-invalid') === 'true','Invalid roof width accepted');
+  }
+  edit('roofWidth',3250);
+  valid();
+  edit('doorSideOverhang',500);
+  assert(field('roofWidth').getAttribute('aria-invalid') === 'true','Roof not covering the slab was accepted');
+  edit('doorSideOverhang',180);
   valid();
   edit('roof-material','standingSeam','change');
-  edit('sideOverhang',181);
+  edit('roofWidth',3251);
   valid();
-  close(Number(field('sideOverhang').value),181);
+  close(Number(field('roofWidth').value),3251);
+  close(Number(field('roofWidth').step),1);
   assert(field('tile-layout-guidance').hidden,'Tile guidance shown for metal');
-  passed.push('Pitch-dependent headlap, invalid input preservation and unrestricted metal roofs');
+  passed.push('Pitch limits, invalid widths and overhangs, slab coverage and 1 mm metal steps');
 
   edit('roof-material','tiles','change');
   valid();
   const saved = JSON.parse(localStorage.getItem(key));
   await load();
   valid();
-  assert(field('sideOverhang').value === saved.fields.sideOverhang,'Saved width did not round-trip');
+  assert(field('roofWidth').value === saved.fields.roofWidth,'Saved width did not round-trip');
+  assert(field('doorSideOverhang').value === saved.fields.doorSideOverhang,'Saved offset did not round-trip');
   saved.fields.tileWidth = '290';
   saved.fields.tileLength = '330';
   saved.fields.sideOverhang = '180';
+  delete saved.fields.roofWidth;
+  delete saved.fields.doorSideOverhang;
   localStorage.setItem(key,JSON.stringify(saved));
   await load();
   valid();
   close(Number(field('tileWidth').value),300);
   close(Number(field('tileLength').value),320);
-  const total = Number(field('width').value)+2*Number(field('sideOverhang').value);
+  close(Number(field('doorSideOverhang').value),180);
+  const total = Number(field('roofWidth').value);
   assert(Number.isInteger(total/300),'Legacy width not snapped');
   assert(field('storage-status').textContent.includes('adjusted'),'Missing migration notice');
-  passed.push('Saved layouts round-trip and legacy tile dimensions migrate with notice');
+  passed.push('Asymmetric saved layouts round-trip and old symmetric settings migrate with notice');
 
   const factor = Math.hypot(1,Math.tan(Number(field('pitch').value)*Math.PI/180));
   const area = total*(Number(field('length').value)+Number(field('frontOverhang').value))*factor/1e6;
@@ -127,7 +179,26 @@ try {
     .find(row => row.textContent.includes('Roof benders concrete tiles, deck'));
   const actualKg = Number(roofLoad.querySelector('td').textContent.replaceAll(',',''));
   assert(Math.abs(actualKg-area*56.5) <= 1,'Load estimate uses a different roof width');
-  passed.push('Roof schedule and load estimate use the snapped covering area');
+  const outline = doc().querySelector('.loads-roof');
+  close(Number(outline.getAttribute('x')),-180);
+  close(Number(outline.getAttribute('width')),total);
+  const firstPierRoof = () => Number(field('loads-rows').querySelector('tr').cells[4].textContent.replaceAll(',',''));
+  const previousRoofLoad = firstPierRoof();
+  edit('doorSideOverhang',400);
+  valid();
+  assert(Math.abs(firstPierRoof()-previousRoofLoad) > 1,'Roof offset did not change pier loads');
+  close(Number(doc().querySelector('.loads-roof').getAttribute('x')),-400);
+  passed.push('Schedule area, load outline and pier reactions follow the asymmetric roof');
+  field('show-designer').click();
+  for (const mode of ['tiles','rafters']) {
+    edit('roof-display',mode,'change');
+    for (const view of ['3d','front','left','right','plan']) {
+      doc().querySelector(`[data-view="${view}"]`).click();
+      assert(doc().querySelectorAll('#drawing polygon').length > 0,`Empty ${mode}/${view} drawing`);
+      assert(!/NaN|Infinity/.test(field('drawing').innerHTML),`Invalid ${mode}/${view} coordinates`);
+    }
+  }
+  passed.push('Asymmetric covering and rafters render in all five views');
   results.textContent = `PASS (${passed.length})\n${passed.join('\n')}`;
 } catch (error) {
   results.textContent = `FAIL after ${passed.length} groups: ${error.message}\n${error.stack}`;

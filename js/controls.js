@@ -152,7 +152,9 @@ export function createControls($) {
   ]);
   addFields('roof', [
     ['pitch', 'Roof angle', 14, 0, '\u00b0', 60],
-    ['frontOverhang', 'Front overhang', 350, 0, 'mm', 1000, 1], ['sideOverhang', 'Side overhang', 180, 0, 'mm', 1000, .5]
+    ['frontOverhang', 'Front overhang', 350, 0, 'mm', 1000, 1],
+    ['roofWidth', 'Total roof width', 3160, 1200, 'mm', 8000, 1],
+    ['doorSideOverhang', 'Door-side overhang (left)', 180, 0, 'mm', 1000, .5]
   ]);
   addFields('roofTiles', [
     stockSize('tileWidth','Tile covering width',300,Object.keys(tileSystems).map(Number)),
