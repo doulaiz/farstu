@@ -63,7 +63,7 @@ function takeoff(model) {
         } else add(role,family,stockWidth,depth,run);
       }
     }
-    const trimWidth = model[`${key}TrimWidth`];
+    const trimWidth = model.trimWidth;
     if (trimWidth > 0) {
       for (const u of [op.start,op.end]) add('Opening trim','panel',trimWidth,22,Math.min(top(u),op.top)-op.bottom);
       const span = Math.min(face,op.end+trimWidth)-Math.max(0,op.start-trimWidth);

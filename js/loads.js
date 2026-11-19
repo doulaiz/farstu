@@ -80,13 +80,13 @@ function wallLoads(model, add) {
   const cavityKg = densities.mineralWool.value * studDepth / 1e9 * Math.max(0, 1 - studWidth / studSpacing);
   const sideTop = u => rear - slope * u;
   const walls = [
-    { key: 'door', end: L - T, top: sideTop, op: { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight },
+    { end: L - T, top: sideTop, op: { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight },
       at: u => [T / 2, u], kind: 'door' },
-    { key: 'front', end: W, top: () => frontWallHeight, op: windows.front, at: u => [u, L - T / 2], kind: 'window' },
-    { key: 'right', end: L - T, top: sideTop, op: windows.right, at: u => [W - T / 2, u], kind: 'window' }
+    { end: W, top: () => frontWallHeight, op: windows.front, at: u => [u, L - T / 2], kind: 'window' },
+    { end: L - T, top: sideTop, op: windows.right, at: u => [W - T / 2, u], kind: 'window' }
   ];
   const step = 25;
-  for (const { key, end, top, op, at, kind } of walls) {
+  for (const { end, top, op, at, kind } of walls) {
     for (const { a, b, low, high } of wallMembers(0, end, top, op, studWidth, studSpacing)) {
       const n = Math.max(1, Math.ceil((b - a) / step));
       for (let i = 0; i < n; i++) {
@@ -104,7 +104,7 @@ function wallLoads(model, add) {
     }
     const area = (op.end - op.start) * (op.top - op.bottom) / 1e6;
     const unitKg = area * openingMasses[kind];
-    const trimWidth = model[`${key}TrimWidth`] ?? 0;
+    const trimWidth = model.trimWidth ?? 0;
     const trimKg = trimWidth * 22 * densities.timber.value / 1e9 *
       (2 * (op.top - op.bottom) + (op.end - op.start) + 2 * trimWidth);
     const n = Math.max(1, Math.ceil((op.end - op.start) / step));

@@ -56,7 +56,6 @@ export function createControls($) {
   const doorWindow = $('door-window');
   const fields = {};
   const anchors = { front: 'Bottom', right: 'Bottom' };
-  const trimColours = {};
   const windowMuntins = {};
   const houseWindows = {
     houseLeft: { label: 'Left house window', offset: -4244, sill: 1250, width: 1300, height: 1100 },
@@ -134,17 +133,14 @@ export function createControls($) {
     $(side).append(label);
     windowMuntins[side] = select;
   }
-  for (const [key,labelText] of [['door','Door'],['front','Front window'],['right','Right window']]) {
-    addFields(key, [stockSize(key + 'TrimWidth','Trim width',95,trimWidths)]);
-    const label = document.createElement('label');
-    label.textContent = 'Trim colour';
-    const colour = document.createElement('input');
-    Object.assign(colour,{type:'color',defaultValue:'#f5efe1'});
-    colour.setAttribute('aria-label',`${labelText} trim colour`);
-    label.append(colour);
-    $(key).append(label);
-    trimColours[key] = colour;
-  }
+  addFields('trims', [stockSize('trimWidth','Trim width',95,trimWidths)]);
+  const trimLabel = document.createElement('label');
+  trimLabel.textContent = 'Trim colour';
+  const trimColour = document.createElement('input');
+  Object.assign(trimColour,{id:'trim-colour',type:'color',defaultValue:'#f5efe1'});
+  trimColour.setAttribute('aria-label','Opening trim colour');
+  trimLabel.append(trimColour);
+  $('trims').append(trimLabel);
   addFields('walls', [
     ['wallThickness', 'Wall thickness', 145, 120, 'mm', 600, 1], ['claddingSpacing', 'Cover-board spacing', 200, 150, 'mm', 300, 1],
     stockSize('baseBoardWidth','Base-board width',145,boardWidths),
@@ -209,7 +205,7 @@ export function createControls($) {
   syncTimberSizes();
   return {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows, windowMuntins,
+    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColour, houseWindows, houseBasementWindows, windowMuntins,
     syncTimberSizes
   };
 }

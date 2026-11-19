@@ -19,7 +19,7 @@ export function initDesigner() {
   const { width: drawingWidth, height: drawingHeight } = svg.viewBox.baseVal;
   const {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColours, houseWindows, houseBasementWindows,
+    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColour, houseWindows, houseBasementWindows,
     windowMuntins, syncTimberSizes
   } = createControls($);
   const legacyBasementFields = new Set(Object.keys(houseBasementWindows)
@@ -109,8 +109,9 @@ export function initDesigner() {
 
   const adjustedStockSizes = [];
   let adjustedRoofSettings = false;
+  let adjustedTrims = false;
   function restoreSettings(saved) {
-    if (!saved || saved.version !== 1 || !saved.fields || !saved.trimColours ||
+    if (!saved || saved.version !== 1 || !saved.fields ||
       !saved.layers || !saved.anchors) return false;
     const hasOption = (select, value) => [...select.options].some(option => option.value === value);
     const savedRoofMaterial = saved.roofMaterial && hasOption(roofMaterial, saved.roofMaterial)
@@ -118,6 +119,17 @@ export function initDesigner() {
       : Number(saved.fields.pitch) < 14 ? 'standingSeam' : roofMaterial.value;
     const savedRoofFinish = saved.roofFinish ?? roofFinish.value;
     const savedFields = { ...saved.fields };
+    const legacyTrims = savedFields.trimWidth === undefined && saved.trimColour === undefined;
+    const savedTrimColour = legacyTrims ? saved.trimColours?.door : saved.trimColour;
+    if (typeof savedTrimColour !== 'string' || !/^#[\da-f]{6}$/i.test(savedTrimColour)) return false;
+    if (legacyTrims) {
+      savedFields.trimWidth = savedFields.doorTrimWidth;
+      adjustedTrims = ['front','right'].some(key => {
+        const colour = saved.trimColours?.[key];
+        return Number(saved.fields[key+'TrimWidth']) !== Number(savedFields.trimWidth) ||
+          typeof colour !== 'string' || colour.toLowerCase() !== savedTrimColour.toLowerCase();
+      });
+    }
     if (savedFields.roofWidth === undefined && savedFields.doorSideOverhang === undefined) {
       const overhang = savedFields.sideOverhang;
       if (typeof overhang !== 'string' || overhang.trim() === '' ||
@@ -163,10 +175,6 @@ export function initDesigner() {
         adjustedStockSizes.push(prefix+'Depth');
       }
     }
-    for (const key of Object.keys(trimColours)) {
-      if (typeof saved.trimColours[key] !== 'string' ||
-        !/^#[\da-f]{6}$/i.test(saved.trimColours[key])) return false;
-    }
     for (const [key] of Object.entries(layerInputs)) {
       if (typeof saved.layers[key] !== 'boolean') return false;
     }
@@ -191,7 +199,7 @@ export function initDesigner() {
     syncTimberSizes();
     fields.studDepth.value = savedFields.studDepth;
     fields.rafterDepth.value = savedFields.rafterDepth;
-    for (const [key, input] of Object.entries(trimColours)) input.value = saved.trimColours[key];
+    trimColour.value = savedTrimColour;
     if (saved.windowMuntins) {
       for (const [key,input] of Object.entries(windowMuntins)) input.value = saved.windowMuntins[key];
     }
@@ -213,7 +221,7 @@ export function initDesigner() {
     return {
       version: 1,
       fields: Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value])),
-      trimColours: Object.fromEntries(Object.entries(trimColours).map(([key, input]) => [key, input.value])),
+      trimColour: trimColour.value,
       windowMuntins: Object.fromEntries(Object.entries(windowMuntins).map(([key,input]) => [key,input.value])),
       layers: Object.fromEntries(Object.entries(layerInputs).map(([key, input]) => [key, input.checked])),
       footingLayout: footingLayout.value,
@@ -919,11 +927,11 @@ export function initDesigner() {
     }
 
     function doorTrim(at, key, op, wallLength, wallTop) {
-      const width = latest[key + 'TrimWidth'];
+      const width = latest.trimWidth;
       if (!width) return;
       const start = Math.max(0,op.start-width), end = Math.min(wallLength,op.end+width);
       const high = op.top+width;
-      const colour = trimColours[key].value;
+      const colour = trimColour.value;
       function board(a,b,base,top) {
         if (b <= a) return;
         const inner = [a,b];
@@ -1004,7 +1012,7 @@ export function initDesigner() {
         } else {
           drawWindow(face,section,op,{start:0,end:length,top},{
             key:name,pattern:windowMuntins[name].value,thickness:T,
-            trim:visible('trim') ? latest[name+'TrimWidth'] : 0,trimColour:trimColours[name].value
+            trim:visible('trim') ? latest.trimWidth : 0,trimColour:trimColour.value
           });
         }
       }
@@ -1042,12 +1050,11 @@ export function initDesigner() {
         }
       }
       if (visible('trim')) {
-        const key = keyForTrim;
-        const width = latest[key+'TrimWidth'];
+        const width = latest.trimWidth;
         for (const [edge,dir] of [[opening.start,-1],[opening.end,1]]) {
           const u = Math.max(0,Math.min(end,edge+dir*width));
           if (u !== edge) line(at(edge,0),at(u,0),'opening-trim',
-            {'data-layer':'trim',stroke:trimColours[key].value,'stroke-width':3});
+            {'data-layer':'trim',stroke:trimColour.value,'stroke-width':3});
         }
       }
       if (isDoor || timberOnly) {
@@ -1269,8 +1276,8 @@ export function initDesigner() {
           m('doorHeight','Door height',[0,door.start,0],[0,door.start,door.top],iso||left,doorHeight,[-14,0]),
           m('doorThickness','Leaf thickness',[0,hingeY,door.top],[doorThickness,hingeY,door.top],plan||iso,doorThickness),
           m('offset','Offset from house',[0,0,0],[0,door.start,0],doorVisible,offset,[0,12]),
-          m('doorTrimWidth','Trim width',[0,door.start-latest.doorTrimWidth,door.top/2],[0,door.start,door.top/2],
-            visible('trim')&&(iso||left)&&latest.doorTrimWidth<=door.start)
+          m('trimWidth','Trim width',[0,door.start-latest.trimWidth,door.top/2],[0,door.start,door.top/2],
+            visible('trim')&&(iso||left)&&latest.trimWidth<=door.start)
         ];
         case 'front':
         case 'right': {
@@ -1283,10 +1290,11 @@ export function initDesigner() {
             m(section+'Height','Window height',at(w.start,w.bottom),at(w.start,w.top),usable,undefined,[-14,0]),
             m(section+'Bottom','Bottom clearance',at(w.end,0),at(w.end,w.bottom),usable,w.bottom,[12,0]),
             m(section+'Top','Top clearance',at(w.end,w.top),at(w.end,top),usable,top-w.top,[12,0]),
-            m(section+'TrimWidth','Trim width',at(w.start-latest[section+'TrimWidth'],(w.bottom+w.top)/2),
-              at(w.start,(w.bottom+w.top)/2),visible('trim')&&usable&&latest[section+'TrimWidth']<=w.start)
+            m('trimWidth','Trim width',at(w.start-latest.trimWidth,(w.bottom+w.top)/2),
+              at(w.start,(w.bottom+w.top)/2),visible('trim')&&usable&&latest.trimWidth<=w.start)
           ];
         }
+        case 'trims': return measurementSpecs(left ? 'door' : right ? 'right' : 'front').filter(spec => spec.key === 'trimWidth');
         case 'walls': {
           const seam = (Math.floor(houseA/claddingSpacing)+1)*claddingSpacing;
           const guideZ = houseBaseTop+(houseWallHeight-houseBaseTop)*.85;
@@ -1576,7 +1584,7 @@ export function initDesigner() {
   });
   form.addEventListener('input', ({target}) => {
     persistenceEnabled = true;
-    if (Object.values(trimColours).includes(target) || Object.values(windowMuntins).includes(target)) {
+    if (target === trimColour || Object.values(windowMuntins).includes(target)) {
       render();
       return;
     }
@@ -1606,7 +1614,7 @@ export function initDesigner() {
     syncTimberSizes();
     fields.studDepth.value = fields.studDepth.dataset.initial;
     fields.rafterDepth.value = fields.rafterDepth.dataset.initial;
-    for (const colour of Object.values(trimColours)) colour.value = colour.defaultValue;
+    trimColour.value = trimColour.defaultValue;
     for (const input of Object.values(windowMuntins)) input.value = [...input.options].find(option => option.defaultSelected).value;
     anchors.front = anchors.right = 'Bottom';
     footingLayout.value = [...footingLayout.options].find(option => option.defaultSelected).value;
@@ -1704,10 +1712,11 @@ export function initDesigner() {
     resetParameters(true);
     storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
     update();
-  } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings)) {
+  } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims)) {
     const notices = [];
     if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map(key => `${key} = ${fields[key].value} mm`).join(', ')}. Review these changes before ordering.`);
     if (adjustedRoofSettings) notices.push('Saved roof settings were migrated to total roof width and door-side overhang, or adjusted to the selected tile module and pitch-dependent batten gauge.');
+    if (adjustedTrims) notices.push('Saved opening trims were unified using the door trim width and colour.');
     storageStatus.textContent = [...notices,storageStatus.textContent].filter(Boolean).join(' ');
   }
 }

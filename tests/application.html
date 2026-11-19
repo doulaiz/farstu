@@ -47,6 +47,99 @@ async function check(name, run) {
   }
 }
 try {
+  await check('Shared opening trims update every view, estimates, export and restored settings',async () => {
+    await load(true);
+    const section = field('trims').closest('details');
+    assert(section.querySelector('summary').textContent === 'Trims' &&
+      section.closest('.parameter-group').querySelector('summary').textContent === 'Openings',
+      'Shared trim controls are not under Openings > Trims');
+    const casings = () => [...doc.querySelectorAll(
+      'polygon[data-trim="door"], polygon[data-window="front"][data-window-part="casing"], polygon[data-window="right"][data-window-part="casing"]'
+    )];
+    const trimRows = () => [...field('bom-rows').rows].filter(row => row.cells[0].textContent === 'Opening trim');
+    edit('trimWidth',145);
+    edit('trim-colour','#bf4937');
+    for (const view of ['3d','left','front','right','plan']) {
+      doc.querySelector(`[data-view="${view}"]`).click();
+      if (view === 'plan') {
+        const lines = [...field('drawing').querySelectorAll('line.opening-trim')];
+        assert(lines.length === 6 && lines.every(line => line.getAttribute('stroke') === '#bf4937'),
+          'Plan did not share the trim colour across all openings');
+      } else {
+        const boards = casings();
+        assert(boards.length > 0 && boards.every(board => board.getAttribute('fill') === '#bf4937'),
+          `${view} did not share the trim colour across its openings`);
+      }
+    }
+    field('show-bom').click();
+    const rows = trimRows();
+    assert(rows.length > 0 && rows.every(row => row.cells[1].textContent === '145 \u00d7 22') &&
+      rows.reduce((sum,row) => sum+Number.parseInt(row.querySelector('summary').textContent,10),0) === 9,
+      'The lumber estimate did not use the shared width for all nine trim boards');
+    field('show-loads').click();
+    const openingMass = () => Number([...field('loads-breakdown').rows]
+      .find(row => row.cells[0].textContent === 'Windows, door & opening trim')
+      .cells[1].textContent.replace(/[^\d.-]/g,''));
+    const massWithTrim = openingMass();
+    field('show-designer').click();
+    edit('trimWidth',0);
+    doc.querySelector('[data-view="3d"]').click();
+    assert(casings().length === 0,'Zero width left a door or window casing visible');
+    field('show-bom').click();
+    assert(trimRows().length === 0,'Zero width left trim in the lumber estimate');
+    field('show-loads').click();
+    assert(openingMass() < massWithTrim,'The mass estimate ignored the shared trim width');
+    field('show-designer').click();
+    edit('trimWidth',145);
+    let exported;
+    win.URL.createObjectURL = blob => { exported = blob; return 'blob:trim-test'; };
+    win.HTMLAnchorElement.prototype.click = () => {};
+    field('export-settings').click();
+    const saved = JSON.parse(await exported.text());
+    assert(saved.fields.trimWidth === '145' && saved.trimColour === '#bf4937' &&
+      !('doorTrimWidth' in saved.fields) && !('trimColours' in saved),'Export lost the shared trim settings');
+    await load();
+    assert(field('trimWidth').value === '145' && field('trim-colour').value === '#bf4937',
+      'Shared trim settings did not survive reload');
+    field('settings').reset();
+    await load();
+    assert(field('trimWidth').value === '95' && field('trim-colour').value === '#f5efe1',
+      'Reset did not persist the shared trim defaults');
+  });
+
+  await check('Legacy trims migrate from the door with an explicit notice only when styles differ',async () => {
+    await load(true);
+    for (const width of [145,0]) {
+      const saved = JSON.parse(localStorage.getItem(settingsKey));
+      delete saved.fields.trimWidth;
+      delete saved.trimColour;
+      saved.fields.footingDepth = '650';
+      for (const key of ['door','front','right']) saved.fields[key+'TrimWidth'] = String(width);
+      saved.trimColours = {door:'#bf4937',front:'#bf4937',right:'#bf4937'};
+      if (width > 0) {
+        saved.fields.frontTrimWidth = '70';
+        saved.trimColours.right = '#abcdef';
+      }
+      localStorage.setItem(settingsKey,JSON.stringify(saved));
+      await load();
+      assert(field('trimWidth').value === String(width) && field('trim-colour').value === '#bf4937' &&
+        field('footingDepth').value === '650','Legacy trims or unrelated saved settings were lost');
+      assert(field('storage-status').textContent.includes('unified') === (width > 0),
+        'Legacy trim migration notice was missing or unnecessary');
+      await load();
+      assert(!field('storage-status').textContent,'Migrated trims produced a repeated warning');
+    }
+    const invalid = JSON.parse(localStorage.getItem(settingsKey));
+    invalid.trimColours = {door:'#abcdef'};
+    for (const colour of ['not-a-colour',null]) {
+      invalid.trimColour = colour;
+      localStorage.setItem(settingsKey,JSON.stringify(invalid));
+      await load();
+      assert(field('storage-status').textContent.includes('invalid') && field('trimWidth').value === '95',
+        'An invalid saved shared colour was accepted or replaced by a legacy value');
+    }
+  });
+
   await check('New footing defaults render correctly; saved settings survive until Reset',async () => {
     function verify(columns, rows, diameter, depth) {
       assert(field('footing-layout').value === `${columns}x${rows}` &&

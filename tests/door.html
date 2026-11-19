@@ -177,10 +177,10 @@ try {
   }
   doc.querySelector('[data-view="3d"]').click();
   for (const width of [70,195]) {
-    edit('doorTrimWidth',width);
+    edit('trimWidth',width);
     checkOcclusion(false);
   }
-  const colour = doc.querySelector('input[aria-label="Door trim colour"]');
+  const colour = field('trim-colour');
   colour.value = '#bf4937';
   colour.dispatchEvent(new win.Event('input',{bubbles:true}));
   assert([...doc.querySelectorAll('polygon[data-trim="door"]')]
@@ -192,9 +192,9 @@ try {
   checkOcclusion(true);
   field('toggle-door').click();
   checkOcclusion(false);
-  edit('doorTrimWidth',0);
+  edit('trimWidth',0);
   assert(doc.querySelectorAll('[data-trim="door"]').length === 0,'Zero-width door trim remains visible');
-  edit('doorTrimWidth',95);
+  edit('trimWidth',95);
   doc.querySelector('[data-wall-layer="trim"]').checked = false;
   doc.querySelector('#wall-layers').dispatchEvent(new win.Event('change',{bubbles:true}));
   assert(doc.querySelectorAll('[data-trim="door"]').length === 0,'Hidden door trim remains visible');
