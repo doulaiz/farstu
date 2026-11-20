@@ -2,6 +2,7 @@ import { createControls, timberSections } from './controls.js';
 import { createBomView } from './bom-view.js';
 import { createLoadsView } from './loads-view.js';
 import { createDrawingsView } from './drawings-view.js';
+import { wheelZoom } from './wheel-zoom.js';
 import { pierLayout } from './loads.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
@@ -1855,11 +1856,9 @@ export function initDesigner() {
     setDoor(false,false);
   }
   svg.addEventListener('wheel', (event) => {
-    if (!event.ctrlKey || !event.deltaY) return;
+    if (!event.altKey || !event.deltaY) return;
     event.preventDefault();
-    const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
-      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 240 : 1;
-    const next = Math.max(1,Math.min(4,zoom*Math.exp(-event.deltaY*unit*.002)));
+    const next = wheelZoom(event, zoom);
     if (next === zoom) return;
     const ctm = svg.getScreenCTM();
     if (!ctm) return;

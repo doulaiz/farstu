@@ -1688,14 +1688,14 @@
       pending,
       scaleBar,
       view,
-      clip(x, y, w, h, draw) {
+      viewport(x, y, w, h, draw) {
         const clipId = `${id}-clip-${clips.length}`;
-        clips.push(`<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`);
+        clips.push(`<clipPath id="${clipId}" data-zoom-viewport><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`);
         const starts = Object.entries(content).map(([key, shapes]) => [key, shapes.length]);
         draw();
         for (const [key, start] of starts) {
           const shapes = content[key].splice(start);
-          if (shapes.length) add(key, `<g clip-path="url(#${clipId})">${shapes.join("")}</g>`);
+          if (shapes.length) add(key, `<g clip-path="url(#${clipId})"><g data-zoom-view="${clipId}">${shapes.join("")}</g></g>`);
         }
       },
       hatch: `fill="url(#${id}-hatch)"`,
@@ -1811,14 +1811,16 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       [north === frame.north, frame.west, frame.north, frame.east, frame.north],
       [south === frame.south, frame.west, frame.south, frame.east, frame.south]
     ];
-    s.clip(14, 46, 275, 178, () => v.rect(existing, houseA, -face, houseB - houseA, site.houseDepth, gray));
-    v.rect(structure, 0, -l, w, l, s.hatch);
-    for (const [visible, x, y, a, b] of edges) if (visible) v.line(centre, x, y, a, b);
-    if (north === frame.north) v.label(labels, frame.west, north + 900, "Tomtgr\xE4ns");
-    if (north === frame.north && north !== 0) v.vertical(0, north, w * 0.65, 3);
-    if (south === frame.south && site[dir.front]) v.vertical(-l, south, w * 0.65, 3);
-    if (west === frame.west && site[dir.left]) v.horizontal(west, 0, -l * 0.55, 5);
-    if (east === frame.east && site[dir.right]) v.horizontal(w, east, -l * 0.55, 5);
+    s.viewport(14, 40, 275, 184, () => {
+      v.rect(existing, houseA, -face, houseB - houseA, site.houseDepth, gray);
+      v.rect(structure, 0, -l, w, l, s.hatch);
+      for (const [visible, x, y, a, b] of edges) if (visible) v.line(centre, x, y, a, b);
+      if (north === frame.north) v.label(labels, frame.west, north + 900, "Tomtgr\xE4ns");
+      if (north === frame.north && north !== 0) v.vertical(0, north, w * 0.65, 3);
+      if (south === frame.south && site[dir.front]) v.vertical(-l, south, w * 0.65, 3);
+      if (west === frame.west && site[dir.left]) v.horizontal(west, 0, -l * 0.55, 5);
+      if (east === frame.east && site[dir.right]) v.horizontal(w, east, -l * 0.55, 5);
+    });
     s.heading(14, 35, "1:400  /  Schematisk tomt");
     s.scaleBar(14, 41, 400, 1e4);
     const rotation = 90 * directions.indexOf(dir.front);
@@ -1879,57 +1881,61 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         view.poly(existing, [[e1, -face], [e1, depth - face], [e2, depth - face], [e2, -face]]);
       }
     };
-    v.rect(structure, 0, -l, w, l);
-    rear(v, true);
-    const walls = [
-      { start: face, end: l - t, opening: door, outline: (a, b, d, attr) => v.rect(structure, 0, -b, d, b - a, attr) },
-      { start: face, end: l - t, opening: windows.right, outline: (a, b, d, attr) => v.rect(structure, w - d, -b, d, b - a, attr) },
-      {
-        start: 0,
-        end: w,
-        framingStart: t,
-        framingEnd: w - t,
-        opening: windows.front,
-        outline: (a, b, d, attr) => v.rect(structure, a, -l, b - a, d, attr)
+    s.viewport(14, 46, 161, 110, () => {
+      v.rect(structure, 0, -l, w, l);
+      rear(v, true);
+      const walls = [
+        { start: face, end: l - t, opening: door, outline: (a, b, d, attr) => v.rect(structure, 0, -b, d, b - a, attr) },
+        { start: face, end: l - t, opening: windows.right, outline: (a, b, d, attr) => v.rect(structure, w - d, -b, d, b - a, attr) },
+        {
+          start: 0,
+          end: w,
+          framingStart: t,
+          framingEnd: w - t,
+          opening: windows.front,
+          outline: (a, b, d, attr) => v.rect(structure, a, -l, b - a, d, attr)
+        }
+      ];
+      for (const { start, end, framingStart = start, framingEnd = end, opening, outline } of walls) {
+        outline(start, opening.start, t, s.hatch);
+        outline(opening.end, end, t, s.hatch);
+        if (opening !== door) outline(opening.start, opening.end, t * 0.46, glass);
+        for (const [a, b] of wallPosts(framingStart, framingEnd, opening, m.studWidth, m.studSpacing)) {
+          if (b <= opening.start || a >= opening.end) outline(a, b, m.studDepth, 'fill="#7a807d" stroke-width=".13"');
+        }
       }
-    ];
-    for (const { start, end, framingStart = start, framingEnd = end, opening, outline } of walls) {
-      outline(start, opening.start, t, s.hatch);
-      outline(opening.end, end, t, s.hatch);
-      if (opening !== door) outline(opening.start, opening.end, t * 0.46, glass);
-      for (const [a, b] of wallPosts(framingStart, framingEnd, opening, m.studWidth, m.studSpacing)) {
-        if (b <= opening.start || a >= opening.end) outline(a, b, m.studDepth, 'fill="#7a807d" stroke-width=".13"');
-      }
-    }
-    const rtl = m.doorHanding === "rtl";
-    const hinge = -(rtl ? door.end : door.start), direction = rtl ? 1 : -1;
-    v.rect(structure, tread.x, -tread.end, -tread.x, tread.end - tread.start, gray);
-    v.line(structure, 0, hinge, -m.doorWidth, hinge);
-    v.poly(structure, Array.from({ length: 25 }, (_, i) => {
-      const angle = i * Math.PI / 48;
-      return [-m.doorWidth * Math.sin(angle), hinge + direction * m.doorWidth * Math.cos(angle)];
-    }), 'stroke-width=".23"');
-    v.rect(centre, -m.doorSideOverhang, -l - m.frontOverhang, m.roofWidth, l + m.frontOverhang - face);
-    v.line(centre, w / 2, 150, w / 2, -l - m.frontOverhang - 130);
-    v.label(labels, w / 2, -l - m.frontOverhang - 470, "A", { anchor: "middle", weight: 700 });
-    v.label(labels, w / 2, 490, "A", { anchor: "middle", weight: 700 });
-    v.horizontal(0, w, -l, 15);
-    v.vertical(0, -l, w, 17);
-    v.label(labels, w * 0.5, -l * 0.51, `BTA ${grossArea(m.area)} m\xB2`, { anchor: "middle", size: 2.3 });
-    v.label(labels, w * 0.5, -l * 0.51 - 320, "\xD6A 0,00 m\xB2", { anchor: "middle", size: 2.3 });
-    f.rect(structure, 0, -l, w, l);
-    rear(f);
-    f.line(structure, 0, -face, w, -face, 'stroke-width=".75"');
-    f.label(labels, w / 2, -face + 450, "Anslutningslinje mot hus", { anchor: "middle" });
-    for (const x of m.pier.columns) for (const y of m.pier.rows) {
-      f.circle(structure, x, -y, m.pier.radius);
-      crosshair(f, x, -y, m.pier.radius + 100);
-    }
+      const rtl = m.doorHanding === "rtl";
+      const hinge = -(rtl ? door.end : door.start), direction = rtl ? 1 : -1;
+      v.rect(structure, tread.x, -tread.end, -tread.x, tread.end - tread.start, gray);
+      v.line(structure, 0, hinge, -m.doorWidth, hinge);
+      v.poly(structure, Array.from({ length: 25 }, (_, i) => {
+        const angle = i * Math.PI / 48;
+        return [-m.doorWidth * Math.sin(angle), hinge + direction * m.doorWidth * Math.cos(angle)];
+      }), 'stroke-width=".23"');
+      v.rect(centre, -m.doorSideOverhang, -l - m.frontOverhang, m.roofWidth, l + m.frontOverhang - face);
+      v.line(centre, w / 2, 150, w / 2, -l - m.frontOverhang - 130);
+      v.label(labels, w / 2, -l - m.frontOverhang - 470, "A", { anchor: "middle", weight: 700 });
+      v.label(labels, w / 2, 490, "A", { anchor: "middle", weight: 700 });
+      v.horizontal(0, w, -l, 15);
+      v.vertical(0, -l, w, 17);
+      v.label(labels, w * 0.5, -l * 0.51, `BTA ${grossArea(m.area)} m\xB2`, { anchor: "middle", size: 2.3 });
+      v.label(labels, w * 0.5, -l * 0.51 - 320, "\xD6A 0,00 m\xB2", { anchor: "middle", size: 2.3 });
+    });
     const { columns, rows } = m.pier;
-    for (let i = 1; i < columns.length; i++) f.horizontal(columns[i - 1], columns[i], -l, 9);
-    for (let i = 1; i < rows.length; i++) f.vertical(-rows[i - 1], -rows[i], w, 10);
-    f.rect(structure, tread.x, -tread.end, -tread.x, tread.end - tread.start, gray);
-    f.label(labels, tread.x - 150, -(tread.start + tread.end) / 2, "Trappsteg", { anchor: "end", size: 2.6 });
+    s.viewport(181, 46, 222, 158, () => {
+      f.rect(structure, 0, -l, w, l);
+      rear(f);
+      f.line(structure, 0, -face, w, -face, 'stroke-width=".75"');
+      f.label(labels, w / 2, -face + 450, "Anslutningslinje mot hus", { anchor: "middle" });
+      for (const x of columns) for (const y of rows) {
+        f.circle(structure, x, -y, m.pier.radius);
+        crosshair(f, x, -y, m.pier.radius + 100);
+      }
+      for (let i = 1; i < columns.length; i++) f.horizontal(columns[i - 1], columns[i], -l, 9);
+      for (let i = 1; i < rows.length; i++) f.vertical(-rows[i - 1], -rows[i], w, 10);
+      f.rect(structure, tread.x, -tread.end, -tread.x, tread.end - tread.start, gray);
+      f.label(labels, tread.x - 150, -(tread.start + tread.end) / 2, "Trappsteg", { anchor: "end", size: 2.6 });
+    });
     s.note(14, 160, ["Gr\xE5 v\xE4gg: befintlig byggnad (utsnitt).", "Streckad kontur: takutspr\xE5ng. A\u2013A: sektion.", "Fyllda markeringar: modellens v\xE4ggreglar."]);
     const outsideRise = tread.z - site.newGrade;
     s.note(181, 207, [
@@ -1977,7 +1983,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     s.heading(14, 155, `02  Fasad mot ${swedishDirection[dir.left]} / d\xF6rrsida`);
     s.heading(208, 155, `03  Fasad mot ${swedishDirection[dir.right]}`);
     s.scaleBar(350, 34, 100, 5e3);
-    s.clip(13, 39, 394, 112, () => {
+    s.viewport(13, 39, 394, 112, () => {
       front.rect(existing, m.houseA, baseTop, m.houseB - m.houseA, houseTop - baseTop, 'fill="#f0f0ef"');
       if (m.houseBaseHeight) front.rect(existing, m.houseA, -m.slabThickness, m.houseB - m.houseA, m.houseBaseHeight, gray);
       if (ridge > houseTop) {
@@ -2003,7 +2009,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       const v = s.view(x - sign * e / 200, 201, 100);
       const span = (a2, b2) => [Math.min(sign * a2, sign * b2), b2 - a2];
       const a = Math.min(sign * -850, sign * (e + 700)), b = Math.max(sign * -850, sign * (e + 700));
-      s.clip(east ? 207 : 13, 156.5, 191, 63.5, () => {
+      s.viewport(east ? 207 : 13, 156.5, 191, 63.5, () => {
         v.poly(existing, [[0, -m.slabThickness], [0, baseTop], [sign * face, baseTop], [sign * face, houseTop]]);
         piersInElevation(v, m, m.pier.rows.map((y) => sign * y), m.frostLevel);
         const [slabStart, slabWidth] = span(0, l);
@@ -2044,9 +2050,9 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     const b = s.view(229, 174, 20);
     s.heading(213, 35, "D1  Upplag mot befintlig v\xE4gg  /  1:20");
     s.heading(213, 119, "D2  Platta / plint och princip f\xF6r plintj\xE4rn  /  1:20");
-    a.rect(existing, -180, -260, 180, 680, gray);
     const run = 610, fall = m.slope * run, depth = m.rafterDepth * Math.hypot(1, m.slope);
-    s.clip(213, 40, 183, 75, () => {
+    s.viewport(213, 40, 54, 75, () => {
+      a.rect(existing, -180, -260, 180, 680, gray);
       a.poly(structure, [[0, 0], [run, -fall], [run, -fall + depth], [0, depth]], s.hatch, true);
       a.poly(structure, [
         [0, depth + m.flashing.coverRise + m.flashingHeight],
@@ -2062,10 +2068,12 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       `Takregel ${mm(m.rafterWidth)} \xD7 ${mm(m.rafterDepth)} mm (modell).`,
       "Bakre upplag och inf\xE4stning projekteras."
     ]);
-    b.rect(structure, -160, -m.slabThickness, 640, m.slabThickness, s.hatch);
-    b.rect(structure, (m.studDepth - m.footingDiameter) / 2, -m.slabThickness - 360, m.footingDiameter, 360, gray);
-    b.rect(structure, 0, 0, m.studDepth, 180, s.hatch);
-    b.poly(hidden, [[-20, -45], [-20, 85], [m.studDepth + 20, 85], [m.studDepth + 20, -45]]);
+    s.viewport(213, 124, 54, 89, () => {
+      b.rect(structure, -160, -m.slabThickness, 640, m.slabThickness, s.hatch);
+      b.rect(structure, (m.studDepth - m.footingDiameter) / 2, -m.slabThickness - 360, m.footingDiameter, 360, gray);
+      b.rect(structure, 0, 0, m.studDepth, 180, s.hatch);
+      b.poly(hidden, [[-20, -45], [-20, 85], [m.studDepth + 20, 85], [m.studDepth + 20, -45]]);
+    });
     s.note(269, 142, [
       `Betongplatta ${mm(m.slabThickness)} mm, plint \xD8${mm(m.footingDiameter)} mm.`,
       "Streckat: plintj\xE4rn f\xF6r ev. separat stolpe.",
@@ -2074,7 +2082,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       "NTR/A vid markkontakt; NTR/AB ovan mark",
       "d\xE4r tr\xE4skydd beh\xF6vs. Fuktskydd projekteras."
     ]);
-    s.scaleBar(214, 203, 20, 500);
+    s.scaleBar(269, 173, 20, 500);
   }
   function section(m, site, date) {
     const s = createSheet("A-4", "Sektionsritning & konstruktionsdetaljer", "1:50 / 1:20", site, date);
@@ -2082,7 +2090,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     const e = m.length + m.frontOverhang;
     s.heading(14, 35, "A\u2013A  Sektion genom farstu och husanslutning  /  1:50");
     s.scaleBar(14, 41, 50, 2e3);
-    s.clip(12, 47, 190, 148, () => {
+    s.viewport(12, 47, 190, 148, () => {
       const baseTop = m.houseBaseHeight - m.slabThickness;
       const wallTop = m.houseWallHeight - m.slabThickness;
       if (m.houseBaseHeight > 0) v.rect(existing, -400, -m.slabThickness, 400, m.houseBaseHeight, gray);
@@ -2133,12 +2141,19 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     return sheets.map((generate, i) => ({ id: `A-${i + 1}`, svg: generate(drawing, site, date) }));
   }
 
+  // js/wheel-zoom.js
+  function wheelZoom(event, scale) {
+    const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 240 : 1;
+    return Math.max(1, Math.min(4, scale * Math.exp(-event.deltaY * unit * 2e-3)));
+  }
+
   // js/drawings-view.js
   var storageKey2 = "farstu-permit-settings-v1";
   function createDrawingsView($) {
     const panel2 = $("drawings-view"), host = $("permit-sheets"), selector = $("permit-sheet");
     const status = $("drawings-status"), print = $("print-permit-sheets");
     const dialog = $("permit-dialog"), form = $("permit-form"), fieldset = $("permit-fields");
+    const zoomByViewport = /* @__PURE__ */ new WeakMap();
     let values = {}, model, valid = false, renderedModel, renderedValues, storageStatus = "";
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey2));
@@ -2186,6 +2201,37 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       showSelectedSheet();
     }
     selector.addEventListener("change", showSelectedSheet);
+    host.addEventListener("wheel", (event) => {
+      if (!event.altKey || !event.deltaY) return;
+      const svg = event.target.closest("svg");
+      const matrix = svg?.getScreenCTM();
+      if (!matrix) return;
+      const { x, y } = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+      const viewport = [...svg.querySelectorAll("[data-zoom-viewport]")].find(({ firstElementChild: rect }) => {
+        const left = rect.x.baseVal.value, top = rect.y.baseVal.value;
+        return x >= left && x <= left + rect.width.baseVal.value && y >= top && y <= top + rect.height.baseVal.value;
+      });
+      if (!viewport) return;
+      event.preventDefault();
+      const previous = zoomByViewport.get(viewport) || { scale: 1, x: 0, y: 0 };
+      const scale = wheelZoom(event, previous.scale);
+      if (scale === previous.scale) return;
+      const ratio = scale / previous.scale;
+      const transform = { scale, x: x - (x - previous.x) * ratio, y: y - (y - previous.y) * ratio };
+      const groups = svg.querySelectorAll(`[data-zoom-view="${viewport.id}"]`);
+      if (scale === 1) {
+        zoomByViewport.delete(viewport);
+        for (const group of groups) group.removeAttribute("transform");
+      } else {
+        zoomByViewport.set(viewport, transform);
+        for (const group of groups) group.setAttribute("transform", `translate(${transform.x} ${transform.y}) scale(${scale})`);
+      }
+    }, { passive: false });
+    $("reset-permit-zoom").addEventListener("click", () => {
+      const sheet = host.querySelector(".permit-sheet:not([hidden])");
+      for (const viewport of sheet?.querySelectorAll("[data-zoom-viewport]") || []) zoomByViewport.delete(viewport);
+      for (const group of sheet?.querySelectorAll("[data-zoom-view][transform]") || []) group.removeAttribute("transform");
+    });
     $("show-permit-dialog").addEventListener("click", () => {
       const site = permitSettings(values, model?.slabThickness);
       for (const { spec, input } of fields) {
@@ -4533,10 +4579,9 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       setDoor(false, false);
     }
     svg.addEventListener("wheel", (event) => {
-      if (!event.ctrlKey || !event.deltaY) return;
+      if (!event.altKey || !event.deltaY) return;
       event.preventDefault();
-      const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 240 : 1;
-      const next = Math.max(1, Math.min(4, zoom * Math.exp(-event.deltaY * unit * 2e-3)));
+      const next = wheelZoom(event, zoom);
       if (next === zoom) return;
       const ctm = svg.getScreenCTM();
       if (!ctm) return;

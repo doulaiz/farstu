@@ -107,14 +107,14 @@ export function createSheet(id, title, scales, site, date) {
 
   return {
     line, rect, poly, text, note, heading, cloud, pending, scaleBar, view,
-    clip(x, y, w, h, draw) {
+    viewport(x, y, w, h, draw) {
       const clipId = `${id}-clip-${clips.length}`;
-      clips.push(`<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`);
+      clips.push(`<clipPath id="${clipId}" data-zoom-viewport><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`);
       const starts = Object.entries(content).map(([key, shapes]) => [key, shapes.length]);
       draw();
       for (const [key, start] of starts) {
         const shapes = content[key].splice(start);
-        if (shapes.length) add(key, `<g clip-path="url(#${clipId})">${shapes.join('')}</g>`);
+        if (shapes.length) add(key, `<g clip-path="url(#${clipId})"><g data-zoom-view="${clipId}">${shapes.join('')}</g></g>`);
       }
     },
     hatch: `fill="url(#${id}-hatch)"`,

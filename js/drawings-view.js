@@ -1,5 +1,6 @@
 import { compileDrawings } from './drawings.js';
 import { permitFields, permitSettings } from './permit-settings.js';
+import { wheelZoom } from './wheel-zoom.js';
 
 const storageKey = 'farstu-permit-settings-v1';
 
@@ -7,6 +8,7 @@ export function createDrawingsView($) {
   const panel = $('drawings-view'), host = $('permit-sheets'), selector = $('permit-sheet');
   const status = $('drawings-status'), print = $('print-permit-sheets');
   const dialog = $('permit-dialog'), form = $('permit-form'), fieldset = $('permit-fields');
+  const zoomByViewport = new WeakMap();
   let values = {}, model, valid = false, renderedModel, renderedValues, storageStatus = '';
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
@@ -58,6 +60,37 @@ export function createDrawingsView($) {
   }
 
   selector.addEventListener('change', showSelectedSheet);
+  host.addEventListener('wheel', event => {
+    if (!event.altKey || !event.deltaY) return;
+    const svg = event.target.closest('svg');
+    const matrix = svg?.getScreenCTM();
+    if (!matrix) return;
+    const { x, y } = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    const viewport = [...svg.querySelectorAll('[data-zoom-viewport]')].find(({ firstElementChild: rect }) => {
+      const left = rect.x.baseVal.value, top = rect.y.baseVal.value;
+      return x >= left && x <= left + rect.width.baseVal.value && y >= top && y <= top + rect.height.baseVal.value;
+    });
+    if (!viewport) return;
+    event.preventDefault();
+    const previous = zoomByViewport.get(viewport) || { scale: 1, x: 0, y: 0 };
+    const scale = wheelZoom(event, previous.scale);
+    if (scale === previous.scale) return;
+    const ratio = scale / previous.scale;
+    const transform = { scale, x: x - (x - previous.x) * ratio, y: y - (y - previous.y) * ratio };
+    const groups = svg.querySelectorAll(`[data-zoom-view="${viewport.id}"]`);
+    if (scale === 1) {
+      zoomByViewport.delete(viewport);
+      for (const group of groups) group.removeAttribute('transform');
+    } else {
+      zoomByViewport.set(viewport, transform);
+      for (const group of groups) group.setAttribute('transform', `translate(${transform.x} ${transform.y}) scale(${scale})`);
+    }
+  }, { passive: false });
+  $('reset-permit-zoom').addEventListener('click', () => {
+    const sheet = host.querySelector('.permit-sheet:not([hidden])');
+    for (const viewport of sheet?.querySelectorAll('[data-zoom-viewport]') || []) zoomByViewport.delete(viewport);
+    for (const group of sheet?.querySelectorAll('[data-zoom-view][transform]') || []) group.removeAttribute('transform');
+  });
   $('show-permit-dialog').addEventListener('click', () => {
     const site = permitSettings(values, model?.slabThickness);
     for (const { spec, input } of fields) {

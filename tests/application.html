@@ -1082,7 +1082,7 @@ try {
       svg.getAttribute('height') === '297mm', 'Sheet is not physical A3');
     assert(!sheet('A-1').hidden && plan.hidden, 'Default sheet selection is wrong');
     change(field('permit-sheet'), 'A-2');
-    const footprints = () => [...sheet('A-2').querySelectorAll('[data-layer="STRUCTURE_NEW"] > rect:not([fill])')];
+    const footprints = () => [...sheet('A-2').querySelectorAll('[data-layer="STRUCTURE_NEW"] [data-zoom-view] > rect:not([fill])')];
     assert(footprints().filter(rect => ['28', '56'].includes(rect.getAttribute('width'))).length === 2,
       'Slab fails the 1:100 and 1:50 width checks');
     field('show-designer').click();
@@ -1124,6 +1124,51 @@ try {
     field('show-drawings').click();
     assert(sheet('A-3').textContent.includes('Fasad mot väster / front') &&
       sheet('A-4').textContent.includes('SNÖZON 2,5 kN/m²'), 'Site settings did not survive reload');
+  });
+
+  await check('Alt-wheel zooms only the drawing under the pointer and Ctrl-wheel no longer zooms Designer', async () => {
+    await load(true);
+    const wheel = (svg, x, y, options = {}) => {
+      const { x: clientX, y: clientY } = new win.DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+      const event = new win.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -350, clientX, clientY, ...options });
+      svg.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const designer = field('drawing'), model = designer.querySelector('.drawing-layer');
+    const baseWidth = model.getScreenCTM().a;
+    assert(!wheel(designer, 410, 260, { ctrlKey: true }) && model.getScreenCTM().a === baseWidth,
+      'Ctrl-wheel should not zoom Designer');
+    assert(wheel(designer, 410, 260, { altKey: true }) && model.getScreenCTM().a > baseWidth * 1.9,
+      'Alt-wheel did not zoom Designer');
+
+    field('show-drawings').click();
+    const site = doc.querySelector('[data-sheet="A-1"] svg');
+    const porch = site.querySelector('[data-layer="STRUCTURE_NEW"] [data-zoom-view] rect');
+    const legend = site.querySelector('[data-layer="STRUCTURE_NEW"] > rect');
+    const title = site.querySelector('[data-layer="TITLE_BLOCK"] > rect');
+    const before = element => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return [x, y, width, height].join(',');
+    };
+    const paper = before(site), key = before(legend), frame = before(title), initial = porch.getBoundingClientRect().width;
+    const x = porch.x.baseVal.value + porch.width.baseVal.value / 2;
+    const y = porch.y.baseVal.value + porch.height.baseVal.value / 2;
+    assert(!wheel(site, x, y), 'Unmodified wheel should not be intercepted');
+    assert(!wheel(site, 340, 90, { altKey: true }), 'Wheel over the legend should not be intercepted');
+    assert(wheel(site, x, y, { altKey: true }) && porch.getBoundingClientRect().width > initial * 1.9,
+      'Alt-wheel did not enlarge the porch');
+    assert(before(site) === paper && before(legend) === key && before(title) === frame, 'Zoom changed the page or legend');
+    field('reset-permit-zoom').click();
+    assert(Math.abs(porch.getBoundingClientRect().width - initial) < .01, 'Reset did not restore the sheet scale');
+
+    change(field('permit-sheet'), 'A-2');
+    const plan = doc.querySelector('[data-sheet="A-2"] svg');
+    const [architecture, foundation] = plan.querySelectorAll('[data-layer="STRUCTURE_NEW"] [data-zoom-view]');
+    const fixedScale = foundation.getScreenCTM().a;
+    assert(wheel(plan, 105, 104, { altKey: true }) && architecture.getScreenCTM().a > fixedScale * 1.9 &&
+      foundation.getScreenCTM().a === fixedScale, 'Zoom should only affect the active subview');
+    assert(wheel(plan, 105, 104, { altKey: true, deltaY: 400 }) && architecture.getScreenCTM().a === fixedScale,
+      'Alt-wheel down did not restore the base scale');
   });
 
   results.textContent = failed.length

@@ -47,7 +47,7 @@ The porch and existing house share a yellow façade hue; the existing house is l
 - **Open door / Close door** animates the door where it is visible.
 - **Hide ground / Show ground** toggles the ground and roof-footprint shadow, which is not a sunlight simulation.
 - Open a parameter section or focus a dimension to display temporary measurement arrows.
-- Use **Ctrl + mouse wheel** to zoom, and **R** to reset the zoom when you are not typing in a field.
+- Use **Alt + mouse wheel** to zoom, and **R** to reset the zoom when you are not typing in a field.
 
 Invalid dimensions are highlighted; correct them to update the drawing and estimates. Normally the last valid design remains visible. The flashing-contact warning is advisory and does not block editing.
 
@@ -74,6 +74,8 @@ The house is at the top of the diagram. Shading shows applied loads; tables show
 #### Drawings
 
 Use the sheet selector to preview the four A3 SVGs. They update from the latest valid Designer model; if an edit is invalid, the last valid set stays visible and printing is disabled.
+
+Use **Alt + mouse wheel** over a drawing to enlarge that view without changing the page, legend or PDF scale. **Reset sheet zoom** restores all views on the selected sheet.
 
 | Sheet | Contents | Scale |
 | --- | --- | --- |

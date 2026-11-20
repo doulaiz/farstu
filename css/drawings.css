@@ -25,6 +25,7 @@ main.drawings:not([hidden]) { display:block; padding:18px; }
 
 @page permit { size:A3 landscape; margin:0; }
 @media print {
+  .permit-sheet [data-zoom-view] { transform:none; }
   body.printing-permit { margin:0; background:#fff; }
   .printing-permit .shell { max-width:none; margin:0; padding:0; }
   .printing-permit .shell > :not(#drawings-view),
