@@ -310,7 +310,7 @@ try {
     assert(!doc.querySelector('.house-plan'),'An out-of-view house produced a phantom wall in plan');
   });
 
-  await check('Legacy house coordinates migrate without moving the house or slab',async () => {
+  await check('Legacy house coordinates migrate to whole millimetres with a rounding notice',async () => {
     await load(true);
     const saved = JSON.parse(localStorage.getItem(settingsKey));
     Object.assign(saved.fields, {
@@ -324,17 +324,18 @@ try {
     localStorage.setItem(settingsKey,JSON.stringify(saved));
     await load();
     assert(field('storage-status').textContent.includes('left-window origin'),'Migration notice is missing');
-    assert(field('slabOriginOffset').value === '3350' && field('houseWallLeft').value === '-648.5' &&
-      field('houseWindowGap').value === '6898' && field('houseUpperOffset').value === '4861.5' &&
-      field('houseBasementLeftOffset').value === '749.5' && field('houseBasementRightOffset').value === '8753.5',
+    assert(field('slabOriginOffset').value === '3350' && field('houseWallLeft').value === '-648' &&
+      field('houseWindowGap').value === '6898' && field('houseUpperOffset').value === '4862' &&
+      field('houseBasementLeftOffset').value === '750' && field('houseBasementRightOffset').value === '8754',
       'Legacy horizontal coordinates were not converted');
+    assert(field('storage-status').textContent.includes('rounded to whole millimetres'),'Missing rounding notice');
     assert(field('houseWallHeight').value === '4541' && field('houseLeftSill').value === '1391',
       'Legacy heights were not converted to ground level');
     const geometry = houseGeometry();
     near(geometry.slabFromLeftCentre,2699.5,'Migration moved slab');
-    near(geometry.wallFromLeftCentre,-1299,'Migration moved wall');
+    near(geometry.wallFromLeftCentre,-1298.5,'Migration did not round the wall position');
     near(geometry.rightFromLeftCentre,8200,'Migration moved the right window');
-    near(geometry.upperFromLeftCentre,4211,'Migration moved the upper window');
+    near(geometry.upperFromLeftCentre,4211.5,'Migration did not round the upper window position');
     near(geometry.leftHeight,1941,'Migration moved the window above ground');
     near(geometry.wallHeight,4541,'Migration changed the wall height above ground');
     await load();
@@ -345,10 +346,51 @@ try {
     }
     localStorage.setItem(settingsKey,JSON.stringify(saved));
     await load();
-    assert(field('houseBasementLeftOffset').value === '506.5' &&
-      field('houseBasementRightOffset').value === '8994.5' &&
+    assert(field('houseBasementLeftOffset').value === '507' &&
+      field('houseBasementRightOffset').value === '8995' &&
       field('houseBasementLeftWidth').value === '900',
       'Older designs without basement windows did not retain the legacy defaults');
+  });
+
+  await check('Millimetres use integers throughout the UI without rounding angles or areas',async () => {
+    await load(true);
+    edit('pitch',14.25);
+    const slope = Math.tan(14.25*Math.PI/180);
+    const rear = 2350+slope*2200;
+    assert(field('rear').textContent === `${Math.round(rear).toLocaleString('en')} mm`,'Rear height retained decimals');
+    assert(field('rise').textContent === `${Math.round(slope*2200).toLocaleString('en')} mm`,'Roof rise retained decimals');
+    assert(field('area').textContent === '6.16 m²','Area lost its precision');
+    for (const input of doc.querySelectorAll('#settings input[type="number"]')) {
+      if (input.id === 'pitch') continue;
+      assert(Number.isInteger(Number(input.value)) && Number(input.step) >= 1,`Fractional field ${input.id}`);
+    }
+    edit('slabThickness',141);
+    doc.querySelector('[data-view="left"]').click();
+    assert(field('drawing').textContent.includes('14.25'),'Pitch label lost its decimals');
+    for (const view of ['3d','front','left','right','plan']) {
+      doc.querySelector(`[data-view="${view}"]`).click();
+      assert(!/\d+\.\d+\s*mm\b/.test(field('drawing').textContent),`Fractional drawing label in ${view}`);
+    }
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    Object.assign(saved.fields,{doorSideOverhang:'180.5',houseWallLeft:'-505.5',frontBottom:'900.25'});
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('doorSideOverhang').value === '181' && field('houseWallLeft').value === '-505' &&
+      field('frontBottom').value === '900' && field('pitch').value === '14.25','Saved dimensions or pitch rounded incorrectly');
+    assert(field('storage-status').textContent.includes('rounded to whole millimetres'),'Rounding was silent');
+    const before = field('drawing').innerHTML;
+    field('doorSideOverhang').value = '181.5';
+    field('doorSideOverhang').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('doorSideOverhang').getAttribute('aria-invalid') === 'true' &&
+      field('drawing').innerHTML === before,'A fractional millimetre input changed the drawing');
+    edit('doorSideOverhang',181);
+    await load();
+    assert(!field('storage-status').textContent,'Rounding notice repeated after saving');
+    for (const id of ['show-bom','show-loads']) {
+      field(id).click();
+      const panel = field(id === 'show-bom' ? 'bom-view' : 'loads-view');
+      assert(!/\d+\.\d+\s*mm\b/.test(panel.textContent),'Estimate page retained fractional millimetres');
+    }
   });
 
   await check('Shared opening trims update every view, estimates, export and restored settings',async () => {

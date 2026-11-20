@@ -26,6 +26,8 @@ Use the buttons at the top to switch workspaces; all share the same design.
 
 Start with the existing house, then place and size the new porch:
 
+Lengths are entered and displayed in whole millimetres; calculated geometry retains its precision. Older fractional dimensions are rounded on loading, with a notice. Angles, areas and prices can still show decimals.
+
 1. **Existing house:** enter the wall, windows and basement measurements. The reference origin is at ground level directly below the left edge of the left main window, viewed facing the house. Set the distance from that origin to the slab's left edge and the clear gap between the main windows. House window sills are measured above ground; basement window sills are measured above the bottom of the concrete base.
 2. **Foundation:** set the slab width, length and thickness, then choose the pier grid, diameter and depth. Width runs across the front; length runs out from the house.
 3. **Openings:** configure the left-side door and the front and right windows. Choose door glazing, handing, window muntins and shared opening trim. Window sizes describe rough openings, not finished frames. Editing a window's top or bottom clearance recalculates the opposite clearance.

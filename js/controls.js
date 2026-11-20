@@ -67,7 +67,7 @@ export function createControls($) {
     houseBasementRight: { label: 'Right basement window', offset: 9138, sill: 150, width: 900, height: 300 }
   };
   function addFields(group, specs) {
-    for (const [key, title, initial, min = 0, unit = 'mm', max = 50000, step = unit ? 'any' : 1, choices] of specs) {
+    for (const [key, title, initial, min = 0, unit = 'mm', max = 50000, step = unit === 'mm' ? 1 : 'any', choices] of specs) {
       const label = document.createElement('label');
       label.textContent = title;
       const box = document.createElement('span');
@@ -79,7 +79,7 @@ export function createControls($) {
         for (const value of choices) input.add(new Option(`${value} ${unit}`,value,value === initial,value === initial));
       } else {
         Object.assign(input, { type: 'number', min, max, step, defaultValue: initial,
-          inputMode: unit ? 'decimal' : 'numeric' });
+          inputMode: unit === 'mm' ? 'numeric' : 'decimal' });
       }
       const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, '')}`
         : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}`
@@ -151,7 +151,7 @@ export function createControls($) {
     ['pitch', 'Roof angle', 14, 0, '\u00b0', 60],
     ['frontOverhang', 'Front overhang', 350, 0, 'mm', 1000, 1],
     ['roofWidth', 'Total roof width', 3160, 1200, 'mm', 8000, 1],
-    ['doorSideOverhang', 'Door-side overhang (left)', 180, 0, 'mm', 1000, .5],
+    ['doorSideOverhang', 'Door-side overhang (left)', 180, 0, 'mm', 1000, 1],
     ['flashingHeight', 'Standing flashing height', 150, 50, 'mm', 500, 1]
   ]);
   addFields('roofTiles', [
@@ -170,25 +170,25 @@ export function createControls($) {
     stockSize('rafterDepth','Rafter depth',170,timberDepths)
   ]);
   addFields('housePosition', [
-    ['slabOriginOffset','Origin to slab left edge',3494,-40000,'mm',40000,.5],
-    ['houseWindowGap','Gap between main windows',7188,-40000,'mm',40000,.5]
+    ['slabOriginOffset','Origin to slab left edge',3494,-40000,'mm',40000,1],
+    ['houseWindowGap','Gap between main windows',7188,-40000,'mm',40000,1]
   ]);
   for (const [key, values] of Object.entries(houseWindows)) {
     addFields(key, [
       measuredWindowSize(key + 'Width','Width',values.width,4000), measuredWindowSize(key + 'Height','Height',values.height,3000),
-      ...(key === 'houseUpper' ? [[key + 'Offset', 'Centre from origin', values.offset, -40000, 'mm', 40000, .5]] : []),
+      ...(key === 'houseUpper' ? [[key + 'Offset', 'Centre from origin', values.offset, -40000, 'mm', 40000, 1]] : []),
       [key + 'Sill', 'Sill height above ground', values.sill, 0, 'mm', 12400, 1]
     ]);
   }
   for (const [key, values] of Object.entries(houseBasementWindows)) {
     addFields(key, [
       measuredWindowSize(key + 'Width','Width',values.width,3000), measuredWindowSize(key + 'Height','Height',values.height,1500),
-      [key + 'Offset', 'Centre from origin', values.offset, -40000, 'mm', 40000, .5],
+      [key + 'Offset', 'Centre from origin', values.offset, -40000, 'mm', 40000, 1],
       [key + 'Sill', 'Sill height above base bottom', values.sill, 0, 'mm', 3000, 1]
     ]);
   }
   addFields('houseWall', [
-    ['houseWallLeft', 'Wall left edge from origin', -505, -40000, 'mm', 40000, .5],
+    ['houseWallLeft','Wall left edge from origin', -505, -40000, 'mm', 40000, 1],
     ['houseWallWidth', 'House wall width', 10798, 3000, 'mm', 30000, 1],
     ['houseWallHeight', 'House wall height above ground', 4540, 2500, 'mm', 12400, 1],
     ['houseBaseHeight', 'Concrete base height', 600, 0, 'mm', 3000, 1],

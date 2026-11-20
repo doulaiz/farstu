@@ -309,7 +309,7 @@
       houseBasementRight: { label: "Right basement window", offset: 9138, sill: 150, width: 900, height: 300 }
     };
     function addFields(group, specs) {
-      for (const [key, title, initial, min = 0, unit = "mm", max = 5e4, step = unit ? "any" : 1, choices] of specs) {
+      for (const [key, title, initial, min = 0, unit = "mm", max = 5e4, step = unit === "mm" ? 1 : "any", choices] of specs) {
         const label = document.createElement("label");
         label.textContent = title;
         const box = document.createElement("span");
@@ -326,7 +326,7 @@
             max,
             step,
             defaultValue: initial,
-            inputMode: unit ? "decimal" : "numeric"
+            inputMode: unit === "mm" ? "numeric" : "decimal"
           });
         }
         const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, "")}` : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}` : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}` : title;
@@ -398,7 +398,7 @@
       ["pitch", "Roof angle", 14, 0, "\xB0", 60],
       ["frontOverhang", "Front overhang", 350, 0, "mm", 1e3, 1],
       ["roofWidth", "Total roof width", 3160, 1200, "mm", 8e3, 1],
-      ["doorSideOverhang", "Door-side overhang (left)", 180, 0, "mm", 1e3, 0.5],
+      ["doorSideOverhang", "Door-side overhang (left)", 180, 0, "mm", 1e3, 1],
       ["flashingHeight", "Standing flashing height", 150, 50, "mm", 500, 1]
     ]);
     addFields("roofTiles", [
@@ -417,14 +417,14 @@
       stockSize("rafterDepth", "Rafter depth", 170, timberDepths)
     ]);
     addFields("housePosition", [
-      ["slabOriginOffset", "Origin to slab left edge", 3494, -4e4, "mm", 4e4, 0.5],
-      ["houseWindowGap", "Gap between main windows", 7188, -4e4, "mm", 4e4, 0.5]
+      ["slabOriginOffset", "Origin to slab left edge", 3494, -4e4, "mm", 4e4, 1],
+      ["houseWindowGap", "Gap between main windows", 7188, -4e4, "mm", 4e4, 1]
     ]);
     for (const [key, values] of Object.entries(houseWindows)) {
       addFields(key, [
         measuredWindowSize(key + "Width", "Width", values.width, 4e3),
         measuredWindowSize(key + "Height", "Height", values.height, 3e3),
-        ...key === "houseUpper" ? [[key + "Offset", "Centre from origin", values.offset, -4e4, "mm", 4e4, 0.5]] : [],
+        ...key === "houseUpper" ? [[key + "Offset", "Centre from origin", values.offset, -4e4, "mm", 4e4, 1]] : [],
         [key + "Sill", "Sill height above ground", values.sill, 0, "mm", 12400, 1]
       ]);
     }
@@ -432,12 +432,12 @@
       addFields(key, [
         measuredWindowSize(key + "Width", "Width", values.width, 3e3),
         measuredWindowSize(key + "Height", "Height", values.height, 1500),
-        [key + "Offset", "Centre from origin", values.offset, -4e4, "mm", 4e4, 0.5],
+        [key + "Offset", "Centre from origin", values.offset, -4e4, "mm", 4e4, 1],
         [key + "Sill", "Sill height above base bottom", values.sill, 0, "mm", 3e3, 1]
       ]);
     }
     addFields("houseWall", [
-      ["houseWallLeft", "Wall left edge from origin", -505, -4e4, "mm", 4e4, 0.5],
+      ["houseWallLeft", "Wall left edge from origin", -505, -4e4, "mm", 4e4, 1],
       ["houseWallWidth", "House wall width", 10798, 3e3, "mm", 3e4, 1],
       ["houseWallHeight", "House wall height above ground", 4540, 2500, "mm", 12400, 1],
       ["houseBaseHeight", "Concrete base height", 600, 0, "mm", 3e3, 1],
@@ -1640,8 +1640,9 @@
       { button: "show-loads", panel: "loads-view", onShow: loads.render }
     ]);
     const dimensions = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
+    const millimetres = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });
     const fmt = (n) => dimensions.format(n);
-    const mm = (n) => `${fmt(n)} mm`;
+    const mm = (n) => `${millimetres.format(n)} mm`;
     const houseColor = "var(--house-color)";
     const glassColor = "#80a9b0";
     const footingColor = "#8c88a5";
@@ -1707,6 +1708,7 @@
     let adjustedRoofSettings = false;
     let adjustedTrims = false;
     let migratedHouseReference = false;
+    let roundedMillimetres = false;
     function restoreSettings(saved2) {
       if (!saved2 || saved2.version !== 1 || !saved2.fields || !saved2.layers || !saved2.anchors) return false;
       const hasOption = (select, value) => [...select.options].some((option) => option.value === value);
@@ -1771,7 +1773,9 @@
           if (nearest !== Number(value)) adjustedStockSizes.push(key);
         } else {
           if (Number(value) < Number(input.min) || Number(value) > Number(input.max)) return false;
-          savedFields[key] = value;
+          const next = key === "pitch" ? Number(value) : Math.round(Number(value));
+          if (next !== Number(value)) roundedMillimetres = true;
+          savedFields[key] = String(next);
         }
       }
       if (savedRoofMaterial === "tiles" && Number(savedFields.tileLength) > tileGaugeLimit(Number(savedFields.pitch))) {
@@ -1952,7 +1956,7 @@
         const available = (isFront ? v.frontWallHeight : rear - slope * end) - h;
         const complement = available - v[side + anchor];
         const other = anchor === "Bottom" ? "Top" : "Bottom";
-        fields[side + other].value = Number.isFinite(complement) ? Number(complement.toFixed(2)) : "";
+        fields[side + other].value = Number.isFinite(complement) ? Math.round(complement) : "";
         if (w > span) flag(`The ${side} window is wider than its clear wall span.`, side + "Width", isFront ? "width" : "length", "wallThickness");
         if (complement < -1e-8) flag(`The ${side} window does not fit between the slab and the roofline.`, side + "Height", side + anchor, side + other);
         const bottom = anchor === "Bottom" ? v[side + anchor] : Math.max(0, complement);
@@ -3726,12 +3730,13 @@
         storageStatus.textContent = "Saved settings are incompatible; defaults were loaded.";
         update();
       }
-    } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference)) {
+    } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference || roundedMillimetres)) {
       const notices = [];
       if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map((key) => `${key} = ${fields[key].value} mm`).join(", ")}. Review these changes before ordering.`);
       if (adjustedRoofSettings) notices.push("Saved roof settings were migrated to total roof width and door-side overhang, or adjusted to the selected tile module and pitch-dependent batten gauge.");
       if (adjustedTrims) notices.push("Saved opening trims were unified using the door trim width and colour.");
-      if (migratedHouseReference) notices.push("Saved house and slab positions were converted to the left-window origin without moving them.");
+      if (migratedHouseReference) notices.push("Saved house and slab positions were converted to the left-window origin.");
+      if (roundedMillimetres) notices.push("Saved dimensions were rounded to whole millimetres. Review the updated layout.");
       storageStatus.textContent = [...notices, storageStatus.textContent].filter(Boolean).join(" ");
     }
   }
