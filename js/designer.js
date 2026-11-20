@@ -7,6 +7,7 @@ import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallP
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
 import { roofPitchGuidance, roofWidthRange, standingFlashing, tileGaugeLimit, tileSystems } from './roofing.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
+import { createNumberFormat } from './number-format.js';
 
 const houseTrim = 95;
 
@@ -40,8 +41,8 @@ export function initDesigner() {
     { button: 'show-bom', panel: 'bom-view', onShow: bom.render },
     { button: 'show-loads', panel: 'loads-view', onShow: loads.render }
   ]);
-  const dimensions = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
-  const millimetres = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
+  const dimensions = createNumberFormat({ maximumFractionDigits: 2 });
+  const millimetres = createNumberFormat({ maximumFractionDigits: 0 });
   const fmt = (n) => dimensions.format(n);
   const mm = (n) => `${millimetres.format(n)} mm`;
   const houseColor = 'var(--house-color)';

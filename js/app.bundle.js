@@ -227,8 +227,8 @@
     const vergeLength = 2 * slopedRun / 1e3;
     const underlayment = roofMaterial === "tiles" && pitch < 22 ? "High-grade sealed underlayment with taped or welded seams" : "Continuous roof underlayment over solid sheathing";
     return [
-      { id: `covering-${roofMaterial}`, role: `${roofMaterials[roofMaterial].label} covering`, quantity: area * 1.1, unit: "m\xB2", basis: "Roof area plus 10% laps / cuts" },
-      { id: "roof-deck", role: "Solid roof deck / sheathing", quantity: area * 1.05, unit: "m\xB2", basis: "Net roof area plus 5% cuts" },
+      { id: `covering-${roofMaterial}`, role: `${roofMaterials[roofMaterial].label} covering`, quantity: area * 1.1, unit: "m\xB2", basis: "Roof area plus 10\xA0% laps / cuts" },
+      { id: "roof-deck", role: "Solid roof deck / sheathing", quantity: area * 1.05, unit: "m\xB2", basis: "Net roof area plus 5\xA0% cuts" },
       { id: `underlayment-${roofMaterial}-${pitch < 22 ? "sealed" : "standard"}`, role: underlayment, quantity: area * 1.1, unit: "m\xB2", basis: "Continuous secondary water barrier" },
       { id: "roof-fasteners", role: "Roofing fasteners, closures & seals", quantity: 1, unit: "allowance", basis: "System-specific; verify with supplier" },
       { id: "eave-fascia", role: "Eave fascia board", quantity: edgeLength, unit: "m", basis: "Across the front eave" },
@@ -244,7 +244,22 @@
     ];
   }
 
+  // js/number-format.js
+  function createNumberFormat(options) {
+    const formatter = new Intl.NumberFormat("en", options);
+    return {
+      format(value) {
+        return formatter.formatToParts(value).map((part) => {
+          if (part.type === "group") return "\u202F";
+          if (part.type === "percentSign") return `\xA0${part.value}`;
+          return part.value;
+        }).join("");
+      }
+    };
+  }
+
   // js/controls.js
+  var dimension = createNumberFormat({ maximumFractionDigits: 0 });
   var windowSizeStep = 100;
   var timberSections = deromeCatalogue.filter((item) => item.family === "frame");
   var timberWidths = [...new Set(timberSections.map((item) => item.width))];
@@ -318,7 +333,7 @@
         Object.assign(input, { name: key, id: key, required: true });
         input.dataset.initial = initial;
         if (choices) {
-          for (const value of choices) input.add(new Option(`${value} ${unit}`, value, value === initial, value === initial));
+          for (const value of choices) input.add(new Option(`${dimension.format(value)} ${unit}`, value, value === initial, value === initial));
         } else {
           Object.assign(input, {
             type: "number",
@@ -698,9 +713,9 @@
   var roofStorageKey = "farstu-roof-quotes-v1";
   var maxQuote = 1e7;
   var validQuote = (amount) => amount === null || Number.isFinite(amount) && amount >= 0 && amount <= maxQuote;
-  var invalidQuoteMessage = "Enter a quote from 0 to 10,000,000 SEK or leave the field blank. The previous quote is unchanged.";
-  var number = new Intl.NumberFormat("en", { maximumFractionDigits: 3 });
-  var money = new Intl.NumberFormat("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var number = createNumberFormat({ maximumFractionDigits: 3 });
+  var money = createNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var invalidQuoteMessage = `Enter a quote from 0 to ${number.format(maxQuote)} SEK or leave the field blank. The previous quote is unchanged.`;
   var crossSection = (item) => `${item.width} \xD7 ${item.depth}`;
   function cell(row, value, className) {
     const td = row.insertCell();
@@ -849,7 +864,7 @@
         const counts = /* @__PURE__ */ new Map();
         for (const length of row.cuts) counts.set(length, (counts.get(length) ?? 0) + 1);
         const lengths = document.createElement("div");
-        lengths.textContent = [...counts].sort(([a], [b]) => b - a).map(([mm, count]) => `${count} \xD7 ${mm}`).join("; ");
+        lengths.textContent = [...counts].sort(([a], [b]) => b - a).map(([mm, count]) => `${number.format(count)} \xD7 ${number.format(mm)}`).join("; ");
         details.append(summary, lengths);
         cell(tr, "").append(details);
         const article = cell(tr, row.product ? `${row.product.name} ${crossSection(row.product)}` : "No product");
@@ -1188,10 +1203,10 @@
 
   // js/loads-view.js
   var svgNS = "http://www.w3.org/2000/svg";
-  var kgFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });
-  var oneDecimal = new Intl.NumberFormat("en", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  var twoDecimals = new Intl.NumberFormat("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  var percent = new Intl.NumberFormat("en", { style: "percent", maximumFractionDigits: 1 });
+  var kgFormat = createNumberFormat({ maximumFractionDigits: 0 });
+  var oneDecimal = createNumberFormat({ minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  var twoDecimals = createNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var percent = createNumberFormat({ style: "percent", maximumFractionDigits: 1 });
   var kg = (n) => kgFormat.format(Math.round(n));
   var kN = (n) => twoDecimals.format(n * gravity / 1e3);
   var ramp = [[255, 247, 214], [253, 205, 120], [240, 133, 62], [204, 64, 44], [128, 20, 34]];
@@ -1457,7 +1472,7 @@
       const covering = roofCovering(model);
       const coveringLabel = roofCoveringLabels[covering].toLowerCase();
       const lines = [
-        ["Concrete slab", details["slab:concrete"], `${kgFormat.format(model.width)} \xD7 ${kgFormat.format(model.length)} \xD7 ${kgFormat.format(model.slabThickness)} mm at ${densities.concrete.value} kg/m\xB3`],
+        ["Concrete slab", details["slab:concrete"], `${kgFormat.format(model.width)} \xD7 ${kgFormat.format(model.length)} \xD7 ${kgFormat.format(model.slabThickness)} mm at ${kgFormat.format(densities.concrete.value)} kg/m\xB3`],
         ["Wall studs, plates, sills & headers", details["walls:framing"], `Stud layout from the Designer at ${densities.timber.value} kg/m\xB3`],
         ["Wall cladding, battens, boards & linings", details["walls:layers"], `${oneDecimal.format(wallLayerMasses(model).reduce((s, l) => s + l.kg, 0))} kg/m\xB2 of solid wall`],
         ["Stud-bay insulation", details["walls:insulation"], `${densities.mineralWool.value} kg/m\xB3 mineral wool, ${kgFormat.format(model.studDepth)} mm deep`],
@@ -1486,7 +1501,7 @@
       addLine("Total on the soil", onPiers + result.pierSelfWeight, `${kN(onPiers + result.pierSelfWeight)} kN`, "loads-total-row");
       breakdown.replaceChildren(out);
       const items = [
-        ...Object.values(densities).map((d) => `${d.label}: ${d.value} kg/m\xB3`),
+        ...Object.values(densities).map((d) => `${d.label}: ${kgFormat.format(d.value)} kg/m\xB3`),
         ...wallLayerMasses(model).map((l) => `${l.label}: ${oneDecimal.format(l.kg)} kg/m\xB2`),
         `Window units: ${openingMasses.window} kg/m\xB2; exterior door: ${openingMasses.door} kg/m\xB2`,
         ...Object.entries(roofCoveringMasses).map(([key, value]) => `${roofCoveringLabels[key]}: ${value} kg/m\xB2 of roof incl. battens`),
@@ -1639,8 +1654,8 @@
       { button: "show-bom", panel: "bom-view", onShow: bom.render },
       { button: "show-loads", panel: "loads-view", onShow: loads.render }
     ]);
-    const dimensions = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
-    const millimetres = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });
+    const dimensions = createNumberFormat({ maximumFractionDigits: 2 });
+    const millimetres = createNumberFormat({ maximumFractionDigits: 0 });
     const fmt = (n) => dimensions.format(n);
     const mm = (n) => `${millimetres.format(n)} mm`;
     const houseColor = "var(--house-color)";
@@ -2136,7 +2151,7 @@
       const face = (points, fill, extra = {}) => shapes.push(["polygon", points, { class: "face", fill, ...extra }]);
       const line = (a, b, cls, extra = {}) => shapes.push(["line", [a, b], { class: cls, ...extra }]);
       const note = (at, text2, dy = 0, anchor = "middle") => labels.push({ at, text: text2, dy, anchor });
-      const dimension = (a, b, gap, text2) => dims.push({ a, b, gap, text: text2 });
+      const dimension2 = (a, b, gap, text2) => dims.push({ a, b, gap, text: text2 });
       const ground = (x, y) => [x, y, 0];
       const roofLeft = -doorSideOverhang, roofRight = roofLeft + roofWidth;
       const planMargin = Math.max(360, doorSideOverhang + 170, rightOverhang + 170);
@@ -3010,8 +3025,8 @@
         shapes.push(["door-leaf", []]);
         if (planA < planB) note(ground((planA + planB) / 2, -Math.min(260, L * 0.11)), "Existing house", -7);
         note(ground(T, (door.start + door.end) / 2), "Left door", -9, "start");
-        dimension(ground(0, L + F), ground(W, L + F), [0, 35], mm(W));
-        dimension(ground(roofLeft, 0), ground(roofLeft, L), [-43, 0], mm(L));
+        dimension2(ground(0, L + F), ground(W, L + F), [0, 35], mm(W));
+        dimension2(ground(roofLeft, 0), ground(roofLeft, L), [-43, 0], mm(L));
       } else {
         if (iso || front) drawHouseFacade();
         if (groundHidden) drawPiers();
@@ -3024,7 +3039,7 @@
           foundation(frontAt, W, "#aab4aa");
           drawWall(frontSection, W, frontTop, windows.front, "front");
           const baseline = groundHidden ? footingBase : slabBase;
-          dimension(frontAt(0, baseline), frontAt(W, baseline), [0, 38], mm(W));
+          dimension2(frontAt(0, baseline), frontAt(W, baseline), [0, 38], mm(W));
         }
         if (iso || !front) {
           if (!iso) {
@@ -3062,7 +3077,7 @@
           drawWall(sideSection(side), L, wallTop, side === "left" ? door : windows.right, side === "left" ? "door" : "right");
           const x = side === "right" ? W : 0;
           const baseline = groundHidden ? footingBase : slabBase;
-          dimension([x, 0, baseline], [x, L, baseline], [0, 38], mm(L));
+          dimension2([x, 0, baseline], [x, L, baseline], [0, 38], mm(L));
         }
         if (sideElevation) drawSideWallBasementJunction(side);
         orderScene(wallScene);
@@ -3094,7 +3109,7 @@
           drawHedge();
           drawHedgePlanting();
         }
-        if (front) dimension(frontAt(0, 0), frontAt(0, H), [-43, 0], mm(H));
+        if (front) dimension2(frontAt(0, 0), frontAt(0, H), [-43, 0], mm(H));
       }
       const bounds = [...shapes.flatMap(([, points]) => points), ...roof];
       if (iso || plan) bounds.push(...grade);

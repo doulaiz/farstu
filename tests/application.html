@@ -8,6 +8,7 @@ import { deromeCatalogue } from '../js/derome.js';
 import { clippedHeight, wallMembers } from '../js/framing.js';
 import { buildBom } from '../js/bom.js';
 import { computeLoads, densities } from '../js/loads.js';
+import { createNumberFormat } from '../js/number-format.js';
 
 const results = document.querySelector('#results');
 const settingsKey = 'farstu-designer-settings-v1';
@@ -357,8 +358,8 @@ try {
     edit('pitch',14.25);
     const slope = Math.tan(14.25*Math.PI/180);
     const rear = 2350+slope*2200;
-    assert(field('rear').textContent === `${Math.round(rear).toLocaleString('en')} mm`,'Rear height retained decimals');
-    assert(field('rise').textContent === `${Math.round(slope*2200).toLocaleString('en')} mm`,'Roof rise retained decimals');
+    assert(field('rear').textContent === `${Math.round(rear).toLocaleString('en').replaceAll(',','\u202f')} mm`,'Rear height retained decimals');
+    assert(field('rise').textContent === `${Math.round(slope*2200).toLocaleString('en').replaceAll(',','\u202f')} mm`,'Roof rise retained decimals');
     assert(field('area').textContent === '6.16 m²','Area lost its precision');
     for (const input of doc.querySelectorAll('#settings input[type="number"]')) {
       if (input.id === 'pitch') continue;
@@ -391,6 +392,42 @@ try {
       const panel = field(id === 'show-bom' ? 'bom-view' : 'loads-view');
       assert(!/\d+\.\d+\s*mm\b/.test(panel.textContent),'Estimate page retained fractional millimetres');
     }
+  });
+
+  await check('International number grouping and SI percent spacing are consistent across workspaces',async () => {
+    const decimal = createNumberFormat({maximumFractionDigits:2});
+    assert(decimal.format(-1234567.89) === '-1\u202f234\u202f567.89' &&
+      decimal.format(0.25) === '0.25','Grouping changed signs or decimal precision');
+    const percent = createNumberFormat({style:'percent',maximumFractionDigits:1});
+    assert(percent.format(.125) === '12.5\u00a0%','Percent spacing or precision is incorrect');
+    await load(true);
+    assert(field('rear').textContent === '2\u202f899 mm','Millimetres do not use space grouping');
+    assert(field('doorWidth').querySelector('[value="1000"]').textContent === '1\u202f000 mm' &&
+      field('doorWidth').value === '1000','Formatted options changed their numeric values');
+    for (const view of ['3d','front','left','right','plan']) {
+      doc.querySelector(`[data-view="${view}"]`).click();
+      const text = field('drawing').textContent;
+      assert(!/\d,\d{3}/.test(text) && /\d\u202f\d{3} mm/.test(text),`Incorrect grouping in ${view}`);
+    }
+    field('show-bom').click();
+    assert(/\d\u202f\d{3}/.test(field('bom-rows').querySelector('details div').textContent),
+      'Cut lengths do not use space grouping');
+    const quote = field('bom-rows').querySelector('input');
+    change(quote,1234.5);
+    assert(/\d\u202f\d{3}\.\d{2} SEK/.test(field('bom-total').textContent),
+      'Prices lost space grouping or two decimal places');
+    const roofQuote = field('roof-rows').querySelector('input');
+    change(roofQuote,10000001);
+    assert(field('roof-price-status').textContent.includes('10\u202f000\u202f000 SEK'),
+      'Quote validation retained comma grouping');
+    change(roofQuote,1234.5);
+    assert(!/\d,\d{3}/.test(field('bom-view').textContent),'Estimate text retained comma grouping');
+    assert(field('roof-rows').textContent.includes('10\u00a0%'),'Roof allowance lacks SI percent spacing');
+    field('show-loads').click();
+    assert(/\d\u202f\d{3}/.test(field('loads-total').textContent),'Load totals retained comma grouping');
+    assert(field('loads-rows').textContent.includes('100\u00a0%'),'Load shares lack SI percent spacing');
+    assert(field('loads-assumptions').textContent.includes('2\u202f500 kg/m³'),
+      'Density assumptions do not use space grouping');
   });
 
   await check('Shared opening trims update every view, estimates, export and restored settings',async () => {

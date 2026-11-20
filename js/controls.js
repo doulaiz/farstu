@@ -1,7 +1,9 @@
 import { muntinPatterns } from './windows.js';
 import { deromeCatalogue } from './derome.js';
 import { tileSystems } from './roofing.js';
+import { createNumberFormat } from './number-format.js';
 
+const dimension = createNumberFormat({ maximumFractionDigits: 0 });
 export const windowSizeStep = 100;
 export const timberSections = deromeCatalogue.filter(item => item.family === 'frame');
 const timberWidths = [...new Set(timberSections.map(item => item.width))];
@@ -76,7 +78,7 @@ export function createControls($) {
       Object.assign(input, { name: key, id: key, required: true });
       input.dataset.initial = initial;
       if (choices) {
-        for (const value of choices) input.add(new Option(`${value} ${unit}`,value,value === initial,value === initial));
+        for (const value of choices) input.add(new Option(`${dimension.format(value)} ${unit}`,value,value === initial,value === initial));
       } else {
         Object.assign(input, { type: 'number', min, max, step, defaultValue: initial,
           inputMode: unit === 'mm' ? 'numeric' : 'decimal' });

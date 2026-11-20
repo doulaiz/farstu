@@ -214,16 +214,16 @@ try {
   field('show-bom').click();
   const covering = [...doc().querySelectorAll('#roof-rows tr')]
     .find(row => row.textContent.includes('Benders concrete tiles covering'));
-  close(Number(covering.querySelector('td').textContent.replaceAll(',','')),Number((area*1.1).toFixed(2)));
+  close(Number(covering.querySelector('td').textContent.replace(/\s/g,'')),Number((area*1.1).toFixed(2)));
   field('show-loads').click();
   const roofLoad = [...doc().querySelectorAll('#loads-view tr')]
     .find(row => row.textContent.includes('Roof benders concrete tiles, deck'));
-  const actualKg = Number(roofLoad.querySelector('td').textContent.replaceAll(',',''));
+  const actualKg = Number(roofLoad.querySelector('td').textContent.replace(/\s/g,''));
   assert(Math.abs(actualKg-area*56.5) <= 1,'Load estimate uses a different roof width');
   const outline = doc().querySelector('.loads-roof');
   close(Number(outline.getAttribute('x')),-180);
   close(Number(outline.getAttribute('width')),total);
-  const firstPierRoof = () => Number(field('loads-rows').querySelector('tr').cells[4].textContent.replaceAll(',',''));
+  const firstPierRoof = () => Number(field('loads-rows').querySelector('tr').cells[4].textContent.replace(/\s/g,''));
   const previousRoofLoad = firstPierRoof();
   edit('doorSideOverhang',400);
   valid();

@@ -76,8 +76,8 @@ export function buildRoofSchedule(model) {
     : 'Continuous roof underlayment over solid sheathing';
 
   return [
-    { id: `covering-${roofMaterial}`, role: `${roofMaterials[roofMaterial].label} covering`, quantity: area * 1.1, unit: 'm²', basis: 'Roof area plus 10% laps / cuts' },
-    { id: 'roof-deck', role: 'Solid roof deck / sheathing', quantity: area * 1.05, unit: 'm²', basis: 'Net roof area plus 5% cuts' },
+    { id: `covering-${roofMaterial}`, role: `${roofMaterials[roofMaterial].label} covering`, quantity: area * 1.1, unit: 'm²', basis: 'Roof area plus 10\u00a0% laps / cuts' },
+    { id: 'roof-deck', role: 'Solid roof deck / sheathing', quantity: area * 1.05, unit: 'm²', basis: 'Net roof area plus 5\u00a0% cuts' },
     { id: `underlayment-${roofMaterial}-${pitch < 22 ? 'sealed' : 'standard'}`, role: underlayment, quantity: area * 1.1, unit: 'm²', basis: 'Continuous secondary water barrier' },
     { id: 'roof-fasteners', role: 'Roofing fasteners, closures & seals', quantity: 1, unit: 'allowance', basis: 'System-specific; verify with supplier' },
     { id: 'eave-fascia', role: 'Eave fascia board', quantity: edgeLength, unit: 'm', basis: 'Across the front eave' },

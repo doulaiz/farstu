@@ -1,14 +1,15 @@
 import { buildBom } from './bom.js';
 import { catalogueDate } from './derome.js';
 import { buildRoofSchedule } from './roofing.js';
+import { createNumberFormat } from './number-format.js';
 
 const storageKey = 'farstu-derome-quotes-v1';
 const roofStorageKey = 'farstu-roof-quotes-v1';
 const maxQuote = 10000000;
 const validQuote = amount => amount === null || (Number.isFinite(amount) && amount >= 0 && amount <= maxQuote);
-const invalidQuoteMessage = 'Enter a quote from 0 to 10,000,000 SEK or leave the field blank. The previous quote is unchanged.';
-const number = new Intl.NumberFormat('en', { maximumFractionDigits: 3 });
-const money = new Intl.NumberFormat('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const number = createNumberFormat({ maximumFractionDigits: 3 });
+const money = createNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const invalidQuoteMessage = `Enter a quote from 0 to ${number.format(maxQuote)} SEK or leave the field blank. The previous quote is unchanged.`;
 const crossSection = item => `${item.width} × ${item.depth}`;
 
 function cell(row, value, className) {
@@ -156,7 +157,7 @@ export function createBomView($) {
       const counts = new Map();
       for (const length of row.cuts) counts.set(length,(counts.get(length) ?? 0)+1);
       const lengths = document.createElement('div');
-      lengths.textContent = [...counts].sort(([a],[b]) => b-a).map(([mm,count]) => `${count} × ${mm}`).join('; ');
+      lengths.textContent = [...counts].sort(([a],[b]) => b-a).map(([mm,count]) => `${number.format(count)} × ${number.format(mm)}`).join('; ');
       details.append(summary,lengths);
       cell(tr,'').append(details);
       const article = cell(tr,row.product ? `${row.product.name} ${crossSection(row.product)}` : 'No product');

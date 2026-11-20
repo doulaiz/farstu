@@ -2,12 +2,13 @@ import {
   adultCount, adultFootprint, adultMass, clampPerson, computeLoads, defaultPeople, densities, gravity,
   openingMasses, roofCovering, roofCoveringLabels, roofCoveringMasses, roofEdgeMasses, roofLayerMasses, wallLayerMasses
 } from './loads.js';
+import { createNumberFormat } from './number-format.js';
 
 const svgNS = 'http://www.w3.org/2000/svg';
-const kgFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
-const oneDecimal = new Intl.NumberFormat('en', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-const twoDecimals = new Intl.NumberFormat('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const percent = new Intl.NumberFormat('en', { style: 'percent', maximumFractionDigits: 1 });
+const kgFormat = createNumberFormat({ maximumFractionDigits: 0 });
+const oneDecimal = createNumberFormat({ minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const twoDecimals = createNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const percent = createNumberFormat({ style: 'percent', maximumFractionDigits: 1 });
 const kg = n => kgFormat.format(Math.round(n));
 const kN = n => twoDecimals.format(n * gravity / 1000);
 
@@ -271,7 +272,7 @@ export function createLoadsView($) {
     const covering = roofCovering(model);
     const coveringLabel = roofCoveringLabels[covering].toLowerCase();
     const lines = [
-      ['Concrete slab', details['slab:concrete'], `${kgFormat.format(model.width)} × ${kgFormat.format(model.length)} × ${kgFormat.format(model.slabThickness)} mm at ${densities.concrete.value} kg/m³`],
+      ['Concrete slab', details['slab:concrete'], `${kgFormat.format(model.width)} × ${kgFormat.format(model.length)} × ${kgFormat.format(model.slabThickness)} mm at ${kgFormat.format(densities.concrete.value)} kg/m³`],
       ['Wall studs, plates, sills & headers', details['walls:framing'], `Stud layout from the Designer at ${densities.timber.value} kg/m³`],
       ['Wall cladding, battens, boards & linings', details['walls:layers'], `${oneDecimal.format(wallLayerMasses(model).reduce((s, l) => s + l.kg, 0))} kg/m² of solid wall`],
       ['Stud-bay insulation', details['walls:insulation'], `${densities.mineralWool.value} kg/m³ mineral wool, ${kgFormat.format(model.studDepth)} mm deep`],
@@ -301,7 +302,7 @@ export function createLoadsView($) {
     breakdown.replaceChildren(out);
 
     const items = [
-      ...Object.values(densities).map(d => `${d.label}: ${d.value} kg/m³`),
+      ...Object.values(densities).map(d => `${d.label}: ${kgFormat.format(d.value)} kg/m³`),
       ...wallLayerMasses(model).map(l => `${l.label}: ${oneDecimal.format(l.kg)} kg/m²`),
       `Window units: ${openingMasses.window} kg/m²; exterior door: ${openingMasses.door} kg/m²`,
       ...Object.entries(roofCoveringMasses).map(([key, value]) => `${roofCoveringLabels[key]}: ${value} kg/m² of roof incl. battens`),
