@@ -6,11 +6,9 @@ Plan an enclosed entrance porch (*farstu*) against an existing house: explore it
 
 ### Open the planner
 
-**[Open Farstu Designer on GitHub Pages](https://doulaiz.github.io/farstu/)**
+**[Open Farstu Designer on GitHub Pages](https://doulaiz.github.io/farstu/index.html)**
 
-> GitHub Pages is not yet enabled for this repository; this link returns 404 until publishing is configured.
-
-You can also download and extract the [project ZIP](https://github.com/doulaiz/farstu/archive/refs/heads/master.zip), then open `index.html` in your browser. Keep the accompanying folders together. There is nothing to install to use the downloaded app.
+You can also download and extract the [project ZIP](https://github.com/doulaiz/farstu/archive/refs/heads/master.zip), then open [index.html](./index.html) in your browser. Keep the accompanying folders together. There is nothing to install to use the downloaded app.
 
 ### The three workspaces
 
@@ -137,7 +135,7 @@ Tests import source modules and require HTTP. From the repository directory:
 npx --yes http-server@14.1.1 . -a 127.0.0.1 -p 8000 -c-1
 ```
 
-This downloads the server tool if needed. Open [the local app](http://127.0.0.1:8000/); stop the server with **Ctrl+C**.
+This downloads the server tool if needed. Open [the local app](http://127.0.0.1:8000/index.html); stop the server with **Ctrl+C**.
 
 Run these browser suites **one at a time** and check the final `PASS` result:
 
@@ -154,6 +152,6 @@ Use a test-only origin or browser profile: suites temporarily replace and restor
 1. Push the HTML, CSS, JavaScript and rebuilt bundle to the repository.
 2. In the repository's **Settings > Pages**, choose **Deploy from a branch**.
 3. Select **master** and **/ (root)**, then save.
-4. Wait for the Pages deployment to finish and check <https://doulaiz.github.io/farstu/>.
+4. Wait for the Pages deployment to finish and check <https://doulaiz.github.io/farstu/index.html>.
 
 Pages serves the checked-in files; no deployment build is needed.
