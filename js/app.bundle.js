@@ -262,8 +262,8 @@
     if (!layerOptions) throw new Error("The wall layer controls are missing.");
     const wallLayers = [
       ["trim", "Opening trim", "#f7f8ee"],
-      ["cover", "Cover boards", "#edc897"],
-      ["base", "Base boards", "#d6a876"],
+      ["cover", "Cover boards", "var(--porch-color)"],
+      ["base", "Base boards", "var(--porch-base-color)"],
       ["nailers", "Horizontal nailers", "#a87147"],
       ["counter", "Vertical counter-battens", "#ba8f61"],
       ["wind", "Wind barrier", "#739489"],
@@ -2387,8 +2387,8 @@
         for (let i = 0; start + i * pitch2 - halfCover < end; i++) {
           const centre = start + i * pitch2;
           const a = centre - halfCover, b = centre + halfCover;
-          strip(a, b, bottom, high, i % 3 ? "#fff7df" : "#f8dead", "cladding-cover", 0.28);
-          strip(a, a + edge, bottom, high, "#fff7e2", "cladding-highlight", 0.62);
+          strip(a, b, bottom, high, i % 3 ? "hsl(var(--cladding-hue) 80% 94%)" : "hsl(var(--cladding-hue) 75% 84%)", "cladding-cover", 0.28);
+          strip(a, a + edge, bottom, high, "hsl(var(--cladding-hue) 80% 94%)", "cladding-highlight", 0.62);
           strip(b - edge / 2, b, bottom, high, "#795a35", "cladding-return", 0.28);
           strip(b, b + edge, bottom, high, "#64492d", "cladding-shadow", 0.27);
           strip(b + pitch2 * 0.15, b + pitch2 * 0.17, bottom, high, "#754e2c", "cladding-grain", 0.14);
@@ -2775,7 +2775,7 @@
               paint(a, b, low, high, wallColour[key], `cladding-${key}`);
               if (!cladding) continue;
               const edge = Math.min(13, (b - a) * 0.2);
-              paint(a, a + edge, low, high, "#fff2d6", "cladding-highlight", 0.62);
+              paint(a, a + edge, low, high, "hsl(var(--cladding-hue) 80% 90%)", "cladding-highlight", 0.62);
               paint(b - edge, b, low, high, "#785938", "cladding-return", 0.4);
               paint(a + (b - a) * 0.58, a + (b - a) * 0.63, low, high, "#754e2c", "cladding-grain", 0.14);
               paint(a, b, low, low + 12, "#745430", "cladding-drip", 0.5);
@@ -2868,7 +2868,7 @@
               at(edge, 0),
               at(u, 0),
               "opening-trim",
-              { "data-layer": "trim", stroke: trimColour.value, "stroke-width": 3 }
+              { "data-layer": "trim", stroke: trimColour.value, "stroke-width": 2.5 }
             );
           }
         }
@@ -2877,7 +2877,7 @@
             at(opening.start, T / 2),
             at(opening.end, T / 2),
             isDoor ? "door-opening" : "window-opening",
-            { style: "stroke:#9a693c;stroke-width:2;stroke-dasharray:4 4" }
+            { style: "stroke:#9a693c;stroke-width:1.7;stroke-dasharray:4 4" }
           );
           return;
         }
@@ -3033,20 +3033,20 @@
                 [0, -houseBaseRecession, slabBase],
                 [0, -houseBaseRecession, houseBaseTop],
                 "house-concrete-base",
-                { stroke: houseBaseColor, "stroke-width": 3 }
+                { stroke: houseBaseColor, "stroke-width": 2.5 }
               );
               if (houseBaseRecession > 0) {
                 line(
                   [0, -houseBaseRecession, slabBase],
                   [0, 0, slabBase],
                   "house-concrete-base",
-                  { stroke: houseBaseColor, "stroke-width": 3 }
+                  { stroke: houseBaseColor, "stroke-width": 2.5 }
                 );
                 line(
                   [0, -houseBaseRecession, houseBaseTop],
                   [0, 0, houseBaseTop],
                   "house-base-reveal",
-                  { stroke: "#858b81", "stroke-width": 2 }
+                  { stroke: "#858b81", "stroke-width": 1.7 }
                 );
               }
             }
@@ -3054,7 +3054,7 @@
               [0, 0, houseBaseTop],
               [0, 0, houseWallHeight],
               "face",
-              { style: "stroke:#778a7b;stroke-width:2;stroke-dasharray:5 4" }
+              { style: "stroke:#778a7b;stroke-width:1.7;stroke-dasharray:5 4" }
             );
             note([0, 0, houseWallHeight], "House wall", -9);
           }

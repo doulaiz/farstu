@@ -36,6 +36,8 @@ Lengths are entered and displayed in whole millimetres; calculated geometry reta
 
 Use the drawing controls to inspect your design:
 
+The porch and existing house share a yellow façade hue; the existing house is lighter.
+
 - **3D, Front, Left, Right and Plan** show different projections. Not every feature is visible from every direction.
 - **Roof display** switches between the covering and details, rafters, or a hidden roof.
 - **Wall layers** lets you inspect the wall build-up or expose the timber. Hiding layers does not remove materials or weight from the estimates.

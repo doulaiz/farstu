@@ -20,8 +20,8 @@ export function createControls($) {
   if (!layerOptions) throw new Error('The wall layer controls are missing.');
   const wallLayers = [
     ['trim','Opening trim','#f7f8ee'],
-    ['cover','Cover boards','#edc897'],
-    ['base','Base boards','#d6a876'],
+    ['cover','Cover boards','var(--porch-color)'],
+    ['base','Base boards','var(--porch-base-color)'],
     ['nailers','Horizontal nailers','#a87147'],
     ['counter','Vertical counter-battens','#ba8f61'],
     ['wind','Wind barrier','#739489'],
