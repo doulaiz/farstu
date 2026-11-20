@@ -1,0 +1,45 @@
+main.drawings:not([hidden]) { display:block; padding:18px; }
+.permit-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.permit-toolbar h2 { margin:0 auto 0 0; }
+.permit-export { margin-top:14px; }
+#permit-sheets { background:#e9edeb; }
+.permit-sheet svg { width:100%; height:auto; min-height:0; }
+#permit-dialog {
+  width:min(680px, calc(100% - 28px));
+  max-height:calc(100% - 28px);
+  padding:20px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  color:var(--ink);
+  background:var(--card);
+}
+#permit-dialog::backdrop { background:#17252e80; }
+.permit-fields {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%, 235px), 1fr));
+  gap:10px 16px;
+  margin-bottom:18px;
+}
+.permit-fields label { display:grid; gap:4px; align-content:start; }
+.permit-fields input { min-width:0; width:100%; }
+
+@page permit { size:A3 landscape; margin:0; }
+@media print {
+  body.printing-permit { margin:0; background:#fff; }
+  .printing-permit .shell { max-width:none; margin:0; padding:0; }
+  .printing-permit .shell > :not(#drawings-view),
+  .printing-permit #drawings-view > :not(#permit-sheets) { display:none !important; }
+  .printing-permit #drawings-view {
+    display:block; padding:0; margin:0; border:0; border-radius:0; overflow:visible;
+  }
+  .printing-permit .permit-sheet {
+    page:permit;
+    display:block !important;
+    break-after:page;
+    break-inside:avoid;
+    print-color-adjust:exact;
+    -webkit-print-color-adjust:exact;
+  }
+  .printing-permit .permit-sheet:last-child { break-after:auto; }
+  .printing-permit .permit-sheet svg { width:420mm; height:297mm; }
+}

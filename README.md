@@ -1,6 +1,6 @@
 # Farstu Designer
 
-Plan an enclosed entrance porch (*farstu*) against an existing house: explore its appearance, estimate materials and compare how its weight is shared by the foundation piers.
+Plan an enclosed entrance porch (*farstu*) against an existing house: explore the design, estimate materials and pier loads, and produce preliminary Swedish *Anmälan* drawings.
 
 ## Part 1: Using the app
 
@@ -10,7 +10,7 @@ Plan an enclosed entrance porch (*farstu*) against an existing house: explore it
 
 You can also download and extract the [project ZIP](https://github.com/doulaiz/farstu/archive/refs/heads/master.zip), then open [index.html](./index.html) in your browser. Keep the accompanying folders together. There is nothing to install to use the downloaded app.
 
-### The three workspaces
+### The four workspaces
 
 Use the buttons at the top to switch workspaces; all share the same design.
 
@@ -19,6 +19,7 @@ Use the buttons at the top to switch workspaces; all share the same design.
 | **Designer** | Set dimensions and explore the porch in 3D, elevations and Top view. |
 | **Lumber BOM & prices** | Review a lumber bill of materials, cut lists, stock matches and a separate roofing and drainage schedule. Enter supplier quotes to estimate costs. |
 | **Floor & pier loads** | Explore estimated weights, load distribution and bearing pressures for the selected pier layout. |
+| **Drawings** | Review four preliminary Swedish Anmälan sheets and print them as an A3 PDF. |
 
 #### Designer
 
@@ -26,7 +27,7 @@ Start with the existing house, then place and size the new porch:
 
 Lengths are entered and displayed in whole millimetres; calculated geometry retains its precision. Older fractional dimensions are rounded on loading, with a notice. Angles, areas and prices can still show decimals.
 
-Displayed numbers use non-breaking spaces to group thousands, decimal points and SI-style spacing before unit and percent symbols.
+Designer and estimate views use non-breaking spaces to group thousands, decimal points and SI-style spacing before unit and percent symbols.
 
 1. **Existing house:** enter the wall, cladding, windows and basement measurements. Set the existing base-board and cover-board widths and thicknesses independently of the porch boards; their centre-to-centre spacing is shared with the porch. The reference origin is at ground level directly below the left edge of the left main window, viewed facing the house. Set the distance from that origin to the slab's left edge and the clear gap between the main windows. House window sills are measured above ground; basement window sills are measured above the bottom of the concrete base.
 2. **Foundation:** set the slab width, length and thickness, then choose the pier grid, diameter and depth. Width runs across the front; length runs from the basement face (or the façade if there is no concrete base).
@@ -40,7 +41,7 @@ The porch and existing house share a yellow façade hue; the existing house is l
 
 - **3D, Front, Left, Right and Top view** show different projections. Not every feature is visible from every direction.
 - **Top view** shows the existing entry, with configurable dimensions and position. Its two stair runs each show two schematic 250 mm deep treads; check actual stair dimensions and local requirements. Where there is a concrete base, the slab meets the basement face and the existing wall projects over it by the recession. The green roof footprint runs from the façade to the front overhang. Flashing and gutter are hidden; the hedge is a schematic 900 mm deep band, not a measured length.
-- **Property line** is a dotted, schematic boundary parallel to the house. Set its distance from the façade under Existing house; it is not a survey. It appears vertically in side views and on the ground in 3D and Top view, where it is hidden with the ground. Front view does not show its distance.
+- **Property line** is a schematic Designer overlay. Set its distance from the façade under Existing house. It appears in 3D, Top and side views, but it does not set the boundary distances on the A-1 site plan.
 - **Roof display** switches between the covering and details, rafters, or a hidden roof.
 - **Wall layers** lets you inspect the wall build-up or expose the timber. Hiding layers does not remove materials or weight from the estimates.
 - **Open door / Close door** animates the door where it is visible.
@@ -70,11 +71,26 @@ The page includes three adults of **80 kg each**. Choose a placement preset or d
 
 The house is at the top of the diagram. Shading shows applied loads; tables show component weights, pier reactions and bearing pressures. Open **Method and material assumptions** for calculation details.
 
+#### Drawings
+
+Use the sheet selector to preview the four A3 SVGs. They update from the latest valid Designer model; if an edit is invalid, the last valid set stays visible and printing is disabled.
+
+| Sheet | Contents | Scale |
+| --- | --- | --- |
+| **A-1 Situationsplan** | Schematic plot and house, boundary distances, north arrow and estimated BTA/ÖA | 1:400 |
+| **A-2 Planritning & grundplan** | Openings, door swing, roof outline, concrete slab, piers and entry step | 1:100 / 1:50 |
+| **A-3 Fasadritningar** | Three affected elevations with roof heights and existing/proposed grade | 1:100 |
+| **A-4 Sektionsritning & konstruktionsdetaljer** | Section, frost-depth comparison and schematic house-connection and pier details | 1:50 / 1:20 |
+
+1. Open **Site & Permit Details** to set the address, property ID, drawn-by name, orientation, boundary distances from the slab edges, house depth and ridge height, ground offsets from finished floor (FG), frost depth and local snow load. Blank measurements use the displayed assumptions, such as 4,500 mm boundary offsets and 1.5 kN/m² snow load.
+2. Before submitting, use the **KONTROLLERAS** clouds and **Komplettering** notes to identify what still needs verification. Replace the schematic site plan with the municipality's required base map and confirm the applicable permit route and area rules. The 4.5 m and 15 m² warnings are not approvals or evidence of neighbour consent.
+3. Choose **Download All Sheets as PDF** to print all four sheets, regardless of which is selected. In the browser dialog, choose **Save as PDF**, **A3 landscape**, **100% / actual size**, and turn off headers and footers. Check the printed scale bar.
+
 ### Keeping your work
 
 Settings and quotes are saved in the current browser when storage is available, not in a cloud account. Other browsers, devices and site addresses have separate storage.
 
-**Export settings** downloads a design record, but there is **no import feature**. **Reset** restores design defaults. Read any storage or migration notices when opening saved designs.
+**Export settings** downloads a Designer record, but there is **no import feature**. **Reset** restores Designer defaults. Site & Permit Details save separately in this browser and are not included in the Designer export or reset. Read any storage or migration notices when opening saved designs.
 
 ### Limits: a planning aid, not a construction design
 
@@ -109,6 +125,8 @@ Static HTML, CSS and JavaScript, with SVG drawings and browser storage. There is
 | [js/bom.js](./js/bom.js), [js/roofing.js](./js/roofing.js), [js/derome.js](./js/derome.js) | Lumber takeoff, roof calculations and catalogue data. |
 | [js/loads.js](./js/loads.js) | Weight estimates and pier-load calculations. |
 | [js/bom-view.js](./js/bom-view.js), [js/loads-view.js](./js/loads-view.js) | Estimate workspaces. |
+| [js/drawings.js](./js/drawings.js), [js/drawing-svg.js](./js/drawing-svg.js) | Four sheet generators and shared SVG projection, layers, annotations and title blocks. |
+| [js/drawings-view.js](./js/drawings-view.js), [js/permit-settings.js](./js/permit-settings.js), [css/drawings.css](./css/drawings.css) | Sheet selector, permit settings, and A3 print layout. |
 | [js/storage.js](./js/storage.js) | Settings persistence and export. |
 | [js/app.bundle.js](./js/app.bundle.js) | Generated browser bundle loaded by the app. |
 
@@ -145,7 +163,7 @@ Run these browser suites **one at a time** and check the final `PASS` result:
 
 | Local suite | Coverage |
 | --- | --- |
-| [Application](http://127.0.0.1:8000/tests/application.html) | Framing, flashing, validation, storage, quotes and interactions. |
+| [Application](http://127.0.0.1:8000/tests/application.html) | Framing, flashing, validation, storage, quotes, interactions, and drawing scales, warnings and print setup. |
 | [Roofing](http://127.0.0.1:8000/tests/roofing.html) | Roof geometry, views, schedules and loads. |
 | [Door](http://127.0.0.1:8000/tests/door.html) | Glazing, animation, occlusion and persistence. |
 

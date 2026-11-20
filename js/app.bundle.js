@@ -17,13 +17,13 @@
     const glassDepth = setBack + Math.min(4, wallThickness * 0.05);
     return { gap, setBack, jamb, rim, glassDepth };
   }
-  function drawWindow(face, section, op, wall, options) {
+  function drawWindow(face, section2, op, wall, options) {
     const { key, pattern, thickness, trim, trimColour, flashing = true } = options;
     const { gap, setBack, rim, glassDepth } = windowProfile(op, thickness);
     const { start: a, end: b, bottom: c, top: d } = op;
     const l = a + gap, r = b - gap, s = c + gap, h = d - gap;
     const x = l + rim, y = r - rim, bottom = s + rim, top = h - rim;
-    const draw = (points, fill, part) => face(points.map((point) => section(...point)), fill, {
+    const draw = (points, fill, part) => face(points.map((point) => section2(...point)), fill, {
       class: `window-detail window-${part}`,
       "data-window": key,
       "data-window-part": part
@@ -576,8 +576,8 @@
     const [width, phase, pitch] = key === "cover" ? [coverBoardWidth, 0, claddingSpacing] : key === "base" ? [baseBoardWidth, 0.5, claddingSpacing] : [48, 0, 600];
     const half = width / 2;
     const spans = [];
-    for (let centre = phase * pitch; centre - half < end; centre += pitch) {
-      spans.push([Math.max(0, centre - half), Math.min(end, centre + half)]);
+    for (let centre2 = phase * pitch; centre2 - half < end; centre2 += pitch) {
+      spans.push([Math.max(0, centre2 - half), Math.min(end, centre2 + half)]);
     }
     return spans;
   }
@@ -884,7 +884,7 @@
         const counts = /* @__PURE__ */ new Map();
         for (const length of row.cuts) counts.set(length, (counts.get(length) ?? 0) + 1);
         const lengths = document.createElement("div");
-        lengths.textContent = [...counts].sort(([a], [b]) => b - a).map(([mm, count]) => `${number.format(count)} \xD7 ${number.format(mm)}`).join("; ");
+        lengths.textContent = [...counts].sort(([a], [b]) => b - a).map(([mm2, count]) => `${number.format(count)} \xD7 ${number.format(mm2)}`).join("; ");
         details.append(summary, lengths);
         cell(tr, "").append(details);
         const article = cell(tr, row.product ? `${row.product.name} ${crossSection(row.product)}` : "No product");
@@ -1068,11 +1068,11 @@
     const step = 25;
     for (const { end, top, op, at, kind } of walls) {
       for (const { a, b, low, high } of wallMembers(0, end, top, op, studWidth, studSpacing, kind === "window")) {
-        const n2 = Math.max(1, Math.ceil((b - a) / step));
-        for (let i = 0; i < n2; i++) {
-          const u = a + (i + 0.5) * (b - a) / n2;
+        const n3 = Math.max(1, Math.ceil((b - a) / step));
+        for (let i = 0; i < n3; i++) {
+          const u = a + (i + 0.5) * (b - a) / n3;
           const h = clippedHeight(top, high, u) - clippedHeight(top, low, u);
-          if (h > 0) add("walls", "framing", ...at(u), h * (b - a) / n2 * studDepth * timber);
+          if (h > 0) add("walls", "framing", ...at(u), h * (b - a) / n3 * studDepth * timber);
         }
       }
       for (let start = 0; start < end; ) {
@@ -1089,10 +1089,10 @@
       const unitKg = area * openingMasses[kind];
       const trimWidth = model.trimWidth ?? 0;
       const trimKg = trimWidth * 22 * densities.timber.value / 1e9 * (2 * (op.top - op.bottom) + (op.end - op.start) + 2 * trimWidth);
-      const n = Math.max(1, Math.ceil((op.end - op.start) / step));
-      for (let i = 0; i < n; i++) {
-        const u = op.start + (i + 0.5) * (op.end - op.start) / n;
-        add("walls", "openings", ...at(u), (unitKg + trimKg) / n);
+      const n2 = Math.max(1, Math.ceil((op.end - op.start) / step));
+      for (let i = 0; i < n2; i++) {
+        const u = op.start + (i + 0.5) * (op.end - op.start) / n2;
+        add("walls", "openings", ...at(u), (unitKg + trimKg) / n2);
       }
     }
   }
@@ -1230,8 +1230,8 @@
   var oneDecimal = createNumberFormat({ minimumFractionDigits: 1, maximumFractionDigits: 1 });
   var twoDecimals = createNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var percent = createNumberFormat({ style: "percent", maximumFractionDigits: 1 });
-  var kg = (n) => kgFormat.format(Math.round(n));
-  var kN = (n) => twoDecimals.format(n * gravity / 1e3);
+  var kg = (n2) => kgFormat.format(Math.round(n2));
+  var kN = (n2) => twoDecimals.format(n2 * gravity / 1e3);
   var ramp = [[255, 247, 214], [253, 205, 120], [240, 133, 62], [204, 64, 44], [128, 20, 34]];
   function heat(t) {
     const x = Math.max(0, Math.min(1, t)) * (ramp.length - 1);
@@ -1572,6 +1572,659 @@
     };
   }
 
+  // js/drawing-svg.js
+  var layers = {
+    WALLS_EXISTING: 'fill="none" stroke="#647078" stroke-width=".28"',
+    HIDDEN_FOUNDATION: 'fill="none" stroke="#56616a" stroke-width=".24" stroke-dasharray="1.5 .8"',
+    STRUCTURE_NEW: 'fill="none" stroke="#17252e" stroke-width=".42"',
+    CENTERLINES: 'fill="none" stroke="#56616a" stroke-width=".18" stroke-dasharray="2 .6 .35 .6"',
+    DIMENSIONS: 'fill="none" stroke="#25343d" stroke-width=".19"',
+    ANNOTATIONS: 'fill="none" stroke="#25343d" stroke-width=".25"',
+    VERIFICATION_FLAGS: 'fill="none" stroke="#9e3227" stroke-width=".4"',
+    TITLE_BLOCK: 'fill="none" stroke="#25343d" stroke-width=".28"'
+  };
+  var n = (value) => Number(value.toFixed(3));
+  var esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&apos;"
+  })[char]);
+  var integer = new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 0 });
+  var mm = integer.format;
+  var decimal = (value, places = 1) => value.toLocaleString("sv-SE", {
+    minimumFractionDigits: places,
+    maximumFractionDigits: places
+  });
+  var level = (z) => `${z < 0 ? "\u2212" : "+"}${(Math.abs(z) / 1e3).toFixed(3)}`;
+  function createSheet(id, title, scales, site, date) {
+    const content = Object.fromEntries(Object.keys(layers).map((key) => [key, []]));
+    const clips = [];
+    const add = (layer, shape) => content[layer].push(shape);
+    const line = (layer, x1, y1, x2, y2, attrs = "") => add(layer, `<line x1="${n(x1)}" y1="${n(y1)}" x2="${n(x2)}" y2="${n(y2)}" ${attrs}/>`);
+    const rect = (layer, x, y, w, h, attrs = "") => add(layer, `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" ${attrs}/>`);
+    const poly = (layer, points, attrs = "", close = false) => {
+      const tag = close ? "polygon" : "polyline";
+      add(layer, `<${tag} points="${points.map(([x, y]) => `${n(x)},${n(y)}`).join(" ")}" ${attrs}/>`);
+    };
+    const text2 = (layer, x, y, label, { size = 2.8, weight = 400, anchor = "start", rotate = 0 } = {}) => {
+      const color = layer === "VERIFICATION_FLAGS" ? "#9e3227" : "#17252e";
+      add(layer, `<text x="${n(x)}" y="${n(y)}" fill="${color}" stroke="none" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}"${rotate ? ` transform="rotate(${rotate} ${n(x)} ${n(y)})"` : ""}>${esc(label)}</text>`);
+    };
+    const note = (x, y, rows, size = 2.8) => rows.forEach((row, i) => text2("ANNOTATIONS", x, y + i * 4.7, row, { size }));
+    const heading = (x, y, label) => text2("ANNOTATIONS", x, y, label, { size: 3.6, weight: 700 });
+    const cloud = (x, y, w, label) => {
+      const h = 8, count = Math.ceil(w / 6), step = w / count;
+      const horizontal = Array(count).fill(`q ${step / 2} -2.6 ${step} 0`).join(" ");
+      const back = Array(count).fill(`q ${-step / 2} 2.6 ${-step} 0`).join(" ");
+      add("VERIFICATION_FLAGS", `<path d="M ${x} ${y} ${horizontal} q 3.6 4 0 ${h} ${back} q -3.6 -4 0 ${-h} Z" fill="#fff"/>`);
+      text2("VERIFICATION_FLAGS", x + w / 2, y + 5.2, label, { size: 2.75, weight: 700, anchor: "middle" });
+    };
+    const pending = (rows, x = 14, y = 228) => {
+      text2("VERIFICATION_FLAGS", x, y, "Pending Verification / Komplettering", { weight: 700 });
+      note(x, y + 4.5, rows, 2.6);
+    };
+    const scaleBar = (x, y, scale, length) => {
+      const w = length / scale;
+      rect("ANNOTATIONS", x, y, w / 2, 1.5, 'fill="#25343d"');
+      rect("ANNOTATIONS", x + w / 2, y, w / 2, 1.5);
+      text2("ANNOTATIONS", x + w + 2, y + 1.6, `${decimal(length / 1e3, length % 1e3 ? 1 : 0)} m`, { size: 2.5 });
+    };
+    const view = (ox, oy, scale) => {
+      const pt = (u, v) => [ox + u / scale, oy - v / scale];
+      const dimension2 = (a, b, offset, label, vertical) => {
+        const [x1, y1] = pt(...a), [x2, y2] = pt(...b);
+        const q = vertical ? x1 + offset : y1 + offset;
+        const p1 = vertical ? [q, y1] : [x1, q], p2 = vertical ? [q, y2] : [x2, q];
+        const layer = "DIMENSIONS";
+        line(layer, x1, y1, ...p1);
+        line(layer, x2, y2, ...p2);
+        line(layer, ...p1, ...p2);
+        for (const [x3, y3] of [p1, p2]) line(layer, x3 - 0.9, y3 + 0.9, x3 + 0.9, y3 - 0.9);
+        const [x, y] = vertical ? [q - 1.3, (y1 + y2) / 2] : [(x1 + x2) / 2, q - 1.3];
+        text2(layer, x, y, label, { size: 2.6, anchor: "middle", rotate: vertical ? -90 : 0 });
+      };
+      return {
+        line: (layer, u, v, a, b, attrs) => line(layer, ...pt(u, v), ...pt(a, b), attrs),
+        rect: (layer, u, v, w, h, attrs) => rect(layer, ...pt(u, v + h), w / scale, h / scale, attrs),
+        poly: (layer, points, attrs, close) => poly(layer, points.map((point) => pt(...point)), attrs, close),
+        circle(layer, u, v, r) {
+          const [x, y] = pt(u, v);
+          add(layer, `<circle cx="${n(x)}" cy="${n(y)}" r="${n(r / scale)}"/>`);
+        },
+        label: (layer, u, v, label, opts) => text2(layer, ...pt(u, v), label, opts),
+        horizontal: (u, a, v, offset, label = mm(Math.abs(a - u))) => dimension2([u, v], [a, v], offset, label, false),
+        vertical: (v, b, u, offset, label = mm(Math.abs(b - v))) => dimension2([u, v], [u, b], offset, label, true),
+        pt
+      };
+    };
+    const t = "TITLE_BLOCK";
+    rect(t, 7, 7, 406, 283);
+    line(t, 7, 25, 413, 25);
+    line(t, 7, 251, 413, 251);
+    line(t, 7, 275, 413, 275);
+    line(t, 270, 251, 270, 275);
+    line(t, 371, 251, 371, 275);
+    text2(t, 14, 19, title, { size: 6, weight: 700 });
+    text2(t, 406, 18, "FARSTU  /  ANM\xC4LAN", { size: 3.2, weight: 700, anchor: "end" });
+    text2(t, 14, 257, `NY FARSTU  \xB7  ${site.address || "Adress ej angiven"}`, { size: 3.5, weight: 700 });
+    text2(t, 14, 263, `Fastighetsbeteckning: ${site.propertyId || "ej angiven"}`);
+    text2(t, 14, 270, "M\xE5tt i mm, niv\xE5er i m relativt FG. B\xE4rverk, inf\xE4stning och grundl\xE4ggning verifieras.");
+    text2(t, 275, 257, `Skala (A3): ${scales}`, { weight: 700 });
+    text2(t, 275, 263, `Datum: ${date}`);
+    text2(t, 275, 270, `Ritad av: ${site.drawnBy || "Farstu Designer"}`);
+    text2(t, 392, 266, id, { size: 8, weight: 700, anchor: "middle" });
+    text2(t, 14, 284, "F\xD6RHANDSKOPIA / UNDERLAG F\xD6R ANM\xC4LAN \u2013 EJ F\xC4RDIGKONSTRUERAD", { size: 3.7, weight: 700 });
+    text2(t, 406, 284, "ISO A3", { anchor: "end" });
+    return {
+      line,
+      rect,
+      poly,
+      text: text2,
+      note,
+      heading,
+      cloud,
+      pending,
+      scaleBar,
+      view,
+      clip(x, y, w, h, draw) {
+        const clipId = `${id}-clip-${clips.length}`;
+        clips.push(`<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`);
+        const starts = Object.entries(content).map(([key, shapes]) => [key, shapes.length]);
+        draw();
+        for (const [key, start] of starts) {
+          const shapes = content[key].splice(start);
+          if (shapes.length) add(key, `<g clip-path="url(#${clipId})">${shapes.join("")}</g>`);
+        }
+      },
+      hatch: `fill="url(#${id}-hatch)"`,
+      svg: () => `<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" role="img" aria-label="${esc(`${id} ${title}`)}" font-family="Arial, sans-serif">
+<title>${esc(`${id} ${title}`)}</title>
+<defs><pattern id="${id}-hatch" width="2.5" height="2.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V2.5" stroke="#7b858b" stroke-width=".24"/></pattern>${clips.join("")}</defs>
+<rect width="420" height="297" fill="#fff"/>
+${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer="${key}" ${attrs}>${content[key].join("")}</g>`).join("\n")}
+</svg>`
+    };
+  }
+
+  // js/permit-settings.js
+  var permitFields = [
+    { key: "address", label: "Site address", initial: "", maxLength: 65 },
+    { key: "propertyId", label: "Property ID / Fastighetsbeteckning", initial: "", maxLength: 65 },
+    { key: "drawnBy", label: "Drawn by", initial: "", maxLength: 32 },
+    { key: "frontDirection", label: "Porch front faces", initial: "south", options: ["south", "west", "north", "east"] },
+    ...["North", "South", "East", "West"].map((label) => ({
+      key: label.toLowerCase(),
+      label: `${label} boundary distance (mm, from slab edge)`,
+      initial: 4500,
+      min: 0,
+      max: 1e5
+    })),
+    { key: "houseDepth", label: "Existing house plan depth (mm)", initial: 8e3, min: 1e3, max: 3e4 },
+    { key: "ridge", label: "Existing house ridge height (mm above existing grade)", initial: 6500, min: 0, max: 2e4 },
+    { key: "existingGrade", label: "Existing ground offset (mm relative to FG)", initial: -140, min: -4e3, max: 1e3 },
+    { key: "newGrade", label: "New ground offset (mm relative to FG)", initial: -140, min: -4e3, max: 1e3 },
+    { key: "frost", label: "Frost depth (mm below new grade)", initial: 1100, min: 0, max: 4e3 },
+    { key: "snow", label: "Ground snow load (kN/m\xB2; default G\xF6teborg)", initial: 1.5, min: 0, max: 15, step: 0.1 }
+  ];
+  function permitSettings(values = {}, slabThickness = 140) {
+    const defaults = [];
+    const settings = {};
+    for (const { key, initial, min, max, maxLength, options } of permitFields) {
+      const value = values[key];
+      if (options) {
+        settings[key] = options.includes(value) ? value : initial;
+        if (!options.includes(value)) defaults.push(key);
+      } else if (typeof initial === "string") {
+        settings[key] = typeof value === "string" ? value.trim().slice(0, maxLength) : initial;
+      } else if (typeof value === "number" && Number.isFinite(value) && value >= min && value <= max) {
+        settings[key] = value;
+      } else {
+        settings[key] = key === "existingGrade" || key === "newGrade" ? -slabThickness : initial;
+        defaults.push(key);
+      }
+    }
+    return { ...settings, defaults };
+  }
+
+  // js/drawings.js
+  var existing = "WALLS_EXISTING";
+  var structure = "STRUCTURE_NEW";
+  var hidden = "HIDDEN_FOUNDATION";
+  var centre = "CENTERLINES";
+  var labels = "ANNOTATIONS";
+  var gray = 'fill="#e8ebec"';
+  var glass = 'fill="#e8f4f7"';
+  var dashed = 'stroke-dasharray="2 1"';
+  var roofFill = { terracotta: "#bd7960", classicRed: "#a65b55", darkGray: "#797d80", matteBlack: "#5e6165" };
+  var roofColor = { terracotta: "terrakotta", classicRed: "klassiskt r\xF6d", darkGray: "m\xF6rkgr\xE5", matteBlack: "mattsvart" };
+  var directions = ["south", "west", "north", "east"];
+  var swedishDirection = { north: "norr", south: "s\xF6der", east: "\xF6ster", west: "v\xE4ster" };
+  var orientation = (site) => {
+    const i = directions.indexOf(site.frontDirection);
+    return { front: directions[i], left: directions[(i + 1) % 4], rear: directions[(i + 2) % 4], right: directions[(i + 3) % 4] };
+  };
+  var grossArea = (area) => decimal(area, area !== 15 && Math.abs(area - 15) < 5e-3 ? 4 : 2);
+  var crosshair = (v, x, y, r) => {
+    v.line(centre, x - r, y, x + r, y);
+    v.line(centre, x, y - r, x, y + r);
+  };
+  function drawingModel(m, site) {
+    const face = roofRearOffset(m), flashing = standingFlashing(m);
+    const door = { start: face + m.offset, end: face + m.offset + m.doorWidth, bottom: 0, top: m.doorHeight };
+    const entry = m.houseEntryOffset - m.slabOriginOffset;
+    return {
+      ...m,
+      face,
+      flashing,
+      door,
+      entry,
+      roofTop: flashing.bottom - 2,
+      roofFront: flashing.bottom - 2 - m.slope * (m.length + m.frontOverhang - face),
+      area: m.width * m.length / 1e6,
+      pier: pierLayout(m),
+      pierBottom: -m.slabThickness - m.footingDepth,
+      frostLevel: site.newGrade - site.frost,
+      ridge: site.existingGrade + site.ridge,
+      tread: { x: -300, start: Math.max(0, door.start - 100), end: Math.min(m.length, door.end + 100), z: -m.slabThickness / 2 }
+    };
+  }
+  function sitePlan(m, site, date) {
+    const s = createSheet("A-1", "Situationsplan", "1:400", site, date);
+    const { width: w, length: l, houseA, houseB, face } = m;
+    const dir = orientation(site);
+    const west = -site[dir.left], east = w + site[dir.right], north = site[dir.rear], south = -l - site[dir.front];
+    const left = Math.min(west, houseA), right = Math.max(east, houseB);
+    const top = Math.max(north, site.houseDepth - face), bottom = south;
+    const fits = right - left <= 99200 && top - bottom <= 64e3;
+    const v = fits ? s.view(143 - (left + right) / 800, 127 + (top + bottom) / 800, 400) : s.view(143 - w / 800, 140, 400);
+    const frame = fits ? { west, east, north, south } : {
+      west: Math.max(west, w / 2 - 49e3),
+      east: Math.min(east, w / 2 + 49e3),
+      north: Math.min(north, 39e3),
+      south: Math.max(south, -27e3)
+    };
+    const edges = [
+      [west === frame.west, frame.west, frame.south, frame.west, frame.north],
+      [east === frame.east, frame.east, frame.south, frame.east, frame.north],
+      [north === frame.north, frame.west, frame.north, frame.east, frame.north],
+      [south === frame.south, frame.west, frame.south, frame.east, frame.south]
+    ];
+    s.clip(14, 46, 275, 178, () => v.rect(existing, houseA, -face, houseB - houseA, site.houseDepth, gray));
+    v.rect(structure, 0, -l, w, l, s.hatch);
+    for (const [visible, x, y, a, b] of edges) if (visible) v.line(centre, x, y, a, b);
+    if (north === frame.north) v.label(labels, frame.west, north + 900, "Tomtgr\xE4ns");
+    if (north === frame.north && north !== 0) v.vertical(0, north, w * 0.65, 3);
+    if (south === frame.south && site[dir.front]) v.vertical(-l, south, w * 0.65, 3);
+    if (west === frame.west && site[dir.left]) v.horizontal(west, 0, -l * 0.55, 5);
+    if (east === frame.east && site[dir.right]) v.horizontal(w, east, -l * 0.55, 5);
+    s.heading(14, 35, "1:400  /  Schematisk tomt");
+    s.scaleBar(14, 41, 400, 1e4);
+    const rotation = 90 * directions.indexOf(dir.front);
+    const compass = `transform="rotate(${rotation} 275 54)"`;
+    s.text(labels, 275, 41, "N", { weight: 700, anchor: "middle" });
+    s.poly(labels, [[275, 46], [272, 57], [275, 54], [278, 57]], `fill="#25343d" ${compass}`, true);
+    s.line(labels, 275, 53, 275, 62, compass);
+    s.rect(labels, 295, 35, 109, 93);
+    s.heading(300, 43, "Ytor och avst\xE5nd");
+    s.note(300, 51, [
+      `BTA ny farstu (modell): ${grossArea(m.area)} m\xB2`,
+      `\xD6A ny farstu: ${decimal(0, 2)} m\xB2 (sluten farstu)`,
+      "BTA ber\xE4knad fr\xE5n plattans ytterm\xE5tt.",
+      "Befintlig byggnads BTA ing\xE5r inte.",
+      "",
+      `Norr ${mm(site.north)} \xB7 S\xF6der ${mm(site.south)}`,
+      `\xD6ster ${mm(site.east)} \xB7 V\xE4ster ${mm(site.west)}`,
+      "Avst\xE5nd fr\xE5n plattans ytterkant (mm)."
+    ]);
+    s.rect(existing, 300, 97, 8, 4, gray);
+    s.text(labels, 311, 100, "Befintlig byggnad");
+    s.rect(structure, 300, 106, 8, 4, s.hatch);
+    s.text(labels, 311, 109, "Ny farstu");
+    s.line(centre, 300, 118, 308, 118);
+    s.text(labels, 311, 119, "Tomtgr\xE4ns");
+    s.cloud(296, 136, 107, "KONTROLLERAS MOT NYBYGGNADSKARTA");
+    const close = Math.min(site.north, site.south, site.east, site.west) < 4500;
+    if (close) s.cloud(296, 150, 107, "OBS: TOMTGR\xC4NS N\xC4RMARE \xC4N 4,5 m");
+    if (m.area > 15) s.cloud(296, 164, 107, "OBS: BTA > 15,0 m\xB2 \u2013 PR\xD6VA \xC5TG\xC4RDEN");
+    const crosses = houseA < west || houseB > east || site.houseDepth - face > north;
+    if (crosses) s.cloud(296, 178, 107, "BEFINTLIG BYGGNAD KORSAR SKISSGR\xC4NS");
+    if (close) s.note(296, 199, ["Avst\xE5nd till tomtgr\xE4ns < 4,5 m \u2013", "skriftligt grannemedgivande bifogas", "Bilaga ej skapad; kontrollera om medgivande \xE4r m\xF6jligt."], 2.6);
+    s.pending([
+      `Ers\xE4tt skissgr\xE4nser och huskontur med kommunens kartunderlag. Front mot ${swedishDirection[dir.front]}${site.defaults.includes("frontDirection") ? " (antaget)" : ""}.`,
+      `${site.defaults.some((key) => ["north", "south", "west", "east", "houseDepth"].includes(key)) ? "Schablonm\xE5tt anv\xE4nds. " : ""}${!site.address || !site.propertyId ? "Adress och fastighetsbeteckning kompletteras. " : ""}${fits ? "Kontrollera utspr\xE5ng, avst\xE5nd och aream\xE4tning." : "Gr\xE4nser utanf\xF6r ritf\xE4lt visas bara som m\xE5tt i tabell."}`,
+      "Kontrollera anm\xE4lnings-/lovplikt och till\xE4mplig areagr\xE4ns med byggnadsn\xE4mnden; 15,0 m\xB2 \xE4r en kontrollsignal."
+    ]);
+    return s.svg();
+  }
+  function floorPlan(m, site, date) {
+    const s = createSheet("A-2", "Planritning & grundplan", "1:100 / 1:50", site, date);
+    const { width: w, length: l, wallThickness: t, face, door, windows, tread } = m;
+    const v = s.view(105 - w / 200, 104 - l / 200, 100);
+    const f = s.view(297 - w / 100, 133 - l / 100, 50);
+    s.heading(14, 35, "01  Planritning  /  1:100");
+    s.heading(181, 35, "02  Platta, stomlinjer & plintar  /  1:50");
+    s.scaleBar(14, 41, 100, 2e3);
+    s.scaleBar(181, 41, 50, 2e3);
+    const rear = (view, showEntry = false) => {
+      const a = Math.max(m.houseA, -500), b = Math.min(m.houseB, w + 500);
+      if (b <= a) return;
+      const e1 = Math.max(a, m.entry - m.houseEntryWidth / 2), e2 = Math.min(b, m.entry + m.houseEntryWidth / 2);
+      for (const [x, end] of showEntry && e1 < e2 ? [[a, e1], [e2, b]] : [[a, b]]) {
+        if (end > x) view.rect(existing, x, -face, end - x, t + face, gray);
+      }
+      if (showEntry && e1 < e2) {
+        const depth = Math.min(m.houseEntryDepth, 1800);
+        view.poly(existing, [[e1, -face], [e1, depth - face], [e2, depth - face], [e2, -face]]);
+      }
+    };
+    v.rect(structure, 0, -l, w, l);
+    rear(v, true);
+    const walls = [
+      { start: face, end: l - t, opening: door, outline: (a, b, d, attr) => v.rect(structure, 0, -b, d, b - a, attr) },
+      { start: face, end: l - t, opening: windows.right, outline: (a, b, d, attr) => v.rect(structure, w - d, -b, d, b - a, attr) },
+      {
+        start: 0,
+        end: w,
+        framingStart: t,
+        framingEnd: w - t,
+        opening: windows.front,
+        outline: (a, b, d, attr) => v.rect(structure, a, -l, b - a, d, attr)
+      }
+    ];
+    for (const { start, end, framingStart = start, framingEnd = end, opening, outline } of walls) {
+      outline(start, opening.start, t, s.hatch);
+      outline(opening.end, end, t, s.hatch);
+      if (opening !== door) outline(opening.start, opening.end, t * 0.46, glass);
+      for (const [a, b] of wallPosts(framingStart, framingEnd, opening, m.studWidth, m.studSpacing)) {
+        if (b <= opening.start || a >= opening.end) outline(a, b, m.studDepth, 'fill="#7a807d" stroke-width=".13"');
+      }
+    }
+    const rtl = m.doorHanding === "rtl";
+    const hinge = -(rtl ? door.end : door.start), direction = rtl ? 1 : -1;
+    v.rect(structure, tread.x, -tread.end, -tread.x, tread.end - tread.start, gray);
+    v.line(structure, 0, hinge, -m.doorWidth, hinge);
+    v.poly(structure, Array.from({ length: 25 }, (_, i) => {
+      const angle = i * Math.PI / 48;
+      return [-m.doorWidth * Math.sin(angle), hinge + direction * m.doorWidth * Math.cos(angle)];
+    }), 'stroke-width=".23"');
+    v.rect(centre, -m.doorSideOverhang, -l - m.frontOverhang, m.roofWidth, l + m.frontOverhang - face);
+    v.line(centre, w / 2, 150, w / 2, -l - m.frontOverhang - 130);
+    v.label(labels, w / 2, -l - m.frontOverhang - 470, "A", { anchor: "middle", weight: 700 });
+    v.label(labels, w / 2, 490, "A", { anchor: "middle", weight: 700 });
+    v.horizontal(0, w, -l, 15);
+    v.vertical(0, -l, w, 17);
+    v.label(labels, w * 0.5, -l * 0.51, `BTA ${grossArea(m.area)} m\xB2`, { anchor: "middle", size: 2.3 });
+    v.label(labels, w * 0.5, -l * 0.51 - 320, "\xD6A 0,00 m\xB2", { anchor: "middle", size: 2.3 });
+    f.rect(structure, 0, -l, w, l);
+    rear(f);
+    f.line(structure, 0, -face, w, -face, 'stroke-width=".75"');
+    f.label(labels, w / 2, -face + 450, "Anslutningslinje mot hus", { anchor: "middle" });
+    for (const x of m.pier.columns) for (const y of m.pier.rows) {
+      f.circle(structure, x, -y, m.pier.radius);
+      crosshair(f, x, -y, m.pier.radius + 100);
+    }
+    const { columns, rows } = m.pier;
+    for (let i = 1; i < columns.length; i++) f.horizontal(columns[i - 1], columns[i], -l, 9);
+    for (let i = 1; i < rows.length; i++) f.vertical(-rows[i - 1], -rows[i], w, 10);
+    f.rect(structure, tread.x, -tread.end, -tread.x, tread.end - tread.start, gray);
+    f.label(labels, tread.x - 150, -(tread.start + tread.end) / 2, "Trappsteg", { anchor: "end", size: 2.6 });
+    s.note(14, 160, ["Gr\xE5 v\xE4gg: befintlig byggnad (utsnitt).", "Streckad kontur: takutspr\xE5ng. A\u2013A: sektion.", "Fyllda markeringar: modellens v\xE4ggreglar."]);
+    const outsideRise = tread.z - site.newGrade;
+    s.note(181, 207, [
+      `Platta ${mm(m.slabThickness)} mm \xB7 ${columns.length} \xD7 ${rows.length} plintar \xD8${mm(m.footingDiameter)} \xB7 modellens entr\xE9steg, stegdjup 300 mm.`,
+      `Stegh\xF6jd: ${mm(outsideRise)} mm (mark till steg) / ${mm(-tread.z)} mm (steg till FG).`
+    ], 2.6);
+    s.cloud(14, 185, 143, "OBS: VERIFIERA SP\xC4NNVIDDER, B\xC4RLINA OCH INF\xC4STNING");
+    s.pending([
+      "Modellen har betongplatta p\xE5 plintar; golvbj\xE4lkar (riktning/c/c) \xE4r inte modellerade eller f\xF6reskrivna.",
+      "Takets bakre upplag (b\xE4rlina eller balk), plattans armering, sp\xE4nnvidder och plintreaktioner dimensioneras separat.",
+      `${outsideRise <= 0 ? "Ny mark ligger i eller \xF6ver modellsteget. " : ""}Kontrollera trappans geometri, tillg\xE4nglighet, niv\xE5skillnader och fasts\xE4ttning p\xE5 plats.`
+    ]);
+    return s.svg();
+  }
+  function groundLines(v, site, a, b) {
+    v.line(hidden, a, site.existingGrade, b, site.existingGrade);
+    v.line(labels, a, site.newGrade, site.newGrade === site.existingGrade ? (a + b) / 2 : b, site.newGrade, 'stroke-width=".42"');
+    v.line(centre, a, 0, b, 0);
+    v.label(labels, b, 200, "+0.000 / FG", { anchor: "end", size: 2.45 });
+  }
+  function piersInElevation(v, m, positions, bottom) {
+    for (const u of positions) {
+      v.rect(hidden, u - m.pier.radius, m.pierBottom, m.footingDiameter, m.footingDepth);
+      if (bottom < m.pierBottom) {
+        v.rect(hidden, u - m.pier.radius, bottom, m.footingDiameter, m.pierBottom - bottom, 'stroke-dasharray=".5 .8"');
+      }
+    }
+  }
+  function elevations(m, site, date) {
+    const s = createSheet("A-3", "Fasadritningar \u2013 ber\xF6rda fasader", "1:100", site, date);
+    const { width: w, length: l, face, door, windows, ridge } = m;
+    const dir = orientation(site);
+    const roof = `fill="${roofFill[m.roofFinish] || "#92989c"}"`;
+    const houseTop = m.houseWallHeight - m.slabThickness;
+    const baseTop = m.houseBaseHeight - m.slabThickness;
+    const min = Math.min(m.houseA, -m.doorSideOverhang), max = Math.max(m.houseB, w + m.rightOverhang);
+    const front = s.view(203 - (min + max) / 200, 125, 100);
+    const frontMin = Math.min(site.existingGrade, site.newGrade, m.frostLevel, m.pierBottom);
+    const cropped = Math.max(ridge, m.roofTop, m.flashing.top, houseTop) > 8100 || frontMin < -2400 || max - min > 33800;
+    const frontWindow = (v, op) => {
+      v.rect(structure, op.start, op.bottom, op.end - op.start, op.top - op.bottom, glass);
+      v.line(structure, (op.start + op.end) / 2, op.bottom, (op.start + op.end) / 2, op.top, 'stroke-width=".19"');
+    };
+    s.heading(14, 35, `01  Fasad mot ${swedishDirection[dir.front]} / front`);
+    s.heading(14, 155, `02  Fasad mot ${swedishDirection[dir.left]} / d\xF6rrsida`);
+    s.heading(208, 155, `03  Fasad mot ${swedishDirection[dir.right]}`);
+    s.scaleBar(350, 34, 100, 5e3);
+    s.clip(13, 39, 394, 112, () => {
+      front.rect(existing, m.houseA, baseTop, m.houseB - m.houseA, houseTop - baseTop, 'fill="#f0f0ef"');
+      if (m.houseBaseHeight) front.rect(existing, m.houseA, -m.slabThickness, m.houseB - m.houseA, m.houseBaseHeight, gray);
+      if (ridge > houseTop) {
+        front.poly(existing, [[m.houseA, houseTop], [(m.houseA + m.houseB) / 2, ridge], [m.houseB, houseTop]], dashed);
+      }
+      for (const { left, right, sill, head } of m.houseOpenings) {
+        front.rect(existing, left, sill, right - left, head - sill, glass);
+      }
+      if (m.houseBaseHeight) for (const { left, right, sill, head } of m.basementOpenings) {
+        front.rect(existing, left, sill - m.slabThickness, right - left, head - sill, glass);
+      }
+      piersInElevation(front, m, m.pier.columns, m.frostLevel);
+      front.rect(structure, 0, -m.slabThickness, w, m.slabThickness, gray);
+      front.rect(structure, 0, 0, w, m.frontWallHeight, 'fill="#f8f6ec"');
+      front.rect(structure, -m.doorSideOverhang, m.eave, m.roofWidth, m.roofTop - m.eave, roof);
+      frontWindow(front, windows.front);
+      groundLines(front, site, min - 700, max + 700);
+      if (ridge) front.vertical(site.existingGrade, ridge, min, -13, `Bef. nock ${mm(site.ridge)} \xF6ver mark`);
+      front.vertical(0, m.roofTop, max, 12, `Ny takanslutning ${level(m.roofTop)}`);
+    });
+    for (const [east, x] of [[false, 101], [true, 300]]) {
+      const sign = east ? -1 : 1, e = l + m.frontOverhang;
+      const v = s.view(x - sign * e / 200, 201, 100);
+      const span = (a2, b2) => [Math.min(sign * a2, sign * b2), b2 - a2];
+      const a = Math.min(sign * -850, sign * (e + 700)), b = Math.max(sign * -850, sign * (e + 700));
+      s.clip(east ? 207 : 13, 156.5, 191, 63.5, () => {
+        v.poly(existing, [[0, -m.slabThickness], [0, baseTop], [sign * face, baseTop], [sign * face, houseTop]]);
+        piersInElevation(v, m, m.pier.rows.map((y) => sign * y), m.frostLevel);
+        const [slabStart, slabWidth] = span(0, l);
+        v.rect(structure, slabStart, -m.slabThickness, slabWidth, m.slabThickness, gray);
+        v.poly(structure, [[sign * face, 0], [sign * l, 0], [sign * l, m.frontWallHeight], [sign * face, m.rear]], 'fill="#f8f6ec"', true);
+        v.poly(structure, [[sign * face, m.rear], [sign * e, m.eave], [sign * e, m.roofFront], [sign * face, m.roofTop]], roof, true);
+        v.line(structure, sign * face, m.flashing.bottom, sign * face, m.flashing.top, 'stroke-width=".65"');
+        const op = east ? windows.right : door;
+        const [start, width] = span(op.start, op.end);
+        if (east) frontWindow(v, { ...op, start, end: start + width });
+        else {
+          v.rect(structure, start, 0, width, op.top, 'fill="#e1e4dc"');
+          if (m.doorWindow !== "none") v.rect(structure, start + width * 0.23, op.top * 0.49, width * 0.54, op.top * 0.39, glass);
+          v.rect(structure, treadSide(m.tread, sign), -m.slabThickness, m.tread.end - m.tread.start, m.slabThickness / 2, gray);
+        }
+        groundLines(v, site, a, b);
+        v.vertical(0, m.roofFront, sign * e, east ? -5 : 6, `Takfot ${level(m.roofFront)}`);
+      });
+    }
+    s.note(15, 221, ["Befintlig marklinje: streckad  \xB7  Ny marklinje: heldragen  \xB7  Plintar under mark: streckade; prickat visar bed\xF6mt tj\xE4ldjup."], 2.55);
+    s.note(211, 228, [
+      `Taklutning ${decimal(m.pitch, Number.isInteger(m.pitch) ? 0 : 1)}\xB0 \xB7 ${m.roofMaterial === "tiles" ? "betongpannor" : "bandt\xE4ckt pl\xE5t"}, ${roofColor[m.roofFinish] || "kul\xF6r ej angiven"}.`,
+      "St\xE5ende tr\xE4panel, kul\xF6r och s\xE4kerhetsglas verifieras."
+    ], 2.6);
+    s.cloud(274, 141, 130, "KONTROLLERAS: MARK, HUSNOCK OCH V\xC4DERSTRECK");
+    if (cropped || Math.max(houseTop, m.flashing.top) > 4400 || frontMin < -1850) {
+      s.cloud(14, 141, 111, "H\xD6GA / DJUPA PARTIER KAPAS I RITF\xC4LT");
+    }
+    s.pending([
+      `Befintlig mark ${level(site.existingGrade)} \xB7 Ny mark ${level(site.newGrade)} \xB7 Befintlig nock ${level(ridge)} (takprofil schematisk).`,
+      "Verifiera niv\xE5er, fasadkul\xF6r (NCS) och behov av h\xE4rdat/laminerat s\xE4kerhetsglas."
+    ]);
+    return s.svg();
+  }
+  var treadSide = ({ start, end }, sign) => Math.min(sign * start, sign * end);
+  function sectionDetails(s, m) {
+    const a = s.view(229, 106, 20);
+    const b = s.view(229, 174, 20);
+    s.heading(213, 35, "D1  Upplag mot befintlig v\xE4gg  /  1:20");
+    s.heading(213, 119, "D2  Platta / plint och princip f\xF6r plintj\xE4rn  /  1:20");
+    a.rect(existing, -180, -260, 180, 680, gray);
+    const run = 610, fall = m.slope * run, depth = m.rafterDepth * Math.hypot(1, m.slope);
+    s.clip(213, 40, 183, 75, () => {
+      a.poly(structure, [[0, 0], [run, -fall], [run, -fall + depth], [0, depth]], s.hatch, true);
+      a.poly(structure, [
+        [0, depth + m.flashing.coverRise + m.flashingHeight],
+        [0, depth + m.flashing.coverRise],
+        [170, depth + m.flashing.coverRise - m.slope * 170]
+      ], 'stroke-width=".7"');
+      a.rect(hidden, 0, -130, 45, 130);
+    });
+    s.note(269, 54, [
+      "Anslutningspl\xE5t / st\xE5ndskiva bakom panel.",
+      `Pl\xE5th\xF6jd i modell: ${mm(m.flashingHeight)} mm.`,
+      "Vattenavledning ut p\xE5 takt\xE4ckning.",
+      `Takregel ${mm(m.rafterWidth)} \xD7 ${mm(m.rafterDepth)} mm (modell).`,
+      "Bakre upplag och inf\xE4stning projekteras."
+    ]);
+    b.rect(structure, -160, -m.slabThickness, 640, m.slabThickness, s.hatch);
+    b.rect(structure, (m.studDepth - m.footingDiameter) / 2, -m.slabThickness - 360, m.footingDiameter, 360, gray);
+    b.rect(structure, 0, 0, m.studDepth, 180, s.hatch);
+    b.poly(hidden, [[-20, -45], [-20, 85], [m.studDepth + 20, 85], [m.studDepth + 20, -45]]);
+    s.note(269, 142, [
+      `Betongplatta ${mm(m.slabThickness)} mm, plint \xD8${mm(m.footingDiameter)} mm.`,
+      "Streckat: plintj\xE4rn f\xF6r ev. separat stolpe.",
+      "Inte modellerat; inte ett utf\xF6randebeslag.",
+      "Konstruktionsvirke: C24 (f\xF6rslag, verifieras).",
+      "NTR/A vid markkontakt; NTR/AB ovan mark",
+      "d\xE4r tr\xE4skydd beh\xF6vs. Fuktskydd projekteras."
+    ]);
+    s.scaleBar(214, 203, 20, 500);
+  }
+  function section(m, site, date) {
+    const s = createSheet("A-4", "Sektionsritning & konstruktionsdetaljer", "1:50 / 1:20", site, date);
+    const v = s.view(101 - m.length / 100, 153, 50);
+    const e = m.length + m.frontOverhang;
+    s.heading(14, 35, "A\u2013A  Sektion genom farstu och husanslutning  /  1:50");
+    s.scaleBar(14, 41, 50, 2e3);
+    s.clip(12, 47, 190, 148, () => {
+      const baseTop = m.houseBaseHeight - m.slabThickness;
+      const wallTop = m.houseWallHeight - m.slabThickness;
+      if (m.houseBaseHeight > 0) v.rect(existing, -400, -m.slabThickness, 400, m.houseBaseHeight, gray);
+      v.rect(existing, -400, baseTop, 400 + m.face, wallTop - baseTop, gray);
+      v.rect(structure, 0, -m.slabThickness, m.length, m.slabThickness, s.hatch);
+      const window2 = m.windows.front;
+      const cutsWindow = window2.start <= m.width / 2 && m.width / 2 <= window2.end;
+      const front = m.length - m.wallThickness;
+      if (cutsWindow) {
+        v.rect(structure, front, 0, m.wallThickness, window2.bottom, s.hatch);
+        v.rect(structure, front, window2.top, m.wallThickness, m.frontWallHeight - window2.top, s.hatch);
+        v.line(structure, front + m.wallThickness / 2, window2.bottom, front + m.wallThickness / 2, window2.top);
+      } else v.rect(structure, front, 0, m.wallThickness, m.frontWallHeight, s.hatch);
+      v.poly(structure, [[m.face, m.rear], [e, m.eave], [e, m.roofFront], [m.face, m.roofTop]], s.hatch, true);
+      v.line(structure, m.face, m.flashing.bottom, m.face, m.flashing.top, 'stroke-width=".75"');
+      const cutPier = m.pier.columns.some((x) => Math.abs(x - m.width / 2) <= m.pier.radius);
+      piersInElevation(v, m, m.pier.rows, m.frostLevel);
+      if (cutPier) for (const y of m.pier.rows) {
+        v.rect(structure, y - m.pier.radius, m.pierBottom, m.footingDiameter, m.footingDepth, s.hatch);
+      }
+      groundLines(v, site, -650, e + 250);
+      v.vertical(0, m.frontWallHeight, m.length - m.wallThickness, -9, `Rumsh\xF6jd ca ${mm(m.frontWallHeight)} till takregel`);
+      v.label(labels, m.face + 120, m.roofTop + 220, "D1", { weight: 700 });
+      v.label(labels, m.pier.rows[0] - 120, -m.slabThickness - 160, "D2", { weight: 700, anchor: "end" });
+    });
+    s.note(14, 198, [
+      `Modell: betongplatta ${mm(m.slabThickness)} mm; plintbotten ${level(m.pierBottom)}.`,
+      `Tj\xE4lfritt djup (underlag): ${mm(site.frost)} mm under ny mark, niv\xE5 ${level(m.frostLevel)}.`,
+      `Takreglar ${rafterStarts(m.roofWidth, m.doorSideOverhang, m.rafterWidth, m.rafterSpacing).length} st. \xB7 ${mm(m.rafterWidth)} \xD7 ${mm(m.rafterDepth)} \xB7 nominellt c/c ${mm(m.rafterSpacing)} mm.`
+    ], 2.65);
+    sectionDetails(s, m);
+    if (m.frostLevel < m.pierBottom) s.cloud(13, 215, 160, "KONTROLLERAS: PLINTBOTTEN \xD6VER ANTAGET TJ\xC4LDJUP");
+    s.cloud(213, 215, 189, `OBS: VERIFIERA DIMENSIONERING / SN\xD6ZON ${decimal(site.snow)} kN/m\xB2`);
+    s.pending([
+      "Verifiera sn\xF6, vind, sp\xE4nnvidder, jord/b\xE4righet, armering, frost, fuktskydd och alla inf\xE4stningar.",
+      "R\xE4cke ej modellerat. Verifiera fallh\xF6jd och krav; 1 100 mm \xE4r ett kontrollm\xE5tt d\xE4r till\xE4mpligt.",
+      "Fastst\xE4ll g\xE4llande byggregler med kommunen (BBR/EKS d\xE4r till\xE4mpligt); tr\xE4 enligt SS-EN 1995."
+    ]);
+    if (Math.max(m.flashing.top, m.houseWallHeight - m.slabThickness) > 5200 || Math.min(m.frostLevel, m.pierBottom) < -2050 || m.slope * 610 > 180 || m.flashingHeight + m.rafterDepth * Math.hypot(1, m.slope) > 1150) {
+      s.note(213, 209, ["Geometri utanf\xF6r ritf\xE4lt kapas; angivna skalor bibeh\xE5lls."], 2.55);
+    }
+    return s.svg();
+  }
+  var sheets = [sitePlan, floorPlan, elevations, section];
+  function compileDrawings(model, values = {}, date = (/* @__PURE__ */ new Date()).toLocaleDateString("sv-SE")) {
+    const site = permitSettings(values, model.slabThickness);
+    const drawing = drawingModel(model, site);
+    return sheets.map((generate, i) => ({ id: `A-${i + 1}`, svg: generate(drawing, site, date) }));
+  }
+
+  // js/drawings-view.js
+  var storageKey2 = "farstu-permit-settings-v1";
+  function createDrawingsView($) {
+    const panel2 = $("drawings-view"), host = $("permit-sheets"), selector = $("permit-sheet");
+    const status = $("drawings-status"), print = $("print-permit-sheets");
+    const dialog = $("permit-dialog"), form = $("permit-form"), fieldset = $("permit-fields");
+    let values = {}, model, valid = false, renderedModel, renderedValues, storageStatus = "";
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey2));
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) values = saved;
+    } catch (error) {
+      console.error("Unable to load site and permit settings.", error);
+      storageStatus = "Site settings could not be read; drawing defaults are in use.";
+    }
+    const fields = permitFields.map((spec) => {
+      const field = document.createElement("label");
+      const input = document.createElement(spec.options ? "select" : "input");
+      input.name = spec.key;
+      if (spec.options) {
+        input.add(new Option("South (assumed)", ""));
+        for (const direction of spec.options) input.add(new Option(direction[0].toUpperCase() + direction.slice(1), direction));
+      } else if (typeof spec.initial === "number") {
+        Object.assign(input, { type: "number", min: spec.min, max: spec.max, step: spec.step || 1 });
+      } else {
+        input.maxLength = spec.maxLength;
+      }
+      field.append(spec.label, input);
+      fieldset.append(field);
+      return { spec, input };
+    });
+    function showSelectedSheet() {
+      for (const sheet of host.children) sheet.hidden = sheet.dataset.sheet !== selector.value;
+    }
+    function render() {
+      print.disabled = !valid;
+      status.textContent = [
+        model ? valid ? "" : "Designer has invalid values. Showing the last valid model; correct the errors to print." : "No valid Designer model is available yet.",
+        storageStatus
+      ].filter(Boolean).join(" ");
+      if (!model || model === renderedModel && values === renderedValues) return;
+      const sheets2 = compileDrawings(model, values).map(({ id, svg }) => {
+        const sheet = document.createElement("div");
+        sheet.className = "permit-sheet";
+        sheet.dataset.sheet = id;
+        sheet.innerHTML = svg;
+        return sheet;
+      });
+      host.replaceChildren(...sheets2);
+      renderedModel = model;
+      renderedValues = values;
+      showSelectedSheet();
+    }
+    selector.addEventListener("change", showSelectedSheet);
+    $("show-permit-dialog").addEventListener("click", () => {
+      const site = permitSettings(values, model?.slabThickness);
+      for (const { spec, input } of fields) {
+        const assumed = site.defaults.includes(spec.key);
+        input.value = assumed ? "" : site[spec.key];
+        if (!spec.options) input.placeholder = assumed ? String(site[spec.key]) : "";
+      }
+      dialog.showModal();
+    });
+    $("cancel-permit").addEventListener("click", () => dialog.close());
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      values = Object.fromEntries(fields.filter(({ input }) => input.value.trim() !== "").map(({ spec, input }) => [spec.key, input.type === "number" ? input.valueAsNumber : input.value.trim()]));
+      try {
+        localStorage.setItem(storageKey2, JSON.stringify(values));
+        storageStatus = "";
+      } catch (error) {
+        console.error("Unable to save site and permit settings.", error);
+        storageStatus = "Site settings updated for this visit but could not be saved in this browser.";
+      }
+      dialog.close();
+      render();
+    });
+    print.addEventListener("click", () => {
+      if (!valid) return;
+      document.body.classList.add("printing-permit");
+      window.print();
+    });
+    window.addEventListener("afterprint", () => document.body.classList.remove("printing-permit"));
+    return {
+      render,
+      update(next, isValid) {
+        if (isValid) model = next;
+        valid = isValid;
+        if (!panel2.hidden) render();
+      }
+    };
+  }
+
   // js/workspace-tabs.js
   function createWorkspaceTabs($, views) {
     const entries = views.map(({ button, panel: panel2, onShow }) => ({ button: $(button), panel: $(panel2), onShow }));
@@ -1673,15 +2326,17 @@
     const exportButton = $("export-settings");
     const bom = createBomView($);
     const loads = createLoadsView($);
+    const drawings = createDrawingsView($);
     createWorkspaceTabs($, [
       { button: "show-designer", panel: "designer-view" },
       { button: "show-bom", panel: "bom-view", onShow: bom.render },
-      { button: "show-loads", panel: "loads-view", onShow: loads.render }
+      { button: "show-loads", panel: "loads-view", onShow: loads.render },
+      { button: "show-drawings", panel: "drawings-view", onShow: drawings.render }
     ]);
     const dimensions = createNumberFormat({ maximumFractionDigits: 2 });
     const millimetres = createNumberFormat({ maximumFractionDigits: 0 });
-    const fmt = (n) => dimensions.format(n);
-    const mm = (n) => `${millimetres.format(n)} mm`;
+    const fmt = (n2) => dimensions.format(n2);
+    const mm2 = (n2) => `${millimetres.format(n2)} mm`;
     const houseColor = "var(--house-color)";
     const glassColor = "#80a9b0";
     const footingColor = "#8c88a5";
@@ -1801,10 +2456,10 @@
         adjustedRoofSettings = true;
       }
       if (savedFields.houseEntryOffset === void 0) {
-        const centre = Number(savedFields.slabOriginOffset) + Number(savedFields.width) / 2;
+        const centre2 = Number(savedFields.slabOriginOffset) + Number(savedFields.width) / 2;
         const left = Number(savedFields.houseWallLeft) + 1e3;
         const right = Number(savedFields.houseWallLeft) + Number(savedFields.houseWallWidth) - 1e3;
-        savedFields.houseEntryOffset = String(Math.round(Math.max(left, Math.min(right, centre))));
+        savedFields.houseEntryOffset = String(Math.round(Math.max(left, Math.min(right, centre2))));
       }
       if (savedFields.propertyLineDistance === void 0) savedFields.propertyLineDistance = savedFields.hedgeDistance;
       for (const [key, input] of Object.entries(fields)) {
@@ -1827,7 +2482,7 @@
         if (input.tagName === "SELECT") {
           if (Number(value) < 0 || Number(value) > 5e4 || Number(value) === 0 && !hasOption(input, "0")) return false;
           const choices = key === "studDepth" || key === "rafterDepth" ? [...new Set(timberSections.map((item) => item.depth))] : [...input.options].map((option) => Number(option.value));
-          const nearest = choices.reduce((best, n) => Math.abs(n - Number(value)) < Math.abs(best - Number(value)) ? n : best);
+          const nearest = choices.reduce((best, n2) => Math.abs(n2 - Number(value)) < Math.abs(best - Number(value)) ? n2 : best);
           savedFields[key] = String(nearest);
           if (nearest !== Number(value)) adjustedStockSizes.push(key);
         } else {
@@ -1900,6 +2555,13 @@
     }
     function persistSettings() {
       storageStatus.textContent = saveSettings(settingsSnapshot());
+    }
+    function updateDrawings() {
+      drawings.update(settingsValid ? {
+        ...latest,
+        doorHanding: doorHanding.value,
+        doorWindow: doorWindow.value
+      } : void 0, settingsValid);
     }
     function update(alignRoofWidth = false) {
       tileLayoutGuidance.textContent = "";
@@ -2069,17 +2731,17 @@
         return { key, left, right, sill, head: head2 };
       });
       const basementOpenings = Object.entries(houseBasementWindows).map(([key, { label }]) => {
-        const centre = origin + v[key + "Offset"];
+        const centre2 = origin + v[key + "Offset"];
         const halfWidth = v[key + "Width"] / 2;
         const sill = v[key + "Sill"];
         const head2 = sill + v[key + "Height"];
-        if (centre - halfWidth < houseA || centre + halfWidth > houseB) {
+        if (centre2 - halfWidth < houseA || centre2 + halfWidth > houseB) {
           flag(`${label} extends beyond the sides of the house wall.`, "houseWallLeft", "houseWallWidth", key + "Width", key + "Offset");
         }
         if (v.houseBaseHeight > 0 && head2 > v.houseBaseHeight) {
           flag(`${label} extends beyond the concrete base.`, "houseBaseHeight", key + "Height", key + "Sill");
         }
-        return { key, left: centre - halfWidth, right: centre + halfWidth, sill, head: head2 };
+        return { key, left: centre2 - halfWidth, right: centre2 + halfWidth, sill, head: head2 };
       });
       for (const [key, input] of Object.entries({
         ...fields,
@@ -2095,13 +2757,14 @@
         settingsValid = false;
         bom.update(latest, false);
         loads.update(latest, false);
+        updateDrawings();
         return false;
       }
       settingsValid = true;
-      roofLayoutGuidance.textContent = `Roof width: ${mm(v.roofWidth)}. Door-side (left) overhang: ${mm(v.doorSideOverhang)}. Opposite (right) overhang: ${mm(rightOverhang)}. Width increments: ${mm(roofStep)}.`;
+      roofLayoutGuidance.textContent = `Roof width: ${mm2(v.roofWidth)}. Door-side (left) overhang: ${mm2(v.doorSideOverhang)}. Opposite (right) overhang: ${mm2(rightOverhang)}. Width increments: ${mm2(roofStep)}.`;
       if (roofMaterial.value === "tiles") {
         const tile = tileSystems[v.tileWidth];
-        tileLayoutGuidance.textContent = `${tile.label}: ${mm(tile.width)} wide \xD7 ${mm(tile.length)} long; ${mm(tile.width - v.tileWidth)} side overlap and ${mm(tile.length - v.tileLength)} headlap. Layout: ${v.roofWidth / v.tileWidth} whole covering modules \xD7 ${mm(v.tileWidth)} = ${mm(v.roofWidth)} roof width. Maximum batten gauge at this pitch: ${mm(tileGaugeLimit(v.pitch))}.`;
+        tileLayoutGuidance.textContent = `${tile.label}: ${mm2(tile.width)} wide \xD7 ${mm2(tile.length)} long; ${mm2(tile.width - v.tileWidth)} side overlap and ${mm2(tile.length - v.tileLength)} headlap. Layout: ${v.roofWidth / v.tileWidth} whole covering modules \xD7 ${mm2(v.tileWidth)} = ${mm2(v.roofWidth)} roof width. Maximum batten gauge at this pitch: ${mm2(tileGaugeLimit(v.pitch))}.`;
       }
       latest = {
         ...v,
@@ -2118,7 +2781,7 @@
         roofFinish: roofFinish.value
       };
       const flashing = standingFlashing(latest);
-      const upper = houseOpenings.find((window) => window.key === "houseUpper");
+      const upper = houseOpenings.find((window2) => window2.key === "houseUpper");
       const top = v.houseWallHeight - v.slabThickness;
       const extension = sillExtension(upper.right - upper.left);
       const fall = Math.min(16, (upper.head - upper.sill) * 0.1);
@@ -2134,10 +2797,11 @@
       $("flashing-warning").textContent = touches ? "Warning: the standing flashing (st\xE5ndskiva) or its apron touches or overlaps the existing upper window or its surround. Adjust the roof or window layout and consult a roofer." : "";
       bom.update(latest, true);
       loads.update(latest, true);
+      updateDrawings();
       $("area").textContent = `${fmt(v.width * v.length / 1e6)} m\xB2`;
-      $("rear").textContent = mm(rear);
-      $("rise").textContent = mm(slope * (v.length - planRecession));
-      $("assembly").textContent = `Slab: ${mm(v.slabThickness)} thick. Walls: ${mm(v.wallThickness)} thick. ${footingColumns * footingRows} piers (${footingColumns} \xD7 ${footingRows}): ${mm(v.footingDiameter)} diameter by ${mm(v.footingDepth)} deep below the slab.`;
+      $("rear").textContent = mm2(rear);
+      $("rise").textContent = mm2(slope * (v.length - planRecession));
+      $("assembly").textContent = `Slab: ${mm2(v.slabThickness)} thick. Walls: ${mm2(v.wallThickness)} thick. ${footingColumns * footingRows} piers (${footingColumns} \xD7 ${footingRows}): ${mm2(v.footingDiameter)} diameter by ${mm2(v.footingDepth)} deep below the slab.`;
       render();
       return true;
     }
@@ -2219,7 +2883,7 @@
       const raw = iso ? ([x, y, z]) => [0.866 * (x + y), 0.33 * (y - x) - z] : plan ? ([x, y]) => [x, y] : front ? ([x, , z]) => [x, -z] : ([, y, z]) => [side === "left" ? y : -y, -z];
       const shapes = [];
       const doorTrimFaces = [];
-      const labels = [];
+      const labels2 = [];
       const dims = [];
       const face = (points, fill, extra = {}) => shapes.push(["polygon", points, { class: "face", fill, ...extra }]);
       const line = (a, b, cls, extra = {}) => shapes.push(["line", [a, b], { class: cls, ...extra }]);
@@ -2227,7 +2891,7 @@
         line(a, b, "property-line-halo");
         line(a, b, "property-line");
       };
-      const note = (at, text2, dy = 0, anchor = "middle") => labels.push({ at, text: text2, dy, anchor });
+      const note = (at, text2, dy = 0, anchor = "middle") => labels2.push({ at, text: text2, dy, anchor });
       const dimension2 = (a, b, gap, text2) => dims.push({ a, b, gap, text: text2 });
       const ground = (x, y) => [x, y, 0];
       const roofLeft = -doorSideOverhang, roofRight = roofLeft + roofWidth;
@@ -2308,20 +2972,20 @@
       function plane(points) {
         const origin = points[0];
         for (let i = 1; i < points.length - 1; i++) {
-          const n = cross(subtract(points[i], origin), subtract(points[i + 1], origin));
-          const length = Math.hypot(...n);
-          if (length > epsilon) return n.map((v) => v / length);
+          const n2 = cross(subtract(points[i], origin), subtract(points[i + 1], origin));
+          const length = Math.hypot(...n2);
+          if (length > epsilon) return n2.map((v) => v / length);
         }
       }
       function timberPrism(outer2, inner2, kind, colour, extra) {
-        const centre = outer2[0].map((_, i) => (outer2[0][i] + outer2[2][i] + inner2[0][i] + inner2[2][i]) / 4);
+        const centre2 = outer2[0].map((_, i) => (outer2[0][i] + outer2[2][i] + inner2[0][i] + inner2[2][i]) / 4);
         const sides = outer2.map((p, i) => {
           const j = (i + 1) % outer2.length;
           return [p, outer2[j], inner2[j], inner2[i]];
         });
         for (const [i, points] of [outer2, inner2, ...sides].entries()) {
-          const n = plane(points);
-          if (!n || dot(n, camera) * dot(n, subtract(points[0], centre)) <= epsilon) continue;
+          const n2 = plane(points);
+          if (!n2 || dot(n2, camera) * dot(n2, subtract(points[0], centre2)) <= epsilon) continue;
           lumber(
             points,
             i < 2 ? kind : `${kind} lumber-return`,
@@ -2555,8 +3219,8 @@
         const courses = Math.ceil((eaveY - housePlanRecession) / tileRun);
         const elevation = !iso && !front;
         if (elevation ? courses > 80 : count > 65 || iso && count * courses > 1800) {
-          const centre = (housePlanRecession + eaveY) / 2;
-          note(roofAt(W / 2, centre), "Tile profiles too dense to show", -10);
+          const centre2 = (housePlanRecession + eaveY) / 2;
+          note(roofAt(W / 2, centre2), "Tile profiles too dense to show", -10);
           return;
         }
         const at = (x, y, h) => roofAt(x, y, h);
@@ -2708,7 +3372,7 @@
         }
       }
       function drawHouseFacade() {
-        const section = (u, d, z) => [u, housePlanRecession - d, z];
+        const section2 = (u, d, z) => [u, housePlanRecession - d, z];
         const baseSection = (u, d, z) => [u, -d, z];
         const facade = { start: houseA, end: houseB, top: () => houseWallHeight };
         if (houseBaseHeight > 0) {
@@ -2782,7 +3446,7 @@
         for (const w of houseOpenings) {
           drawWindow(
             face,
-            section,
+            section2,
             { start: w.left, end: w.right, bottom: w.sill, top: w.head },
             facade,
             { key: w.key, pattern: "cross", thickness: 145, trim: houseTrim, trimColour: "#f5efe1" }
@@ -2852,14 +3516,14 @@
         board(start, end, op.top, high);
       }
       const wallCourses2 = (key, end) => wallCourses(key, end, claddingSpacing, baseBoardWidth, coverBoardWidth);
-      function drawWall(section, length, top, op, name) {
+      function drawWall(section2, length, top, op, name) {
         const isSide = name !== "front";
         for (const [key] of [...wallLayers].reverse()) {
           if (!visible(key) || key === "trim" || key === "cavity") continue;
           const [depth] = bands[key];
-          const at2 = (u, z) => section(u, depth, z);
+          const at2 = (u, z) => section2(u, depth, z);
           if (key === "studs") {
-            drawWallFrame((u, d, z) => section(u, depth + d, z), 0, isSide ? length - T : length, top, op, name !== "door");
+            drawWallFrame((u, d, z) => section2(u, depth + d, z), 0, isSide ? length - T : length, top, op, name !== "door");
             continue;
           }
           const end = isSide ? length - depth : length;
@@ -2897,9 +3561,9 @@
           }
         }
         if (!visible("studs") && visible("cavity")) {
-          drawWallFrame((u, d, z) => section(u, bands.studs[0] + d, z), 0, isSide ? length - T : length, top, op, name !== "door");
+          drawWallFrame((u, d, z) => section2(u, bands.studs[0] + d, z), 0, isSide ? length - T : length, top, op, name !== "door");
         }
-        const at = (u, z) => section(u, 0, z);
+        const at = (u, z) => section2(u, 0, z);
         if (name === "door") {
           if (visible("trim")) doorTrim(at, name, op, length, top);
           face(
@@ -2915,7 +3579,7 @@
               { class: "face opening-guide window-opening" }
             );
           } else {
-            drawWindow(face, section, op, { start: 0, end: length, top }, {
+            drawWindow(face, section2, op, { start: 0, end: length, top }, {
               key: name,
               pattern: windowMuntins[name].value,
               thickness: T,
@@ -3032,12 +3696,12 @@
       }
       function drawHedgePlanting() {
         const plantScale = 1.2;
-        const plant = (centre, profile, colour, kind) => face(
-          profile.map(([offset2, height]) => [0, topHedgeCentre - hedgeHalfDepth - centre + offset2 * plantScale, slabBase + height * plantScale]),
+        const plant = (centre2, profile, colour, kind) => face(
+          profile.map(([offset2, height]) => [0, topHedgeCentre - hedgeHalfDepth - centre2 + offset2 * plantScale, slabBase + height * plantScale]),
           colour,
           { class: `hedge-plant ${kind}` }
         );
-        for (const [centre, size] of [[200, 0.85], [460, 1]]) {
+        for (const [centre2, size] of [[200, 0.85], [460, 1]]) {
           for (const [reach, height, colour] of [
             [-170, 176, "#416c45"],
             [-112, 267, "#518052"],
@@ -3045,7 +3709,7 @@
             [84, 260, "#527949"],
             [162, 192, "#3f6840"]
           ]) {
-            plant(centre, [
+            plant(centre2, [
               [0, 0],
               [reach * 0.18 - 10, height * 0.49],
               [reach * 0.45 - 19, height * 0.72],
@@ -3057,16 +3721,16 @@
             ].map(([x, z]) => [x * size, z * size]), colour, "fern-frond");
           }
         }
-        for (const [centre, height, colour] of [
+        for (const [centre2, height, colour] of [
           [70, 156, "#e1bd60"],
           [110, 205, "#c484ad"],
           [310, 170, "#e1bd60"],
           [365, 145, "#b586b8"],
           [550, 196, "#c484ad"]
         ]) {
-          plant(centre, [[0, 0], [-4, height], [4, height], [7, 0]], "#496c40", "flower-stem");
-          plant(centre, [[2, height * 0.32], [34, height * 0.55], [18, height * 0.34]], "#5d894e", "flower-leaf");
-          plant(centre, Array.from({ length: 20 }, (_, i) => {
+          plant(centre2, [[0, 0], [-4, height], [4, height], [7, 0]], "#496c40", "flower-stem");
+          plant(centre2, [[2, height * 0.32], [34, height * 0.55], [18, height * 0.34]], "#5d894e", "flower-leaf");
+          plant(centre2, Array.from({ length: 20 }, (_, i) => {
             const angle = 2 * Math.PI * i / 20;
             const radius = i % 4 === 2 ? 14 : 32;
             return [radius * Math.cos(angle), height + radius * Math.sin(angle)];
@@ -3172,8 +3836,8 @@
         shapes.push(["door-leaf", []]);
         if (planA < planB && !entryVisible) note(ground((planA + planB) / 2, (houseFace - T) / 2), "Existing house", -7);
         note(ground(T, (door.start + door.end) / 2), "Left door", -9, "start");
-        dimension2(ground(0, L + F), ground(W, L + F), [0, 0], mm(W));
-        dimension2(ground(roofLeft, 0), ground(roofLeft, L), [-43, 0], mm(L));
+        dimension2(ground(0, L + F), ground(W, L + F), [0, 0], mm2(W));
+        dimension2(ground(roofLeft, 0), ground(roofLeft, L), [-43, 0], mm2(L));
       } else {
         if (iso || front) drawHouseFacade();
         if (groundHidden) drawPiers();
@@ -3186,7 +3850,7 @@
           foundation(frontAt, W, "#aab4aa");
           drawWall(frontSection, W, frontTop, windows.front, "front");
           const baseline = groundHidden ? footingBase : slabBase;
-          dimension2(frontAt(0, baseline), frontAt(W, baseline), [0, 38], mm(W));
+          dimension2(frontAt(0, baseline), frontAt(W, baseline), [0, 38], mm2(W));
         }
         if (iso || !front) {
           if (!iso) {
@@ -3224,7 +3888,7 @@
           drawWall(sideSection(side), L, wallTop, side === "left" ? door : windows.right, side === "left" ? "door" : "right");
           const x = side === "right" ? W : 0;
           const baseline = groundHidden ? footingBase : slabBase;
-          dimension2([x, 0, baseline], [x, L, baseline], [0, 38], mm(L));
+          dimension2([x, 0, baseline], [x, L, baseline], [0, 38], mm2(L));
         }
         if (sideElevation) drawSideWallBasementJunction(side);
         orderScene(wallScene);
@@ -3256,7 +3920,7 @@
           drawHedge();
           drawHedgePlanting();
         }
-        if (front) dimension2(frontAt(0, 0), frontAt(0, H), [-43, 0], mm(H));
+        if (front) dimension2(frontAt(0, 0), frontAt(0, H), [-43, 0], mm2(H));
       }
       if (sideElevation) {
         propertyLine([0, propertyY, slabBase], [0, propertyY, slabBase + Math.max(2e3, hedgeHeight + 250)]);
@@ -3298,12 +3962,12 @@
       function stroke(a, b, attrs, parent = layer) {
         node("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], ...attrs }, void 0, parent);
       }
-      function measurementSpecs(section) {
+      function measurementSpecs(section2) {
         const m = (key, label, a, b, visible2 = true, value = latest[key], gap = [0, -12]) => ({ key, label, a, b, visible: visible2, value, gap, vertical: a[2] !== b[2] && a[0] === b[0] && a[1] === b[1] });
         const left = view === "left", right = view === "right";
         const onFacade = iso || front;
         const x = pierColumns[0], y = pierRows[pierRows.length - 1];
-        switch (section) {
+        switch (section2) {
           case "slab":
             return [
               m("width", "Slab width", [0, L, 0], [W, L, 0], iso || front || plan, W, [0, 16]),
@@ -3337,15 +4001,15 @@
             ];
           case "front":
           case "right": {
-            const w = windows[section], isFront = section === "front";
+            const w = windows[section2], isFront = section2 === "front";
             const at = isFront ? frontAt : sideAt(W);
             const usable = isFront ? onFacade : right;
             const top = isFront ? H : wallTop(w.end);
             return [
-              m(section + "Width", "Window width", at(w.start, w.top), at(w.end, w.top), usable || plan),
-              m(section + "Height", "Window height", at(w.start, w.bottom), at(w.start, w.top), usable, void 0, [-14, 0]),
-              m(section + "Bottom", "Bottom clearance", at(w.end, 0), at(w.end, w.bottom), usable, w.bottom, [12, 0]),
-              m(section + "Top", "Top clearance", at(w.end, w.top), at(w.end, top), usable, top - w.top, [12, 0]),
+              m(section2 + "Width", "Window width", at(w.start, w.top), at(w.end, w.top), usable || plan),
+              m(section2 + "Height", "Window height", at(w.start, w.bottom), at(w.start, w.top), usable, void 0, [-14, 0]),
+              m(section2 + "Bottom", "Bottom clearance", at(w.end, 0), at(w.end, w.bottom), usable, w.bottom, [12, 0]),
+              m(section2 + "Top", "Top clearance", at(w.end, w.top), at(w.end, top), usable, top - w.top, [12, 0]),
               m(
                 "trimWidth",
                 "Trim width",
@@ -3376,7 +4040,7 @@
             const w = windows.front;
             const posts = wallPosts2(0, W, w).filter(([a, b]) => a < w.start || b > w.end);
             const pair = posts.findIndex(([a, b], i) => i > 0 && Math.abs((a + b - posts[i - 1][0] - posts[i - 1][1]) / 2 - studSpacing) < 1e-3);
-            const centre = ([a, b]) => (a + b) / 2;
+            const centre2 = ([a, b]) => (a + b) / 2;
             const p = posts[0] || [0, studWidth], z = H * 0.4;
             const exposed = visible("studs") && (plan || onFacade && !["cover", "base", "wind", "exterior"].some(visible));
             const at = (u, z2) => frontSection(u, bands.studs[0], z2);
@@ -3384,8 +4048,8 @@
               m(
                 "studSpacing",
                 "Stud centres",
-                at(pair > 0 ? centre(posts[pair - 1]) : 0, z),
-                at(pair > 0 ? centre(posts[pair]) : studSpacing, z),
+                at(pair > 0 ? centre2(posts[pair - 1]) : 0, z),
+                at(pair > 0 ? centre2(posts[pair]) : studSpacing, z),
                 exposed && pair > 0
               ),
               m("studWidth", "Stud width", at(p[0], z), at(p[1], z), exposed && p[1] - p[0] === studWidth),
@@ -3525,13 +4189,13 @@
               )
             ];
           case "houseEntry": {
-            const centre = houseEntryOffset - slabOriginOffset;
-            const left2 = centre - houseEntryWidth / 2, right2 = centre + houseEntryWidth / 2;
+            const centre2 = houseEntryOffset - slabOriginOffset;
+            const left2 = centre2 - houseEntryWidth / 2, right2 = centre2 + houseEntryWidth / 2;
             const face2 = housePlanRecession;
             return [
               m("houseEntryWidth", "Entry width", ground(left2, face2 - houseEntryDepth), ground(right2, face2 - houseEntryDepth), plan),
               m("houseEntryDepth", "Entry depth", ground(left2, face2), ground(left2, face2 - houseEntryDepth), plan, houseEntryDepth, [-15, 0]),
-              m("houseEntryOffset", "Entry centre from origin", ground(-slabOriginOffset, face2), ground(centre, face2), plan)
+              m("houseEntryOffset", "Entry centre from origin", ground(-slabOriginOffset, face2), ground(centre2, face2), plan)
             ];
           }
           case "hedge":
@@ -3568,25 +4232,25 @@
               )
             ];
           default: {
-            const basement = basementOpenings.find((w2) => w2.key === section);
+            const basement = basementOpenings.find((w2) => w2.key === section2);
             if (basement) {
-              const centre = (basement.left + basement.right) / 2;
+              const centre2 = (basement.left + basement.right) / 2;
               const sill = slabBase + basement.sill, head = slabBase + basement.head;
               return [
-                m(section + "Width", "Window width", houseBaseAt(basement.left, head), houseBaseAt(basement.right, head), onFacade),
-                m(section + "Height", "Window height", houseBaseAt(basement.left, sill), houseBaseAt(basement.left, head), onFacade, void 0, [-12, 0]),
-                m(section + "Offset", "Centre from origin", houseBaseAt(-slabOriginOffset, sill), houseBaseAt(centre, sill), onFacade, void 0, [0, 13]),
-                m(section + "Sill", "Sill height", houseBaseAt(basement.right, slabBase), houseBaseAt(basement.right, sill), onFacade, void 0, [13, 0])
+                m(section2 + "Width", "Window width", houseBaseAt(basement.left, head), houseBaseAt(basement.right, head), onFacade),
+                m(section2 + "Height", "Window height", houseBaseAt(basement.left, sill), houseBaseAt(basement.left, head), onFacade, void 0, [-12, 0]),
+                m(section2 + "Offset", "Centre from origin", houseBaseAt(-slabOriginOffset, sill), houseBaseAt(centre2, sill), onFacade, void 0, [0, 13]),
+                m(section2 + "Sill", "Sill height", houseBaseAt(basement.right, slabBase), houseBaseAt(basement.right, sill), onFacade, void 0, [13, 0])
               ];
             }
-            const w = houseOpenings.find((w2) => w2.key === section);
+            const w = houseOpenings.find((w2) => w2.key === section2);
             if (!w) return [];
             const c = (w.left + w.right) / 2;
             return [
-              m(section + "Width", "Window width", houseAt(w.left, w.head), houseAt(w.right, w.head), onFacade),
-              m(section + "Height", "Window height", houseAt(w.left, w.sill), houseAt(w.left, w.head), onFacade, void 0, [-12, 0]),
-              ...section === "houseUpper" ? [m(
-                section + "Offset",
+              m(section2 + "Width", "Window width", houseAt(w.left, w.head), houseAt(w.right, w.head), onFacade),
+              m(section2 + "Height", "Window height", houseAt(w.left, w.sill), houseAt(w.left, w.head), onFacade, void 0, [-12, 0]),
+              ...section2 === "houseUpper" ? [m(
+                section2 + "Offset",
                 "Centre from origin",
                 houseAt(-slabOriginOffset, w.sill),
                 houseAt(c, w.sill),
@@ -3594,7 +4258,7 @@
                 void 0,
                 [0, 13]
               )] : [],
-              m(section + "Sill", "Sill height", houseAt(w.right, slabBase), houseAt(w.right, w.sill), onFacade, void 0, [13, 0])
+              m(section2 + "Sill", "Sill height", houseAt(w.right, slabBase), houseAt(w.right, w.sill), onFacade, void 0, [13, 0])
             ];
           }
         }
@@ -3607,8 +4271,8 @@
         const overlay = node("g", { class: "measurement-guides", "aria-hidden": "true" }, void 0, svg);
         const guide = (tag, attrs, text2) => node(tag, attrs, text2, overlay);
         function arrow([x, y], [u, v]) {
-          const n = Math.hypot(u - x, v - y);
-          const dx = (u - x) / n, dy = (v - y) / n;
+          const n2 = Math.hypot(u - x, v - y);
+          const dx = (u - x) / n2, dy = (v - y) / n2;
           const tip = (a, b, dir) => `M${a + dx * dir * 5 - dy * 3},${b + dy * dir * 5 + dx * 3} L${a},${b} L${a + dx * dir * 5 + dy * 3},${b + dy * dir * 5 - dx * 3}`;
           guide("path", { class: "guide-arrow", d: `M${x},${y} L${u},${v} ${tip(x, y, 1)} ${tip(u, v, -1)}` });
         }
@@ -3639,7 +4303,7 @@
             guide("circle", { cx: 32, cy: y - 4, r: 3, fill: "#8a3520" });
           } else if (spec.vertical || spec.key === "rafterDepth") arrow([32, y - 12], [32, y + 4]);
           else arrow([20, y - 4], [44, y - 4]);
-          guide("text", { x: 54, y, class: "guide-key" }, `${spec.label}: ${spec.angle ? `${fmt(spec.value)}\xB0` : mm(spec.value)}`);
+          guide("text", { x: 54, y, class: "guide-key" }, `${spec.label}: ${spec.angle ? `${fmt(spec.value)}\xB0` : mm2(spec.value)}`);
         });
       }
       function drawDoorLeaf() {
@@ -3685,14 +4349,14 @@
           surface.parts.push(rect(inset, w - inset, inset, h - inset, "#3d6052"));
           const rim = 22;
           if (doorWindow.value === "half-circle") {
-            const centre = w / 2, radius = w * 0.3, base = h * 0.85 - radius;
+            const centre2 = w / 2, radius = w * 0.3, base = h * 0.85 - radius;
             const arch = (r, apron = 0) => [
               ...Array.from({ length: 25 }, (_, i) => [
-                centre + r * Math.cos(i * Math.PI / 24),
+                centre2 + r * Math.cos(i * Math.PI / 24),
                 surface.depth,
                 base + r * Math.sin(i * Math.PI / 24)
               ]),
-              ...apron ? [[centre - r, surface.depth, base - apron], [centre + r, surface.depth, base - apron]] : []
+              ...apron ? [[centre2 - r, surface.depth, base - apron], [centre2 + r, surface.depth, base - apron]] : []
             ];
             surface.parts.push(
               polygon(arch(radius + rim, rim), surface.colour, "glazing-frame"),
@@ -3702,10 +4366,10 @@
             for (const angle of [Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4]) {
               const sin = Math.sin(angle), cos = Math.cos(angle);
               surface.parts.push(polygon([
-                [centre - half / sin, surface.depth, base],
-                [centre + half / sin, surface.depth, base],
-                [centre + cos * reach + sin * half, surface.depth, base + sin * reach - cos * half],
-                [centre + cos * reach - sin * half, surface.depth, base + sin * reach + cos * half]
+                [centre2 - half / sin, surface.depth, base],
+                [centre2 + half / sin, surface.depth, base],
+                [centre2 + cos * reach + sin * half, surface.depth, base + sin * reach - cos * half],
+                [centre2 + cos * reach - sin * half, surface.depth, base + sin * reach + cos * half]
               ], surface.colour, "muntin"));
             }
           } else if (doorWindow.value !== "none") {
@@ -3790,7 +4454,7 @@
           class: "dimension"
         }, text2);
       }
-      for (const { at, text: text2, dy, anchor } of labels) {
+      for (const { at, text: text2, dy, anchor } of labels2) {
         const [x, y] = project(at);
         node("text", { x, y: y + dy, "text-anchor": anchor, class: "annotation" }, text2);
       }
@@ -3802,16 +4466,16 @@
       paintMeasurements();
       groundButton.textContent = groundHidden ? "Show ground" : "Hide ground";
       const framingNotes = [];
-      if (visible("studs") && !visible("cover")) framingNotes.push(`Studs: ${fmt(studWidth)} \xD7 ${mm(studDepth)} at ${mm(studSpacing)} centres.`);
-      if (roofFraming) framingNotes.push(`Rafters: ${fmt(rafterWidth)} \xD7 ${mm(rafterDepth)} at ${mm(rafterSpacing)} centres.`);
+      if (visible("studs") && !visible("cover")) framingNotes.push(`Studs: ${fmt(studWidth)} \xD7 ${mm2(studDepth)} at ${mm2(studSpacing)} centres.`);
+      if (roofFraming) framingNotes.push(`Rafters: ${fmt(rafterWidth)} \xD7 ${mm2(rafterDepth)} at ${mm2(rafterSpacing)} centres.`);
       $("framing-summary").hidden = !framingNotes.length;
       $("framing-summary").textContent = [...framingNotes, "Framing is schematic; member sizes and spans are not structurally verified."].join(" ");
       if (persistenceEnabled && settingsValid) persistSettings();
     }
     form.addEventListener("toggle", () => {
-      const section = activeSection();
-      if (section !== guideSection) {
-        guideSection = section;
+      const section2 = activeSection();
+      if (section2 !== guideSection) {
+        guideSection = section2;
         showMeasurements();
       }
     }, true);
@@ -3917,10 +4581,12 @@
     doorHanding.addEventListener("change", () => {
       persistenceEnabled = true;
       setDoor(false, false);
+      updateDrawings();
       render();
     });
     doorWindow.addEventListener("change", () => {
       persistenceEnabled = true;
+      updateDrawings();
       render();
     });
     for (const tab of tabs) tab.addEventListener("click", () => {

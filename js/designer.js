@@ -1,6 +1,7 @@
 import { createControls, timberSections } from './controls.js';
 import { createBomView } from './bom-view.js';
 import { createLoadsView } from './loads-view.js';
+import { createDrawingsView } from './drawings-view.js';
 import { pierLayout } from './loads.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
@@ -36,10 +37,12 @@ export function initDesigner() {
   const exportButton = $('export-settings');
   const bom = createBomView($);
   const loads = createLoadsView($);
+  const drawings = createDrawingsView($);
   createWorkspaceTabs($, [
     { button: 'show-designer', panel: 'designer-view' },
     { button: 'show-bom', panel: 'bom-view', onShow: bom.render },
-    { button: 'show-loads', panel: 'loads-view', onShow: loads.render }
+    { button: 'show-loads', panel: 'loads-view', onShow: loads.render },
+    { button: 'show-drawings', panel: 'drawings-view', onShow: drawings.render }
   ]);
   const dimensions = createNumberFormat({ maximumFractionDigits: 2 });
   const millimetres = createNumberFormat({ maximumFractionDigits: 0 });
@@ -284,6 +287,12 @@ export function initDesigner() {
     storageStatus.textContent = saveSettings(settingsSnapshot());
   }
 
+  function updateDrawings() {
+    drawings.update(settingsValid ? {
+      ...latest, doorHanding: doorHanding.value, doorWindow: doorWindow.value
+    } : undefined, settingsValid);
+  }
+
   function update(alignRoofWidth = false) {
     tileLayoutGuidance.textContent = '';
     roofLayoutGuidance.textContent = '';
@@ -452,6 +461,7 @@ export function initDesigner() {
       settingsValid = false;
       bom.update(latest, false);
       loads.update(latest, false);
+      updateDrawings();
       return false;
     }
     settingsValid = true;
@@ -487,6 +497,7 @@ export function initDesigner() {
       : '';
     bom.update(latest, true);
     loads.update(latest, true);
+    updateDrawings();
     $('area').textContent = `${fmt(v.width * v.length / 1e6)} m\u00b2`;
     $('rear').textContent = mm(rear);
     $('rise').textContent = mm(slope * (v.length-planRecession));
@@ -1896,10 +1907,12 @@ export function initDesigner() {
   doorHanding.addEventListener('change', () => {
     persistenceEnabled = true;
     setDoor(false,false);
+    updateDrawings();
     render();
   });
   doorWindow.addEventListener('change', () => {
     persistenceEnabled = true;
+    updateDrawings();
     render();
   });
   for (const tab of tabs) tab.addEventListener('click', () => {

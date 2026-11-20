@@ -14,7 +14,8 @@ const results = document.querySelector('#results');
 const settingsKey = 'farstu-designer-settings-v1';
 const lumberKey = 'farstu-derome-quotes-v1';
 const roofKey = 'farstu-roof-quotes-v1';
-const originals = new Map([settingsKey,lumberKey,roofKey].map(key => [key,localStorage.getItem(key)]));
+const permitKey = 'farstu-permit-settings-v1';
+const originals = new Map([settingsKey,lumberKey,roofKey,permitKey].map(key => [key,localStorage.getItem(key)]));
 const frame = document.createElement('iframe');
 const passed = [], failed = [];
 let doc, win;
@@ -1069,6 +1070,60 @@ try {
     person().dispatchEvent(new win.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));
     assert(Math.abs(position().x-before.x-100) < 1e-6 && doc.activeElement === person(),
       'Keyboard movement lost the new position or focus');
+  });
+
+  await check('Drawings stays at A3 and updates scaled geometry when the Designer changes', async () => {
+    await load(true);
+    field('show-drawings').click();
+    const sheet = id => doc.querySelector(`[data-sheet="${id}"]`);
+    const plan = sheet('A-2');
+    const svg = plan.querySelector('svg');
+    assert(svg.getAttribute('viewBox') === '0 0 420 297' && svg.getAttribute('width') === '420mm' &&
+      svg.getAttribute('height') === '297mm', 'Sheet is not physical A3');
+    assert(!sheet('A-1').hidden && plan.hidden, 'Default sheet selection is wrong');
+    change(field('permit-sheet'), 'A-2');
+    const footprints = () => [...sheet('A-2').querySelectorAll('[data-layer="STRUCTURE_NEW"] > rect:not([fill])')];
+    assert(footprints().filter(rect => ['28', '56'].includes(rect.getAttribute('width'))).length === 2,
+      'Slab fails the 1:100 and 1:50 width checks');
+    field('show-designer').click();
+    edit('length', 2300);
+    field('show-drawings').click();
+    assert(!sheet('A-2').hidden && sheet('A-2').textContent.includes('6,44 m²'), 'Plan did not refresh or preserve selection');
+    assert(footprints().filter(rect => ['23', '46'].includes(rect.getAttribute('height'))).length === 2,
+      'Length update changed the architectural scale');
+    win.print = () => assert(doc.body.classList.contains('printing-permit') &&
+      doc.querySelectorAll('.permit-sheet svg').length === 4, 'Print mode must include all four sheets');
+    field('print-permit-sheets').click();
+    win.dispatchEvent(new win.Event('afterprint'));
+    assert(!doc.body.classList.contains('printing-permit'), 'Print view was not cleaned up');
+  });
+
+  await check('Site settings persist, escape titles and flag assumptions and threshold crossings', async () => {
+    await load(true);
+    field('show-drawings').click();
+    const sheet = id => doc.querySelector(`[data-sheet="${id}"]`);
+    assert(sheet('A-1').textContent.includes('KONTROLLERAS MOT NYBYGGNADSKARTA') &&
+      !sheet('A-1').textContent.includes('grannemedgivande bifogas'), 'Default 4500 is not below the boundary threshold');
+    assert(sheet('A-4').textContent.includes('SNÖZON 1,5 kN/m²'), 'Default snow load was not flagged');
+    field('show-permit-dialog').click();
+    const form = field('permit-form');
+    form.elements.address.value = 'Vägen <1> & 2';
+    form.elements.frontDirection.value = 'west';
+    form.elements.south.value = '4499';
+    form.elements.snow.value = '2.5';
+    form.requestSubmit();
+    assert(!field('permit-dialog').open && sheet('A-1').textContent.includes('Vägen <1> & 2') &&
+      sheet('A-1').textContent.includes('grannemedgivande bifogas'), 'Save did not update site graphics and title');
+    field('roofWidth').value = '3300';
+    edit('width', 3000);
+    for (const [length, flagged] of [[5000, false], [5001, true]]) {
+      edit('length', length);
+      assert(sheet('A-1').textContent.includes('OBS: BTA >') === flagged, 'Area warning threshold is not strictly above 15 m²');
+    }
+    await load();
+    field('show-drawings').click();
+    assert(sheet('A-3').textContent.includes('Fasad mot väster / front') &&
+      sheet('A-4').textContent.includes('SNÖZON 2,5 kN/m²'), 'Site settings did not survive reload');
   });
 
   results.textContent = failed.length

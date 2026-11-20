@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/variables.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/drawings.css">
 </head>
 <body>
 <div class="shell">
@@ -20,6 +21,7 @@
     <button type="button" id="show-designer" aria-controls="designer-view" aria-pressed="true">Designer</button>
     <button type="button" id="show-bom" aria-controls="bom-view" aria-pressed="false">Lumber BOM &amp; prices</button>
     <button type="button" id="show-loads" aria-controls="loads-view" aria-pressed="false">Floor &amp; pier loads</button>
+    <button type="button" id="show-drawings" aria-controls="drawings-view" aria-pressed="false">Drawings</button>
   </nav>
   <main id="designer-view">
     <section class="card preview" aria-labelledby="drawing-heading">
@@ -400,6 +402,38 @@
       </div>
     </details>
   </main>
+  <main id="drawings-view" class="card drawings" aria-labelledby="drawings-heading" hidden>
+    <div class="permit-toolbar">
+      <h2 id="drawings-heading">Drawings</h2>
+      <label>Sheet
+        <select id="permit-sheet">
+          <option value="A-1">A-1 — Situationsplan</option>
+          <option value="A-2">A-2 — Planritning &amp; grundplan</option>
+          <option value="A-3">A-3 — Fasadritningar</option>
+          <option value="A-4">A-4 — Sektionsritning &amp; detaljer</option>
+        </select>
+      </label>
+      <button type="button" id="show-permit-dialog" aria-haspopup="dialog">Site &amp; Permit Details</button>
+    </div>
+    <p class="hint">A3 landscape preliminary drawings. Replace survey assumptions and resolve the verification notes before submission.</p>
+    <p class="status" id="drawings-status" role="status"></p>
+    <div id="permit-sheets"></div>
+    <div class="permit-toolbar permit-export">
+      <button type="button" id="print-permit-sheets">Download All Sheets as PDF</button>
+      <span class="hint">Choose Save as PDF, A3 landscape, 100% (actual size), and turn off headers and footers.</span>
+    </div>
+  </main>
+  <dialog id="permit-dialog" aria-labelledby="permit-dialog-heading" aria-describedby="permit-dialog-hint">
+    <form id="permit-form">
+      <h2 id="permit-dialog-heading">Site &amp; Permit Details</h2>
+      <p class="hint" id="permit-dialog-hint">Blank measurements use the displayed assumptions. Clear an entered value to restore its default. Verify site measurements and orientation against the municipal base map.</p>
+      <div id="permit-fields" class="permit-fields"></div>
+      <div class="permit-toolbar">
+        <button type="submit">Save and update drawings</button>
+        <button type="button" id="cancel-permit">Cancel</button>
+      </div>
+    </form>
+  </dialog>
 </div>
 <script src="js/app.bundle.js"></script>
 </body>
