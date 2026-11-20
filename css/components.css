@@ -42,6 +42,9 @@
   .ground-plane { stroke:none; filter:blur(3px); }
   .roof-ground-projection { stroke:none; filter:blur(2px); }
   .ground-line { stroke:#76866b; stroke-width:1.25; stroke-dasharray:6 4; }
+  .property-line, .property-line-halo { stroke-dasharray:1 7; stroke-linecap:round; }
+  .property-line { stroke:#a34235; stroke-width:2.2; }
+  .property-line-halo { stroke:#fff; stroke-width:4.5; }
   .house-entry-floor { stroke:none; }
   .house-cladding-plan { stroke:#927d53; stroke-width:.35; }
   .slab-plan { stroke:none; }
@@ -74,6 +77,7 @@
   .swatch-walls { background:var(--porch-color); }
   .swatch-roof { background:var(--tile-color); }
   .swatch-piers { background:#8c88a5; }
+  .swatch-property { width:18px; height:0; border:0; border-top:2px dotted #a34235; vertical-align:middle; }
   .settings .bar { padding:0 0 10px; }
   .parameter-actions { display:flex; flex-wrap:wrap; gap:8px; }
   .hint { font-size:12px; margin:4px 0 10px; }

@@ -300,9 +300,8 @@ try {
         const roofLength = 1800+overhang;
         const recession = Number(field('houseBaseHeight').value) > 0
           ? Number(field('houseBaseRecession').value) : 0;
-        const gradeLength = view === 'plan'
-          ? Math.max(roofLength,recession+Number(field('hedgeDistance').value)+450)+margin
-          : roofLength+margin;
+        const gradeLength = Math.max(roofLength,recession+Number(field('propertyLineDistance').value),
+          view === 'plan' ? recession+Number(field('hedgeDistance').value)+450 : 0)+margin;
         const offsets = [[margin,recession],[margin+width,recession],[margin+width,roofLength],[margin,roofLength]];
         for (let i=0;i<4;i++) for (let axis=0;axis<2;axis++) {
           close(footprint[i][axis],grade[0][axis] +

@@ -182,6 +182,7 @@ export function initDesigner() {
       const right = Number(savedFields.houseWallLeft)+Number(savedFields.houseWallWidth)-1000;
       savedFields.houseEntryOffset = String(Math.round(Math.max(left,Math.min(right,centre))));
     }
+    if (savedFields.propertyLineDistance === undefined) savedFields.propertyLineDistance = savedFields.hedgeDistance;
     for (const [key, input] of Object.entries(fields)) {
       if (isCalculatedClearance(key,saved.anchors)) continue;
       const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth','flashingHeight',
@@ -503,7 +504,7 @@ export function initDesigner() {
       houseBaseHeight, houseBaseRecession, slabOriginOffset,
       houseBaseBoardWidth, houseBaseBoardThickness, houseCoverBoardWidth, houseCoverBoardThickness,
       houseEntryWidth, houseEntryDepth, houseEntryOffset,
-      hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, doorThickness, pitch, slope,
+      hedgeDistance, hedgeHeight, propertyLineDistance, offset, doorWidth, doorHeight, doorThickness, pitch, slope,
       studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise,
       roofMaterial:material, roofFinish:finish } = latest;
     const visible = (key) => layerInputs[key].checked;
@@ -536,6 +537,10 @@ export function initDesigner() {
     const dims = [];
     const face = (points, fill, extra = {}) => shapes.push(['polygon', points, {class: 'face', fill, ...extra}]);
     const line = (a, b, cls, extra = {}) => shapes.push(['line', [a,b], {class: cls, ...extra}]);
+    const propertyLine = (a,b) => {
+      line(a,b,'property-line-halo');
+      line(a,b,'property-line');
+    };
     const note = (at, text, dy = 0, anchor = 'middle') => labels.push({ at, text, dy, anchor });
     const dimension = (a, b, gap, text) => dims.push({ a, b, gap, text });
     const ground = (x,y) => [x,y,0];
@@ -561,8 +566,9 @@ export function initDesigner() {
     const gradeMargin = Math.min(350,W*.2,L*.2);
     const hedgeHalfDepth = 450;
     const topHedgeCentre = housePlanRecession+hedgeDistance;
-    const sideGradeEnd = Math.max(L,topHedgeCentre+hedgeHalfDepth)+gradeMargin;
-    const gradeEnd = plan ? Math.max(L+F,topHedgeCentre+hedgeHalfDepth)+gradeMargin : L+F+gradeMargin;
+    const propertyY = housePlanRecession+propertyLineDistance;
+    const sideGradeEnd = Math.max(L,topHedgeCentre+hedgeHalfDepth,propertyY)+gradeMargin;
+    const gradeEnd = Math.max(L+F,groundHidden ? 0 : propertyY,plan ? topHedgeCentre+hedgeHalfDepth : 0)+gradeMargin;
     const grade = [[roofLeft-gradeMargin,0,slabBase],[roofRight+gradeMargin,0,slabBase],
       [roofRight+gradeMargin,gradeEnd,slabBase],[roofLeft-gradeMargin,gradeEnd,slabBase]];
     const door = { start: housePlanRecession+offset, end: housePlanRecession+offset+doorWidth, bottom: 0, top: doorHeight };
@@ -1227,6 +1233,7 @@ export function initDesigner() {
       if (iso || plan) {
         face(grade,'#a8c987',{class:'ground-plane'});
         face(roof.map(([x,y]) => [x,y,slabBase]),'#94b575',{class:'roof-ground-projection'});
+        if (iso) propertyLine([roofLeft-gradeMargin,propertyY,slabBase],[roofRight+gradeMargin,propertyY,slabBase]);
       } else if (front) line(frontAt(-gradeMargin,slabBase),frontAt(W+gradeMargin,slabBase),'ground-line');
       else line([0,0,slabBase],[0,sideGradeEnd,slabBase],'ground-line');
     }
@@ -1374,6 +1381,12 @@ export function initDesigner() {
         drawHedgePlanting();
       }
       if (front) dimension(frontAt(0,0),frontAt(0,H),[-43,0],mm(H));
+    }
+
+    if (sideElevation) {
+      propertyLine([0,propertyY,slabBase],[0,propertyY,slabBase+Math.max(2000,hedgeHeight+250)]);
+    } else if (front || (plan && !groundHidden)) {
+      propertyLine([roofLeft-gradeMargin,propertyY,slabBase],[roofRight+gradeMargin,propertyY,slabBase]);
     }
 
     const bounds = [...shapes.flatMap(([,points]) => points),...roof];
@@ -1555,6 +1568,10 @@ export function initDesigner() {
             plan?[-15,0]:[0,17]),
           m('hedgeHeight','Hedge height',[0,topHedgeCentre,slabBase],
             [0,topHedgeCentre,slabBase+hedgeHeight],sideElevation,hedgeHeight,side==='left'?[20,0]:[-20,0])
+        ];
+        case 'propertyLine': return [
+          m('propertyLineDistance','Property line from house',[0,housePlanRecession,slabBase],
+            [0,propertyY,slabBase],sideElevation||plan,propertyLineDistance,plan?[-15,0]:[0,17])
         ];
         default: {
           const basement = basementOpenings.find(w => w.key===section);

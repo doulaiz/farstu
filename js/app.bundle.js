@@ -479,6 +479,9 @@
       ["hedgeDistance", "Distance from house", 3500, 500, "mm", 2e4, 1],
       ["hedgeHeight", "Hedge height", 1500, 300, "mm", 5e3, 1]
     ]);
+    addFields("propertyLine", [
+      ["propertyLineDistance", "Distance from house", 3500, 0, "mm", 2e4, 1]
+    ]);
     function syncTimberSizes() {
       for (const prefix of ["stud", "rafter"]) {
         const depth = fields[prefix + "Depth"];
@@ -1803,6 +1806,7 @@
         const right = Number(savedFields.houseWallLeft) + Number(savedFields.houseWallWidth) - 1e3;
         savedFields.houseEntryOffset = String(Math.round(Math.max(left, Math.min(right, centre))));
       }
+      if (savedFields.propertyLineDistance === void 0) savedFields.propertyLineDistance = savedFields.hedgeDistance;
       for (const [key, input] of Object.entries(fields)) {
         if (isCalculatedClearance(key, saved2.anchors)) continue;
         const value = ([
@@ -2176,6 +2180,7 @@
         houseEntryOffset,
         hedgeDistance,
         hedgeHeight,
+        propertyLineDistance,
         offset,
         doorWidth,
         doorHeight,
@@ -2218,6 +2223,10 @@
       const dims = [];
       const face = (points, fill, extra = {}) => shapes.push(["polygon", points, { class: "face", fill, ...extra }]);
       const line = (a, b, cls, extra = {}) => shapes.push(["line", [a, b], { class: cls, ...extra }]);
+      const propertyLine = (a, b) => {
+        line(a, b, "property-line-halo");
+        line(a, b, "property-line");
+      };
       const note = (at, text2, dy = 0, anchor = "middle") => labels.push({ at, text: text2, dy, anchor });
       const dimension2 = (a, b, gap, text2) => dims.push({ a, b, gap, text: text2 });
       const ground = (x, y) => [x, y, 0];
@@ -2247,8 +2256,9 @@
       const gradeMargin = Math.min(350, W * 0.2, L * 0.2);
       const hedgeHalfDepth = 450;
       const topHedgeCentre = housePlanRecession + hedgeDistance;
-      const sideGradeEnd = Math.max(L, topHedgeCentre + hedgeHalfDepth) + gradeMargin;
-      const gradeEnd = plan ? Math.max(L + F, topHedgeCentre + hedgeHalfDepth) + gradeMargin : L + F + gradeMargin;
+      const propertyY = housePlanRecession + propertyLineDistance;
+      const sideGradeEnd = Math.max(L, topHedgeCentre + hedgeHalfDepth, propertyY) + gradeMargin;
+      const gradeEnd = Math.max(L + F, groundHidden ? 0 : propertyY, plan ? topHedgeCentre + hedgeHalfDepth : 0) + gradeMargin;
       const grade = [
         [roofLeft - gradeMargin, 0, slabBase],
         [roofRight + gradeMargin, 0, slabBase],
@@ -3067,6 +3077,7 @@
         if (iso || plan) {
           face(grade, "#a8c987", { class: "ground-plane" });
           face(roof.map(([x, y]) => [x, y, slabBase]), "#94b575", { class: "roof-ground-projection" });
+          if (iso) propertyLine([roofLeft - gradeMargin, propertyY, slabBase], [roofRight + gradeMargin, propertyY, slabBase]);
         } else if (front) line(frontAt(-gradeMargin, slabBase), frontAt(W + gradeMargin, slabBase), "ground-line");
         else line([0, 0, slabBase], [0, sideGradeEnd, slabBase], "ground-line");
       }
@@ -3246,6 +3257,11 @@
           drawHedgePlanting();
         }
         if (front) dimension2(frontAt(0, 0), frontAt(0, H), [-43, 0], mm(H));
+      }
+      if (sideElevation) {
+        propertyLine([0, propertyY, slabBase], [0, propertyY, slabBase + Math.max(2e3, hedgeHeight + 250)]);
+      } else if (front || plan && !groundHidden) {
+        propertyLine([roofLeft - gradeMargin, propertyY, slabBase], [roofRight + gradeMargin, propertyY, slabBase]);
       }
       const bounds = [...shapes.flatMap(([, points]) => points), ...roof];
       if (iso || plan) bounds.push(...grade);
@@ -3537,6 +3553,18 @@
                 sideElevation,
                 hedgeHeight,
                 side === "left" ? [20, 0] : [-20, 0]
+              )
+            ];
+          case "propertyLine":
+            return [
+              m(
+                "propertyLineDistance",
+                "Property line from house",
+                [0, housePlanRecession, slabBase],
+                [0, propertyY, slabBase],
+                sideElevation || plan,
+                propertyLineDistance,
+                plan ? [-15, 0] : [0, 17]
               )
             ];
           default: {

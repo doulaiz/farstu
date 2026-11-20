@@ -40,6 +40,7 @@ The porch and existing house share a yellow façade hue; the existing house is l
 
 - **3D, Front, Left, Right and Top view** show different projections. Not every feature is visible from every direction.
 - **Top view** shows the existing entry, with configurable dimensions and position. Its two stair runs each show two schematic 250 mm deep treads; check actual stair dimensions and local requirements. Where there is a concrete base, the slab meets the basement face and the existing wall projects over it by the recession. The green roof footprint runs from the façade to the front overhang. Flashing and gutter are hidden; the hedge is a schematic 900 mm deep band, not a measured length.
+- **Property line** is a dotted, schematic boundary parallel to the house. Set its distance from the façade under Existing house; it is not a survey. It appears vertically in side views and on the ground in 3D and Top view, where it is hidden with the ground. Front view does not show its distance.
 - **Roof display** switches between the covering and details, rafters, or a hidden roof.
 - **Wall layers** lets you inspect the wall build-up or expose the timber. Hiding layers does not remove materials or weight from the estimates.
 - **Open door / Close door** animates the door where it is visible.

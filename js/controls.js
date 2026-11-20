@@ -212,6 +212,9 @@ export function createControls($) {
     ['hedgeDistance', 'Distance from house', 3500, 500, 'mm', 20000, 1],
     ['hedgeHeight', 'Hedge height', 1500, 300, 'mm', 5000, 1]
   ]);
+  addFields('propertyLine', [
+    ['propertyLineDistance', 'Distance from house', 3500, 0, 'mm', 20000, 1]
+  ]);
   function syncTimberSizes() {
     for (const prefix of ['stud','rafter']) {
       const depth = fields[prefix+'Depth'];

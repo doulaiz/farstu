@@ -492,6 +492,103 @@ try {
     assert(!doc.querySelector('.hedge-plan'),'The top-view hedge appeared in 3D');
   });
 
+  await check('Property line follows the house and appears in every view',async () => {
+    await load(true);
+    const points = node => node.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+    const line = () => {
+      const node = doc.querySelector('.property-line');
+      assert(node,'Missing property line');
+      return ['x1','y1','x2','y2'].map(key => Number(node.getAttribute(key)));
+    };
+    const selectView = view => doc.querySelector(`[data-view="${view}"]`).click();
+    assert(field('propertyLineDistance').value === field('hedgeDistance').value,
+      'Default property line is not in the hedge');
+    selectView('plan');
+    const checkPlan = () => {
+      const slab = points(doc.querySelector('.slab-plan'));
+      const scale = (slab[1][0]-slab[0][0])/Number(field('width').value);
+      const recession = Number(field('houseBaseHeight').value) > 0 ? Number(field('houseBaseRecession').value) : 0;
+      const [x1,y1,x2,y2] = line();
+      assert(x2 > x1,'Top-view property line has no width');
+      near(y1,y2,'Top-view property line is not parallel to the house');
+      near((y1-slab[0][1])/scale,recession+Number(field('propertyLineDistance').value),
+        'Top-view property line distance');
+      const style = win.getComputedStyle(doc.querySelector('.property-line'));
+      assert(style.strokeDasharray !== 'none' && style.strokeLinecap === 'round','Property line is not dotted');
+    };
+    checkPlan();
+    edit('propertyLineDistance',4800);
+    edit('houseBaseRecession',300);
+    edit('hedgeDistance',4200);
+    checkPlan();
+    field('toggle-ground').click();
+    assert(!doc.querySelector('.property-line, .property-line-halo'),'Hidden Top-view ground retained the property line');
+    field('toggle-ground').click();
+    checkPlan();
+
+    selectView('3d');
+    const grade = points(doc.querySelector('.ground-plane'));
+    const margin = Math.min(350,Number(field('width').value)*.2,Number(field('length').value)*.2);
+    const propertyY = 300+4800;
+    const gradeLength = Math.max(Number(field('length').value)+Number(field('frontOverhang').value),propertyY)+margin;
+    const drawn = line();
+    for (let axis=0;axis<2;axis++) {
+      near(drawn[axis],grade[0][axis]+(grade[3][axis]-grade[0][axis])*propertyY/gradeLength,
+        '3D property line ground position');
+      near(drawn[axis+2],grade[1][axis]+(grade[2][axis]-grade[1][axis])*propertyY/gradeLength,
+        '3D property line ground position');
+    }
+    field('toggle-ground').click();
+    assert(!doc.querySelector('.property-line, .property-line-halo'),'Hidden 3D ground retained the property line');
+    field('toggle-ground').click();
+
+    for (const [view,direction] of [['left',1],['right',-1]]) {
+      selectView(view);
+      const hedge = points(doc.querySelector('.hedge-bush'));
+      const xs = hedge.map(point => point[0]);
+      const min = Math.min(...xs), max = Math.max(...xs), scale = (max-min)/900;
+      const [x1,y1,x2,y2] = line();
+      near(x1,x2,`${view} property marker is not vertical`);
+      assert(y2 < y1,`${view} property marker does not extend above ground`);
+      near((x1-(min+max)/2)/scale,direction*(4800-4200),`${view} property line distance`);
+      field('toggle-ground').click();
+      line();
+      field('toggle-ground').click();
+    }
+    selectView('front');
+    const [x1,y1,x2,y2] = line();
+    assert(x2 > x1,'Front-view property line has no width');
+    near(y1,y2,'Front-view property line is not horizontal');
+    field('toggle-ground').click();
+    line();
+    field('toggle-ground').click();
+
+    selectView('plan');
+    edit('houseBaseHeight',0);
+    edit('propertyLineDistance',20000);
+    checkPlan();
+    const [farX,farY] = line();
+    assert(farX >= 0 && farX <= 820 && farY >= 0 && farY <= 525,'Distant property line is outside the drawing');
+    const farSlab = points(doc.querySelector('.slab-plan'));
+    field('toggle-ground').click();
+    const hiddenSlab = points(doc.querySelector('.slab-plan'));
+    assert(hiddenSlab[1][0]-hiddenSlab[0][0] > farSlab[1][0]-farSlab[0][0],
+      'A hidden distant property line still shrinks the Top view');
+    field('toggle-ground').click();
+    await load();
+    assert(field('propertyLineDistance').value === '20000','Property line distance was not saved');
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    delete saved.fields.propertyLineDistance;
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('propertyLineDistance').value === '4200' && field('hedgeDistance').value === '4200',
+      'Older settings did not place the property line at the saved hedge');
+    field('propertyLineDistance').value = '-1';
+    field('propertyLineDistance').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('propertyLineDistance').getAttribute('aria-invalid') === 'true','Negative property distance was accepted');
+    edit('propertyLineDistance',4200);
+  });
+
   await check('Existing house board dimensions affect cladding without changing porch estimates',async () => {
     await load(true);
     field('show-bom').click();
