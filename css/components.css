@@ -42,6 +42,12 @@
   .ground-plane { stroke:none; filter:blur(3px); }
   .roof-ground-projection { stroke:none; filter:blur(2px); }
   .ground-line { stroke:#76866b; stroke-width:1.25; stroke-dasharray:6 4; }
+  .house-entry-floor { stroke:none; }
+  .house-cladding-plan { stroke:#927d53; stroke-width:.35; }
+  .slab-plan { stroke:none; }
+  .slab-plan-edge { stroke:#364940; stroke-width:1.3; }
+  .house-entry-wall { stroke:#364940; stroke-width:3; }
+  .house-entry-tread { stroke:#725132; stroke-width:1; }
   .glass-detail { stroke:#edf8f7; stroke-width:1.35; }
   .window-detail { stroke:none; }
   .window-frame, .window-casing, .window-drip, .window-head {

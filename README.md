@@ -16,7 +16,7 @@ Use the buttons at the top to switch workspaces; all share the same design.
 
 | Workspace | What it is for |
 | --- | --- |
-| **Designer** | Set dimensions and explore the porch in 3D, elevations and plan. |
+| **Designer** | Set dimensions and explore the porch in 3D, elevations and Top view. |
 | **Lumber BOM & prices** | Review a lumber bill of materials, cut lists, stock matches and a separate roofing and drainage schedule. Enter supplier quotes to estimate costs. |
 | **Floor & pier loads** | Explore estimated weights, load distribution and bearing pressures for the selected pier layout. |
 
@@ -28,8 +28,8 @@ Lengths are entered and displayed in whole millimetres; calculated geometry reta
 
 Displayed numbers use non-breaking spaces to group thousands, decimal points and SI-style spacing before unit and percent symbols.
 
-1. **Existing house:** enter the wall, windows and basement measurements. The reference origin is at ground level directly below the left edge of the left main window, viewed facing the house. Set the distance from that origin to the slab's left edge and the clear gap between the main windows. House window sills are measured above ground; basement window sills are measured above the bottom of the concrete base.
-2. **Foundation:** set the slab width, length and thickness, then choose the pier grid, diameter and depth. Width runs across the front; length runs out from the house.
+1. **Existing house:** enter the wall, cladding, windows and basement measurements. Set the existing base-board and cover-board widths and thicknesses independently of the porch boards; their centre-to-centre spacing is shared with the porch. The reference origin is at ground level directly below the left edge of the left main window, viewed facing the house. Set the distance from that origin to the slab's left edge and the clear gap between the main windows. House window sills are measured above ground; basement window sills are measured above the bottom of the concrete base.
+2. **Foundation:** set the slab width, length and thickness, then choose the pier grid, diameter and depth. Width runs across the front; length runs from the basement face (or the façade if there is no concrete base).
 3. **Openings:** configure the left-side door and the front and right windows. Choose door glazing, handing, window muntins and shared opening trim. Window sizes describe rough openings, not finished frames. Editing a window's top or bottom clearance recalculates the opposite clearance.
 4. **Walls:** choose wall thickness, cladding, framing sections and spacing. Each window has doubled studs beneath both sill ends; its bottom clearance must exceed twice the stud width.
 5. **Roof:** choose standing-seam metal or concrete tiles, pitch, total width and overhangs. Left and right overhangs need not be equal. Adjust the height of the roof-to-house standing flashing (*ståndskiva*); a warning appears if it or its apron touches the existing upper central window or its surround.
@@ -38,7 +38,8 @@ Use the drawing controls to inspect your design:
 
 The porch and existing house share a yellow façade hue; the existing house is lighter.
 
-- **3D, Front, Left, Right and Plan** show different projections. Not every feature is visible from every direction.
+- **3D, Front, Left, Right and Top view** show different projections. Not every feature is visible from every direction.
+- **Top view** shows the existing entry, with configurable dimensions and position. Its two stair runs each show two schematic 250 mm deep treads; check actual stair dimensions and local requirements. Where there is a concrete base, the slab meets the basement face and the existing wall projects over it by the recession. The green roof footprint runs from the façade to the front overhang. Flashing and gutter are hidden; the hedge is a schematic 900 mm deep band, not a measured length.
 - **Roof display** switches between the covering and details, rafters, or a hidden roof.
 - **Wall layers** lets you inspect the wall build-up or expose the timber. Hiding layers does not remove materials or weight from the estimates.
 - **Open door / Close door** animates the door where it is visible.
@@ -112,7 +113,7 @@ Static HTML, CSS and JavaScript, with SVG drawings and browser storage. There is
 
 esbuild bundles ES modules into a classic script so the app also works directly from disk. The generated bundle is checked in; do not edit it by hand.
 
-Geometry uses slab-local coordinates: x across the front, y away from the house and z above the slab. House measurements are converted from the fixed house origin. Shared framing calculations feed drawings and estimates.
+Geometry uses slab-local coordinates: x across the front, y away from the house and z above the slab. The slab starts at the basement face, or the façade if there is no concrete base. With a base, the upper façade and roof's rear support are forward by the basement recession. The roof ends at the slab front plus the configured overhang. House measurements are converted from the fixed house origin. Shared framing calculations feed drawings and estimates.
 
 ### Local setup and build
 

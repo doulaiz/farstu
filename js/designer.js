@@ -5,7 +5,7 @@ import { pierLayout } from './loads.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
-import { roofPitchGuidance, roofWidthRange, standingFlashing, tileGaugeLimit, tileSystems } from './roofing.js';
+import { roofPitchGuidance, roofRearOffset, roofWidthRange, standingFlashing, tileGaugeLimit, tileSystems } from './roofing.js';
 import { downloadSettings, loadSettings, saveSettings } from './storage.js';
 import { createNumberFormat } from './number-format.js';
 
@@ -176,9 +176,17 @@ export function initDesigner() {
       savedFields.pitch = '6';
       adjustedRoofSettings = true;
     }
+    if (savedFields.houseEntryOffset === undefined) {
+      const centre = Number(savedFields.slabOriginOffset)+Number(savedFields.width)/2;
+      const left = Number(savedFields.houseWallLeft)+1000;
+      const right = Number(savedFields.houseWallLeft)+Number(savedFields.houseWallWidth)-1000;
+      savedFields.houseEntryOffset = String(Math.round(Math.max(left,Math.min(right,centre))));
+    }
     for (const [key, input] of Object.entries(fields)) {
       if (isCalculatedClearance(key,saved.anchors)) continue;
-      const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth','flashingHeight'].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === undefined
+      const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth','flashingHeight',
+        'houseEntryWidth','houseEntryDepth','houseEntryOffset','houseBaseBoardWidth','houseBaseBoardThickness',
+        'houseCoverBoardWidth','houseCoverBoardThickness'].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === undefined
         ? input.dataset.initial : savedFields[key];
       if (typeof value !== 'string' || value.trim() === '' || !Number.isFinite(Number(value))) return false;
       if (input.tagName === 'SELECT') {
@@ -328,13 +336,18 @@ export function initDesigner() {
       flag(`At ${fmt(v.pitch)}° these tiles need a batten gauge from 310 to ${tileGaugeLimit(v.pitch)} mm. Reduce the exposed tile length.`,
         'tileLength');
     }
-    const rear = v.frontWallHeight + slope * v.length;
+    const planRecession = roofRearOffset(v);
+    const rear = v.frontWallHeight + slope * (v.length-planRecession);
     const eave = v.frontWallHeight - slope * v.frontOverhang;
     const sideSpan = v.length - v.wallThickness;
     const frontSpan = v.width - 2 * v.wallThickness;
     if (sideSpan <= 0 || frontSpan <= 0) flag('The wall thickness leaves no clear interior span.', 'wallThickness', 'width', 'length');
     if (v.houseBaseHeight + 1 > v.houseWallHeight) {
       flag('The concrete base must end below the top of the existing house wall.', 'houseBaseHeight', 'houseWallHeight');
+    }
+    if (v.houseBaseBoardThickness+v.houseCoverBoardThickness > v.wallThickness+planRecession) {
+      flag('The existing house cladding is thicker than the wall shown in Top view.',
+        'houseBaseBoardThickness','houseCoverBoardThickness','wallThickness','houseBaseRecession','houseBaseHeight');
     }
     if (![2,3].includes(footingColumns) || ![2,3].includes(footingRows)) {
       flag('Choose a pier grid from the list.',footingLayout.id);
@@ -361,9 +374,9 @@ export function initDesigner() {
         'roofWidth','doorSideOverhang','width');
     }
     if (2 * v.rafterWidth > v.roofWidth) flag('The two edge rafters do not fit within the roof width.', 'rafterWidth', 'roofWidth');
-    const doorEnd = v.offset + v.doorWidth;
+    const doorEnd = planRecession+v.offset+v.doorWidth;
     if (doorEnd > sideSpan) flag('The left-side door extends into the front wall.', 'offset', 'doorWidth', 'length', 'wallThickness');
-    if (v.doorHeight > rear - slope * doorEnd) flag('The left-side door reaches above the roofline at its front edge.', 'doorHeight', 'frontWallHeight', 'pitch');
+    if (v.doorHeight > rear - slope * (doorEnd-planRecession)) flag('The left-side door reaches above the roofline at its front edge.', 'doorHeight', 'frontWallHeight', 'pitch');
     if (eave <= 0) flag('The front roof edge reaches slab level. Reduce the pitch or front overhang, or raise the front wall.', 'pitch', 'frontOverhang', 'frontWallHeight');
 
     const windows = {};
@@ -371,10 +384,10 @@ export function initDesigner() {
       const w = v[side + 'Width'];
       const h = v[side + 'Height'];
       const isFront = side === 'front';
-      const span = isFront ? frontSpan : sideSpan;
-      const start = (span - w) / 2 + (isFront ? v.wallThickness : 0);
+      const span = isFront ? frontSpan : sideSpan-planRecession;
+      const start = (span - w) / 2 + (isFront ? v.wallThickness : planRecession);
       const end = start + w;
-      const available = (isFront ? v.frontWallHeight : rear - slope * end) - h;
+      const available = (isFront ? v.frontWallHeight : rear - slope * (end-planRecession)) - h;
       const complement = available - v[side + anchor];
       const other = anchor === 'Bottom' ? 'Top' : 'Bottom';
       fields[side + other].value = Number.isFinite(complement) ? Math.round(complement) : '';
@@ -391,6 +404,11 @@ export function initDesigner() {
 
     const origin = -v.slabOriginOffset;
     const houseA = origin+v.houseWallLeft, houseB = houseA+v.houseWallWidth;
+    const entryCentre = origin+v.houseEntryOffset;
+    if (entryCentre-v.houseEntryWidth/2 < houseA || entryCentre+v.houseEntryWidth/2 > houseB) {
+      flag('The existing entry extends beyond the sides of the house wall.',
+        'houseEntryWidth','houseEntryOffset','houseWallLeft','houseWallWidth');
+    }
     const houseOpenings = Object.keys(houseWindows).map((key) => {
       const left = key === 'houseLeft' ? origin
         : key === 'houseRight' ? origin+v.houseLeftWidth+v.houseWindowGap
@@ -470,7 +488,7 @@ export function initDesigner() {
     loads.update(latest, true);
     $('area').textContent = `${fmt(v.width * v.length / 1e6)} m\u00b2`;
     $('rear').textContent = mm(rear);
-    $('rise').textContent = mm(slope * v.length);
+    $('rise').textContent = mm(slope * (v.length-planRecession));
     $('assembly').textContent = `Slab: ${mm(v.slabThickness)} thick. Walls: ${mm(v.wallThickness)} thick. ${footingColumns * footingRows} piers (${footingColumns} × ${footingRows}): ${mm(v.footingDiameter)} diameter by ${mm(v.footingDepth)} deep below the slab.`;
     render();
     return true;
@@ -483,6 +501,8 @@ export function initDesigner() {
       slabThickness, wallThickness: T, footingColumns, footingRows, footingDiameter, footingDepth, claddingSpacing, baseBoardWidth, coverBoardWidth,
       windows, houseOpenings, basementOpenings, houseA, houseB, houseWallHeight: houseHeightAboveGround,
       houseBaseHeight, houseBaseRecession, slabOriginOffset,
+      houseBaseBoardWidth, houseBaseBoardThickness, houseCoverBoardWidth, houseCoverBoardThickness,
+      houseEntryWidth, houseEntryDepth, houseEntryOffset,
       hedgeDistance, hedgeHeight, offset, doorWidth, doorHeight, doorThickness, pitch, slope,
       studSpacing, studWidth, studDepth, rafterSpacing, rafterWidth, rafterDepth, tileWidth, tileLength, tileRise,
       roofMaterial:material, roofFinish:finish } = latest;
@@ -520,14 +540,15 @@ export function initDesigner() {
     const dimension = (a, b, gap, text) => dims.push({ a, b, gap, text });
     const ground = (x,y) => [x,y,0];
     const roofLeft = -doorSideOverhang, roofRight = roofLeft+roofWidth;
-    const planMargin = Math.max(360, doorSideOverhang + 170, rightOverhang + 170);
     const houseWallHeight = houseHeightAboveGround-slabThickness;
-    const houseAt = (x,z) => [x,0,z];
-    const houseBaseAt = (x,z) => [x,-houseBaseRecession,z];
+    const housePlanRecession = roofRearOffset(latest);
+    const houseAt = (x,z) => [x,housePlanRecession,z];
+    const houseBaseAt = (x,z) => [x,0,z];
     const roofDepth = rafterDepth * Math.hypot(1,slope);
     const tileRun = tileLength/Math.hypot(1,slope);
-    const roof = [[roofLeft,0,R+roofDepth],[roofRight,0,R+roofDepth],[roofRight,L+F,E+roofDepth],[roofLeft,L+F,E+roofDepth]];
-    const roofAt = (x,y,offset = 0) => [x,y,R-slope*y+roofDepth+offset];
+    const roof = [[roofLeft,housePlanRecession,R+roofDepth],[roofRight,housePlanRecession,R+roofDepth],
+      [roofRight,L+F,E+roofDepth],[roofLeft,L+F,E+roofDepth]];
+    const roofAt = (x,y,offset = 0) => [x,y,R-slope*(y-housePlanRecession)+roofDepth+offset];
     const flashing = standingFlashing(latest);
     const slab = [ground(0,0), ground(W,0), ground(W,L), ground(0,L)];
     const frontAt = (x,z) => [x,L,z];
@@ -539,10 +560,12 @@ export function initDesigner() {
     const { radius: pierRadius, rows: pierRows, columns: pierColumns } = pierLayout(latest);
     const gradeMargin = Math.min(350,W*.2,L*.2);
     const hedgeHalfDepth = 450;
-    const sideGradeEnd = Math.max(L,hedgeDistance+hedgeHalfDepth)+gradeMargin;
+    const topHedgeCentre = housePlanRecession+hedgeDistance;
+    const sideGradeEnd = Math.max(L,topHedgeCentre+hedgeHalfDepth)+gradeMargin;
+    const gradeEnd = plan ? Math.max(L+F,topHedgeCentre+hedgeHalfDepth)+gradeMargin : L+F+gradeMargin;
     const grade = [[roofLeft-gradeMargin,0,slabBase],[roofRight+gradeMargin,0,slabBase],
-      [roofRight+gradeMargin,L+F+gradeMargin,slabBase],[roofLeft-gradeMargin,L+F+gradeMargin,slabBase]];
-    const door = { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight };
+      [roofRight+gradeMargin,gradeEnd,slabBase],[roofLeft-gradeMargin,gradeEnd,slabBase]];
+    const door = { start: housePlanRecession+offset, end: housePlanRecession+offset+doorWidth, bottom: 0, top: doorHeight };
     const rtl = doorHanding.value === 'rtl';
     const hingeY = rtl ? door.end : door.start;
     const swingPoint = (angle, distance, height = 0) =>
@@ -553,7 +576,7 @@ export function initDesigner() {
     };
     const swingArc = Array.from({length:25}, (_,i) => swingPoint(i*Math.PI/48,doorWidth));
     const doorVisible = plan || iso || view === 'left';
-    const wallTop = (y) => R - slope * y;
+    const wallTop = (y) => R - slope * (y-housePlanRecession);
     const frontTop = () => H;
     const frontSection = (u,d,z) => [u,L-d,z];
     const sideSection = (which) => (u,d,z) => [which === 'left' ? d : W-d,u,z];
@@ -687,10 +710,11 @@ export function initDesigner() {
     function drawRafters() {
       const starts = rafterStarts(roofWidth,doorSideOverhang,rafterWidth,rafterSpacing);
       const y = L+F;
-      const top = (x) => [[x,0,R+roofDepth],[x+rafterWidth,0,R+roofDepth],[x+rafterWidth,y,E+roofDepth],[x,y,E+roofDepth]];
+      const start = housePlanRecession;
+      const top = (x) => [[x,start,R+roofDepth],[x+rafterWidth,start,R+roofDepth],[x+rafterWidth,y,E+roofDepth],[x,y,E+roofDepth]];
       if (!plan && !iso && !front) {
         const x = side === 'left' ? roofLeft : roofRight;
-        lumber([[x,0,R],[x,y,E],[x,y,E+roofDepth],[x,0,R+roofDepth]],'rafter');
+        lumber([[x,start,R],[x,y,E],[x,y,E+roofDepth],[x,start,R+roofDepth]],'rafter');
         return;
       }
       for (const x of starts.reverse()) {
@@ -751,16 +775,17 @@ export function initDesigner() {
       const strip = wallStrip(at,start,end,top,bottom,openings);
       const high = top(start);
       const pitch = claddingSpacing;
-      const halfCover = pitch*.27;
-      const edge = Math.min(22,pitch*.08);
-      for (let i=0;start+i*pitch-halfCover<end;i++) {
-        const centre = start+i*pitch;
-        const a = centre-halfCover, b = centre+halfCover;
+      const edge = Math.min(22,pitch*.08,houseCoverBoardWidth*.2);
+      for (const [a,b] of courses('base',end-start,pitch,houseBaseBoardWidth,houseCoverBoardWidth)) {
+        strip(start+a,start+b,bottom,high,'#b99b63','house-cladding-base',.13);
+      }
+      for (const [i,[left,right]] of courses('cover',end-start,pitch,houseBaseBoardWidth,houseCoverBoardWidth).entries()) {
+        const a = start+left, b = start+right;
         strip(a,b,bottom,high,i%3 ? 'hsl(var(--cladding-hue) 80% 94%)' : 'hsl(var(--cladding-hue) 75% 84%)','cladding-cover',.28);
         strip(a,a+edge,bottom,high,'hsl(var(--cladding-hue) 80% 94%)','cladding-highlight',.62);
         strip(b-edge/2,b,bottom,high,'#795a35','cladding-return',.28);
         strip(b,b+edge,bottom,high,'#64492d','cladding-shadow',.27);
-        strip(b+pitch*.15,b+pitch*.17,bottom,high,'#754e2c','cladding-grain',.14);
+        strip(b-edge*2,b-edge*1.7,bottom,high,'#754e2c','cladding-grain',.14);
         strip(a,b,bottom,bottom+12,'#745430','cladding-drip',.5);
       }
     }
@@ -780,7 +805,7 @@ export function initDesigner() {
       if (iso || front) {
         face([[outer,b,slabBase],[0,b,slabBase],top[2],top[1]],'#9ba59a',{class:'face step-riser'});
       }
-      if (iso || plan) face(top,'#c7cfc2',{class:'face step-tread'});
+      if (iso || plan) face(top,'#b98d61',{class:'face step-tread'});
     }
 
     function drawGutter() {
@@ -790,18 +815,16 @@ export function initDesigner() {
       const at = (x,u,z) => [x,u,z];
       const left = roofLeft, right = roofRight;
       const outlet = W;
-      if (!plan) {
-        const elbow = Math.max(0,bottom-200);
-        const points = [at(outlet,y+55,bottom),at(outlet,y+55,elbow),
-          at(outlet,L+35,Math.max(0,elbow-90)),at(outlet,L+35,35),at(outlet,L+85,15)];
-        for (let i=1;i<points.length;i++) line(points[i-1],points[i],'downspout-outline');
-        for (let i=1;i<points.length;i++) line(points[i-1],points[i],'downspout');
-      }
+      const elbow = Math.max(0,bottom-200);
+      const points = [at(outlet,y+55,bottom),at(outlet,y+55,elbow),
+        at(outlet,L+35,Math.max(0,elbow-90)),at(outlet,L+35,35),at(outlet,L+85,15)];
+      for (let i=1;i<points.length;i++) line(points[i-1],points[i],'downspout-outline');
+      for (let i=1;i<points.length;i++) line(points[i-1],points[i],'downspout');
 
-      if (iso || front || plan) {
-        if (iso || plan) face([at(left,back,lip),at(right,back,lip),at(right,edge,lip),at(left,edge,lip)],
+      if (iso || front) {
+        if (iso) face([at(left,back,lip),at(right,back,lip),at(right,edge,lip),at(left,edge,lip)],
           '#fff',{class:'face eave-gutter'});
-        if (!plan) face([at(left,edge,lip),at(right,edge,lip),at(right,edge-25,bottom),at(left,edge-25,bottom)],
+        face([at(left,edge,lip),at(right,edge,lip),at(right,edge-25,bottom),at(left,edge-25,bottom)],
           '#f3f5f5',{class:'face eave-gutter'});
       } else {
         face([at(0,back,lip),at(0,edge,lip),at(0,edge-25,bottom),at(0,back+20,bottom)],
@@ -812,18 +835,19 @@ export function initDesigner() {
     function drawTiles() {
       const start = roofLeft, end = roofRight, eaveY = L+F;
       const count = Math.round((end-start)/tileWidth);
-      const courses = Math.ceil(eaveY/tileRun);
+      const courses = Math.ceil((eaveY-housePlanRecession)/tileRun);
       const elevation = !iso && !front;
       if (elevation ? courses > 80 : count > 65 || (iso && count*courses > 1800)) {
-        note([W/2,eaveY/2,R+roofDepth-slope*eaveY/2],'Tile profiles too dense to show',-10);
+        const centre = (housePlanRecession+eaveY)/2;
+        note(roofAt(W/2,centre),'Tile profiles too dense to show',-10);
         return;
       }
-      const at = (x,y,h) => [x,y,R+roofDepth-slope*y+h];
+      const at = (x,y,h) => roofAt(x,y,h);
       if (elevation) {
         const x = side === 'left' ? start : end;
         for (let row=0; row<courses; row++) {
           const b = eaveY-row*tileRun;
-          const a = Math.max(0,b-tileRun);
+          const a = Math.max(housePlanRecession,b-tileRun);
           const shoulder = b-Math.min((b-a)*.22,55);
           face([at(x,a,0),at(x,b,0),at(x,b,tileRise),at(x,shoulder,tileRise),at(x,a,tileRise*.6)],
             tileEdgeTones[row%2],{class:'face tile-course-side'});
@@ -845,7 +869,7 @@ export function initDesigner() {
       }
       if (iso) {
         for (const {a,b,h1,h2,tone} of [...strips].reverse()) {
-          face([at(a,0,h1),at(b,0,h2),at(b,eaveY,h2),at(a,eaveY,h1)],tone,{class:'tile-facet'});
+          face([at(a,housePlanRecession,h1),at(b,housePlanRecession,h2),at(b,eaveY,h2),at(a,eaveY,h1)],tone,{class:'tile-facet'});
         }
         for (let row=1; row<courses; row++) {
           const y = eaveY-row*tileRun;
@@ -866,27 +890,26 @@ export function initDesigner() {
       const span = roofWidth;
       const spacing = Math.max(350,span/120);
       for (let x=roofLeft+spacing;x<roofRight;x+=spacing) {
-        line(roofAt(x,0,8),roofAt(x,L+F,8),'roof-standing-seam');
+        line(roofAt(x,housePlanRecession,8),roofAt(x,L+F,8),'roof-standing-seam');
         if (pitch < 14 && x+10 < roofRight) {
-          line(roofAt(x+10,0,9),roofAt(x+10,L+F,9),'roof-standing-seam');
+          line(roofAt(x+10,housePlanRecession,9),roofAt(x+10,L+F,9),'roof-standing-seam');
         }
       }
     }
 
     function drawStandingFlashing() {
       const {left,right,bottom,top,coverRise} = flashing;
-      const apron = Math.min(150,L+F);
+      const apron = housePlanRecession+Math.min(150,L+F-housePlanRecession);
       const metal = '#555b5c';
-      face([roofAt(left,0,coverRise+2),roofAt(right,0,coverRise+2),
+      face([roofAt(left,housePlanRecession,coverRise+2),roofAt(right,housePlanRecession,coverRise+2),
         roofAt(right,apron,coverRise+2),roofAt(left,apron,coverRise+2)],
       metal,{class:'face roof-abutment-flashing'});
       if (sideElevation) {
-        line([0,0,bottom],[0,0,top],'roof-standing-flashing-edge');
-      } else if (!plan) {
-        face([[left,1,bottom],[right,1,bottom],[right,1,top],[left,1,top]],
-          metal,{class:'face roof-standing-flashing'});
+        line([0,housePlanRecession,bottom],[0,housePlanRecession,top],'roof-standing-flashing-edge');
       } else {
-        line([left,0,bottom],[right,0,bottom],'roof-standing-flashing-edge');
+        face([[left,housePlanRecession+1,bottom],[right,housePlanRecession+1,bottom],
+          [right,housePlanRecession+1,top],[left,housePlanRecession+1,top]],
+          metal,{class:'face roof-standing-flashing'});
       }
     }
 
@@ -898,11 +921,11 @@ export function initDesigner() {
         roofAt(end,eave,-10),roofAt(start,eave,-10)
       ],metal,{class:'face roof-eave-flashing'});
       face([
-        roofAt(start,0,-10),roofAt(start+22,0,-10),
+        roofAt(start,housePlanRecession,-10),roofAt(start+22,housePlanRecession,-10),
         roofAt(start+22,eave,-10),roofAt(start,eave,-10)
       ],metal,{class:'face roof-verge-flashing'});
       face([
-        roofAt(end-22,0,-10),roofAt(end,0,-10),
+        roofAt(end-22,housePlanRecession,-10),roofAt(end,housePlanRecession,-10),
         roofAt(end,eave,-10),roofAt(end-22,eave,-10)
       ],metal,{class:'face roof-verge-flashing'});
       drawStandingFlashing();
@@ -912,12 +935,12 @@ export function initDesigner() {
           roofAt(x+rafterWidth,eave,-10),roofAt(x,eave,-10)
         ],'#c18a5f',{class:'face roof-rafter-tail'});
       }
-      line(roofAt(start,0,-15),roofAt(start,eave,-15),'roof-bargeboard');
-      line(roofAt(start+25,0,-18),roofAt(start+25,eave,-18),'roof-bargeboard-secondary');
-      line(roofAt(end,0,-15),roofAt(end,eave,-15),'roof-bargeboard');
-      line(roofAt(end-25,0,-18),roofAt(end-25,eave,-18),'roof-bargeboard-secondary');
+      line(roofAt(start,housePlanRecession,-15),roofAt(start,eave,-15),'roof-bargeboard');
+      line(roofAt(start+25,housePlanRecession,-18),roofAt(start+25,eave,-18),'roof-bargeboard-secondary');
+      line(roofAt(end,housePlanRecession,-15),roofAt(end,eave,-15),'roof-bargeboard');
+      line(roofAt(end-25,housePlanRecession,-18),roofAt(end-25,eave,-18),'roof-bargeboard-secondary');
       line(roofAt(start,eave,-15),roofAt(end,eave,-15),'roof-eave-fascia');
-      line(roofAt(start,0,-20),roofAt(end,0,-20),'roof-underlayment-edge');
+      line(roofAt(start,housePlanRecession,-20),roofAt(end,housePlanRecession,-20),'roof-underlayment-edge');
     }
 
     function drawPiers() {
@@ -949,8 +972,8 @@ export function initDesigner() {
     }
 
     function drawHouseFacade() {
-      const section = (u,d,z) => [u,-d,z];
-      const baseSection = (u,d,z) => [u,-houseBaseRecession-d,z];
+      const section = (u,d,z) => [u,housePlanRecession-d,z];
+      const baseSection = (u,d,z) => [u,-d,z];
       const facade = {start:houseA,end:houseB,top:() => houseWallHeight};
       if (houseBaseHeight > 0) {
         face([houseBaseAt(houseA,slabBase),houseBaseAt(houseB,slabBase),houseBaseAt(houseB,houseBaseTop),houseBaseAt(houseA,houseBaseTop)],
@@ -993,19 +1016,19 @@ export function initDesigner() {
       const foundationTop = Math.min(0,houseBaseTop);
       if (foundationTop > slabBase) {
         face([
-          at(-houseBaseRecession,slabBase),at(0,slabBase),
-          at(0,foundationTop),at(-houseBaseRecession,foundationTop)
+          at(0,slabBase),at(housePlanRecession,slabBase),
+          at(housePlanRecession,foundationTop),at(0,foundationTop)
         ],'#8e9b92',{class:'face side-wall-basement-junction','data-layer':'cover'});
       }
       const wallBottom = Math.max(0,slabBase);
       if (houseBaseTop > wallBottom) {
         face([
-          at(-houseBaseRecession,wallBottom),at(0,wallBottom),
-          at(0,houseBaseTop),at(-houseBaseRecession,houseBaseTop)
+          at(0,wallBottom),at(housePlanRecession,wallBottom),
+          at(housePlanRecession,houseBaseTop),at(0,houseBaseTop)
         ],visible('cover') ? wallColour.cover : wallColour.studs,
         {class:'face side-wall-basement-junction','data-layer':visible('cover') ? 'cover' : 'studs'});
       }
-      line(at(-houseBaseRecession,slabBase),at(-houseBaseRecession,houseBaseTop),
+      line(at(0,slabBase),at(0,houseBaseTop),
         'face',{'data-layer':'cover'});
     }
 
@@ -1158,7 +1181,7 @@ export function initDesigner() {
 
     function drawHedge() {
       const points = (profile) => profile.map(([offset,height]) =>
-        [0,hedgeDistance+offset*hedgeHalfDepth,slabBase+hedgeHeight*height]);
+        [0,topHedgeCentre+offset*hedgeHalfDepth,slabBase+hedgeHeight*height]);
       face(points([
         [-1,0],[-1,.89],[-.97,.95],[-.88,.98],[-.62,.99],[-.4,.98],
         [-.2,1],[.18,1],[.42,.98],[.68,.99],[.89,.97],[.97,.94],[1,.88],[1,0]
@@ -1173,7 +1196,7 @@ export function initDesigner() {
       const plantScale = 1.2;
       const plant = (centre, profile, colour, kind) => face(
         profile.map(([offset,height]) =>
-          [0,hedgeDistance-hedgeHalfDepth-centre+offset*plantScale,slabBase+height*plantScale]),
+          [0,topHedgeCentre-hedgeHalfDepth-centre+offset*plantScale,slabBase+height*plantScale]),
         colour,{class:`hedge-plant ${kind}`});
       for (const [centre,size] of [[200,.85],[460,1]]) {
         for (const [reach,height,colour] of [
@@ -1219,12 +1242,59 @@ export function initDesigner() {
     }
 
     if (plan) {
-      const planA = Math.max(houseA,-planMargin), planB = Math.min(houseB,W+planMargin);
-      if (planA < planB) {
-        face([ground(planA,-Math.min(520,L*.22)),ground(planB,-Math.min(520,L*.22)),ground(planB,0),ground(planA,0)],
-          houseColor,{class:'face house-plan'});
+      face([ground(roofLeft-gradeMargin,topHedgeCentre-hedgeHalfDepth),
+        ground(roofRight+gradeMargin,topHedgeCentre-hedgeHalfDepth),
+        ground(roofRight+gradeMargin,topHedgeCentre+hedgeHalfDepth),
+        ground(roofLeft-gradeMargin,topHedgeCentre+hedgeHalfDepth)],
+      '#617c4d',{class:'face hedge-plan'});
+      const planA = Math.max(houseA,0), planB = Math.min(houseB,W);
+      const houseFace = housePlanRecession;
+      const entryCentre = houseEntryOffset-slabOriginOffset;
+      const entryLeft = entryCentre-houseEntryWidth/2, entryRight = entryCentre+houseEntryWidth/2;
+      const entryVisible = entryRight > planA && entryLeft < planB && planA < planB;
+      const wallSpans = entryVisible
+        ? [[planA,Math.min(planB,entryLeft)],[Math.max(planA,entryRight),planB]]
+        : [[planA,planB]];
+      face(slab, '#f8f6e8',{class:'slab-plan'});
+      for (const [a,b] of [[ground(0,0),ground(0,L)],[ground(0,L),ground(W,L)],[ground(W,L),ground(W,0)]]) {
+        line(a,b,'slab-plan-edge');
       }
-      face(slab, '#f8f6e8');
+      const rearSpans = entryVisible
+        ? [[0,Math.max(0,entryLeft)],[Math.min(W,entryRight),W]]
+        : [[0,W]];
+      for (const [start,end] of rearSpans) {
+        if (start < end) line(ground(start,0),ground(end,0),'slab-plan-edge',{'data-edge':'rear'});
+      }
+      for (const [start,end] of wallSpans) {
+        if (start < end) face([ground(start,-T),ground(end,-T),
+          ground(end,houseFace),ground(start,houseFace)],houseColor,{class:'face house-plan'});
+      }
+      for (const [kind,inner,outer,colour] of [
+        ['base',houseCoverBoardThickness,houseCoverBoardThickness+houseBaseBoardThickness,'hsl(var(--cladding-hue) 65% 82%)'],
+        ['cover',0,houseCoverBoardThickness,'hsl(var(--cladding-hue) 75% 91%)']
+      ]) {
+        for (const [a,b] of courses(kind,houseB-houseA,claddingSpacing,houseBaseBoardWidth,houseCoverBoardWidth)) {
+          for (const [start,end] of wallSpans) {
+            const left = Math.max(start,houseA+a), right = Math.min(end,houseA+b);
+            if (left < right) face([ground(left,houseFace-inner),ground(right,houseFace-inner),
+              ground(right,houseFace-outer),ground(left,houseFace-outer)],colour,
+            {class:'house-cladding-plan','data-house-layer':kind});
+          }
+        }
+      }
+      if (entryVisible) {
+        const back = houseFace-houseEntryDepth, treadDepth = 250, stairEnd = back-2*treadDepth;
+        face([ground(entryLeft,houseFace),ground(entryRight,houseFace),ground(entryRight,back),ground(entryLeft,back)],
+          '#cbd1ce',{class:'house-entry-floor'});
+        for (const [left,right,direction] of [[entryLeft,entryCentre,'up'],[entryCentre,entryRight,'down']]) {
+          face([ground(left,back),ground(right,back),ground(right,stairEnd),ground(left,stairEnd)],
+            direction === 'up' ? '#e4ba89' : '#d9ab76',
+            {class:'face house-entry-stair','data-direction':direction});
+          line(ground(left,back-treadDepth),ground(right,back-treadDepth),'house-entry-tread');
+        }
+        line(ground(entryLeft,houseFace),ground(entryLeft,back),'house-entry-wall');
+        line(ground(entryRight,houseFace),ground(entryRight,back),'house-entry-wall');
+      }
       if (groundHidden) drawPiers();
       if (groundHidden && (roofTiles || roofFraming)) face(roof,'none',{style:`stroke:${roofPaint}`,'stroke-dasharray':'7 5'});
       planWall((u,d) => ground(d,u),L-T,door,'door');
@@ -1232,14 +1302,10 @@ export function initDesigner() {
       planWall((u,d) => ground(u,L-d),W,windows.front,'front');
       drawEntryStep();
       if (roofFraming) drawRafters();
-      if (roofTiles) {
-        drawStandingFlashing();
-        drawGutter();
-      }
       shapes.push(['door-leaf', []]);
-      if (planA < planB) note(ground((planA+planB)/2,-Math.min(260,L*.11)),'Existing house',-7);
+      if (planA < planB && !entryVisible) note(ground((planA+planB)/2,(houseFace-T)/2),'Existing house',-7);
       note(ground(T,(door.start+door.end)/2),'Left door',-9,'start');
-      dimension(ground(0,L+F), ground(W,L+F), [0,35], mm(W));
+      dimension(ground(0,L+F), ground(W,L+F), [0,0], mm(W));
       dimension(ground(roofLeft,0), ground(roofLeft,L), [-43,0], mm(L));
     } else {
       if (iso || front) drawHouseFacade();
@@ -1258,18 +1324,18 @@ export function initDesigner() {
       if (iso || !front) {
         if (!iso) {
           if (houseBaseHeight > 0) {
-            line([0,-houseBaseRecession,slabBase],[0,-houseBaseRecession,houseBaseTop],
+            line([0,0,slabBase],[0,0,houseBaseTop],
               'house-concrete-base',{stroke:houseBaseColor,'stroke-width':2.5});
             if (houseBaseRecession > 0) {
-              line([0,-houseBaseRecession,slabBase],[0,0,slabBase],
+              line([0,0,slabBase],[0,housePlanRecession,slabBase],
                 'house-concrete-base',{stroke:houseBaseColor,'stroke-width':2.5});
-              line([0,-houseBaseRecession,houseBaseTop],[0,0,houseBaseTop],
+              line([0,0,houseBaseTop],[0,housePlanRecession,houseBaseTop],
                 'house-base-reveal',{stroke:'#858b81','stroke-width':1.7});
             }
           }
-          line([0,0,houseBaseTop],[0,0,houseWallHeight],'face',
+          line([0,housePlanRecession,houseBaseTop],[0,housePlanRecession,houseWallHeight],'face',
             {style:'stroke:#778a7b;stroke-width:1.7;stroke-dasharray:5 4'});
-          note([0,0,houseWallHeight],'House wall',-9);
+          note([0,housePlanRecession,houseWallHeight],'House wall',-9);
         }
         foundation(sideAt(side === 'right' ? W : 0),L,'#8e9b92');
         drawWall(sideSection(side),L,wallTop,side === 'left' ? door : windows.right,side === 'left' ? 'door' : 'right');
@@ -1286,7 +1352,7 @@ export function initDesigner() {
         drawRafters();
         orderScene(rafters);
       } else if (roofTiles && (iso || front)) {
-        if (iso) face([roof[0],roof[3],[roofLeft,L+F,E],[roofLeft,0,R]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
+        if (iso) face([roof[0],roof[3],[roofLeft,L+F,E],[roofLeft,housePlanRecession,R]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
         face(roof,roofPaint,{class:'face roof-covering'});
         face([roof[2],roof[3],[roofLeft,L+F,E],[roofRight,L+F,E]],material==='tiles' ? tileEdgeTones[0] : roofPaint);
         drawRoofCovering();
@@ -1294,12 +1360,12 @@ export function initDesigner() {
       }
       if (!iso && !front) {
         if (roofTiles) {
-          face([[0,0,R],[0,L+F,E],[0,L+F,E+roofDepth],[0,0,R+roofDepth]],roofPaint);
+          face([[0,housePlanRecession,R],[0,L+F,E],[0,L+F,E+roofDepth],[0,housePlanRecession,R+roofDepth]],roofPaint);
           drawRoofCovering();
           drawRoofEdgeDetails();
         }
         if (roofTiles || roofFraming) {
-          note([0,(L+F)/2,(R+E)/2+roofDepth+(roofTiles&&material==='tiles' ? tileRise : 0)],`${fmt(pitch)}\u00b0 pitch`,-13);
+          note([0,(housePlanRecession+L+F)/2,(R+E)/2+roofDepth+(roofTiles&&material==='tiles' ? tileRise : 0)],`${fmt(pitch)}\u00b0 pitch`,-13);
         }
       }
       if (roofTiles) drawGutter();
@@ -1366,7 +1432,7 @@ export function initDesigner() {
           m('doorWidth','Door width',[0,door.start,0],[0,door.end,0],doorVisible),
           m('doorHeight','Door height',[0,door.start,0],[0,door.start,door.top],iso||left,doorHeight,[-14,0]),
           m('doorThickness','Leaf thickness',[0,hingeY,door.top],[doorThickness,hingeY,door.top],plan||iso,doorThickness),
-          m('offset','Offset from house',[0,0,0],[0,door.start,0],doorVisible,offset,[0,12]),
+          m('offset','Offset from house',[0,housePlanRecession,0],[0,door.start,0],doorVisible,offset,[0,12]),
           m('trimWidth','Trim width',[0,door.start-latest.trimWidth,door.top/2],[0,door.start,door.top/2],
             visible('trim')&&(iso||left)&&latest.trimWidth<=door.start)
         ];
@@ -1418,14 +1484,14 @@ export function initDesigner() {
           m('roofWidth','Total roof width',[roofLeft,L,E+roofDepth],[roofRight,L,E+roofDepth],onFacade||plan),
           m('doorSideOverhang','Door-side overhang',[0,L,E+roofDepth],[roofLeft,L,E+roofDepth],onFacade||plan),
           m('rightOverhang','Opposite overhang',[W,L,E+roofDepth],[roofRight,L,E+roofDepth],onFacade||plan,rightOverhang),
-          m('flashingHeight','Standing flashing height',[roofLeft,0,flashing.bottom],[roofLeft,0,flashing.top],
+          m('flashingHeight','Standing flashing height',[roofLeft,housePlanRecession,flashing.bottom],[roofLeft,housePlanRecession,flashing.top],
             roofTiles&&!plan,latest.flashingHeight,[-12,0])
         ];
         case 'roofTiles': {
           const y = L+F, x = roofLeft, z = E+roofDepth;
           return [
             m('tileWidth','Tile covering width',[x,y,z],[x+tileWidth,y,z],roofTiles&&material==='tiles'&&onFacade&&tileWidth<=roofWidth),
-            m('tileLength','Exposed tile length',[x,y,z],[x,y-tileRun,z+slope*tileRun],roofTiles&&material==='tiles'&&(iso||left||right)&&tileRun<=y),
+            m('tileLength','Exposed tile length',[x,y,z],[x,y-tileRun,z+slope*tileRun],roofTiles&&material==='tiles'&&(iso||left||right)&&tileRun<=y-housePlanRecession),
             m('tileRise','Profile rise',[x+tileWidth/(2*tileSystems[tileWidth].waves),y,z],[x+tileWidth/(2*tileSystems[tileWidth].waves),y,z+tileRise],
               roofTiles&&material==='tiles'&&!plan&&tileWidth/2<=roofWidth,tileRise,[8,0])
           ];
@@ -1434,7 +1500,7 @@ export function initDesigner() {
           const c = roofLeft+rafterWidth/2, z = E+roofDepth;
           const visible = roofFraming&&(onFacade||plan);
           const perpendicular = rafterDepth/Math.hypot(1,slope);
-          const startY = (L+F)/2, startZ = R-slope*startY;
+          const startY = (housePlanRecession+L+F)/2, startZ = wallTop(startY);
           return [
             m('rafterSpacing','Rafter centres',[c,L+F,z],[c+rafterSpacing,L+F,z],
               visible&&roofLeft+rafterSpacing+rafterWidth<=roofRight-rafterWidth),
@@ -1459,13 +1525,36 @@ export function initDesigner() {
           m('houseWallWidth','House wall width',houseAt(houseA,houseWallHeight),houseAt(houseB,houseWallHeight),onFacade),
           m('houseWallHeight','House wall height',houseAt(houseB,slabBase),houseAt(houseB,houseWallHeight),onFacade,houseHeightAboveGround,[15,0]),
           m('houseBaseHeight','Concrete base height',houseBaseAt(houseA,slabBase),
-            houseBaseAt(houseA,houseBaseTop),onFacade,houseBaseHeight,[-15,0])
+            houseBaseAt(houseA,houseBaseTop),onFacade,houseBaseHeight,[-15,0]),
+          m('houseBaseBoardWidth','House base-board width',
+            houseAt(houseA+claddingSpacing/2-houseBaseBoardWidth/2,houseBaseTop),
+            houseAt(houseA+claddingSpacing/2+houseBaseBoardWidth/2,houseBaseTop),onFacade),
+          m('houseCoverBoardWidth','House cover-board width',
+            houseAt(houseA+claddingSpacing-houseCoverBoardWidth/2,houseBaseTop),
+            houseAt(houseA+claddingSpacing+houseCoverBoardWidth/2,houseBaseTop),onFacade),
+          m('houseBaseBoardThickness','House base-board thickness',
+            ground(houseA+claddingSpacing/2,housePlanRecession-houseCoverBoardThickness-houseBaseBoardThickness),
+            ground(houseA+claddingSpacing/2,housePlanRecession-houseCoverBoardThickness),plan),
+          m('houseCoverBoardThickness','House cover-board thickness',
+            ground(houseA+claddingSpacing,housePlanRecession-houseCoverBoardThickness),
+            ground(houseA+claddingSpacing,housePlanRecession),plan)
         ];
+        case 'houseEntry': {
+          const centre = houseEntryOffset-slabOriginOffset;
+          const left = centre-houseEntryWidth/2, right = centre+houseEntryWidth/2;
+          const face = housePlanRecession;
+          return [
+            m('houseEntryWidth','Entry width',ground(left,face-houseEntryDepth),ground(right,face-houseEntryDepth),plan),
+            m('houseEntryDepth','Entry depth',ground(left,face),ground(left,face-houseEntryDepth),plan,houseEntryDepth,[-15,0]),
+            m('houseEntryOffset','Entry centre from origin',ground(-slabOriginOffset,face),ground(centre,face),plan)
+          ];
+        }
         case 'hedge': return [
-          m('hedgeDistance','Distance from house',[0,0,slabBase],[0,hedgeDistance,slabBase],
-            sideElevation,hedgeDistance,[0,17]),
-          m('hedgeHeight','Hedge height',[0,hedgeDistance,slabBase],
-            [0,hedgeDistance,slabBase+hedgeHeight],sideElevation,hedgeHeight,side==='left'?[20,0]:[-20,0])
+          m('hedgeDistance','Distance from house',[0,housePlanRecession,slabBase],
+            [0,topHedgeCentre,slabBase],sideElevation||plan,hedgeDistance,
+            plan?[-15,0]:[0,17]),
+          m('hedgeHeight','Hedge height',[0,topHedgeCentre,slabBase],
+            [0,topHedgeCentre,slabBase+hedgeHeight],sideElevation,hedgeHeight,side==='left'?[20,0]:[-20,0])
         ];
         default: {
           const basement = basementOpenings.find(w => w.key===section);
@@ -1638,11 +1727,11 @@ export function initDesigner() {
           ...(attrs['vector-effect'] && {'vector-effect':attrs['vector-effect']})},parent);
       }
     }
-    const names = { '3d':'3D porch sketch', front:'Front elevation', left:'Left elevation', right:'Right elevation', plan:'Top-down plan' };
+    const names = { '3d':'3D porch sketch', front:'Front elevation', left:'Left elevation', right:'Right elevation', plan:'Top view' };
     node('title',{id:'drawing-title'},timberOnly ? `${names[view]} — wall timber` : names[view],group);
     paintDoor = undefined;
     doorButton.disabled = !doorVisible;
-    doorButton.title = doorVisible ? 'Preview the outward door swing' : 'Available in 3D, Left, and Plan';
+    doorButton.title = doorVisible ? 'Preview the outward door swing' : 'Available in 3D, Left, and Top view';
     for (const [tag,points,attrs,original] of shapes) {
       if (tag === 'door-leaf') drawDoorLeaf();
       else drawShape(tag,points,attrs,original);

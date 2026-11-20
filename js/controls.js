@@ -85,7 +85,8 @@ export function createControls($) {
       }
       const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, '')}`
         : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}`
-          : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}` : title;
+          : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}`
+            : group === 'houseCladding' ? `Existing house: ${title.toLowerCase()}` : title;
       input.setAttribute('aria-label', unit ? `${fieldTitle} (${unit === 'mm' ? 'millimetres' : 'degrees'})` : fieldTitle);
       const suffix = document.createElement('span');
       suffix.className = 'unit';
@@ -195,6 +196,17 @@ export function createControls($) {
     ['houseWallHeight', 'House wall height above ground', 4540, 2500, 'mm', 12400, 1],
     ['houseBaseHeight', 'Concrete base height', 600, 0, 'mm', 3000, 1],
     ['houseBaseRecession', 'Basement recession', 100, 0, 'mm', 500, 1]
+  ]);
+  addFields('houseCladding', [
+    ['houseBaseBoardWidth', 'Base-board width', 145, 20, 'mm', 500, 1],
+    ['houseBaseBoardThickness', 'Base-board thickness', 22, 1, 'mm', 100, 1],
+    ['houseCoverBoardWidth', 'Cover-board width', 120, 20, 'mm', 500, 1],
+    ['houseCoverBoardThickness', 'Cover-board thickness', 22, 1, 'mm', 100, 1]
+  ]);
+  addFields('houseEntry', [
+    ['houseEntryWidth', 'Entry width', 2000, 400, 'mm', 10000, 1],
+    ['houseEntryDepth', 'Entry depth', 1200, 200, 'mm', 10000, 1],
+    ['houseEntryOffset', 'Entry centre from origin', 4894, -40000, 'mm', 40000, 1]
   ]);
   addFields('hedge', [
     ['hedgeDistance', 'Distance from house', 3500, 500, 'mm', 20000, 1],

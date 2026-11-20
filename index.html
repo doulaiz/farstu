@@ -31,7 +31,7 @@
             <button type="button" data-view="front" aria-pressed="false">Front</button>
             <button type="button" data-view="left" aria-pressed="false">Left</button>
             <button type="button" data-view="right" aria-pressed="false">Right</button>
-            <button type="button" data-view="plan" aria-pressed="false">Plan</button>
+            <button type="button" data-view="plan" aria-pressed="false">Top view</button>
           </div>
           <label class="roof-display">Roof display
             <select id="roof-display" aria-controls="drawing">
@@ -49,7 +49,7 @@
               <button type="button" data-layer-preset="timber">Wall timber only</button>
               <button type="button" data-layer-preset="none">Hide wall layers</button>
               <div class="layer-options" role="group" aria-label="Farstu wall layers, outside to inside"></div>
-              <p class="hint">Farstu only, outside to inside. Uncheck outer layers to see what’s behind them. Plan shows the layers side by side. The ventilated gap is the space around the battens; layer thicknesses are schematic.</p>
+              <p class="hint">Farstu only, outside to inside. Uncheck outer layers to see what’s behind them. Top view shows the layers side by side. The ventilated gap is the space around the battens; layer thicknesses are schematic.</p>
             </div>
           </details>
         </div>
@@ -86,7 +86,7 @@
             <summary>Slab</summary>
             <div class="parameter-content">
               <div class="fields" id="slab"></div>
-              <p class="hint">Width is across the front; length is measured out from the house.</p>
+              <p class="hint">Width is across the front; length is measured from the basement face, or from the house façade when there is no concrete base.</p>
             </div>
           </details>
           <details class="parameter-section" name="foundation-parameters">
@@ -101,7 +101,7 @@
                 </select>
               </label>
               <div class="fields" id="footings"></div>
-              <p class="hint" id="footing-hint">The first number is across the slab width; the second is along its length, from the house out. Piers are evenly spaced on each axis. Depth is measured below the slab. Choose Hide ground, then Plan, to see every pier.</p>
+              <p class="hint" id="footing-hint">The first number is across the slab width; the second is along its length, from the house out. Piers are evenly spaced on each axis. Depth is measured below the slab. Choose Hide ground, then Top view, to see every pier.</p>
               <p class="hint">Diameters follow <a href="https://k-bygg.se/kategori/byggmaterial/block-sten-och-sand/gjutror">Swedish retail casting tubes</a>: 150, 190, 251, 302 and 403 mm. Depth is site-designed, not determined by tube size; verify frost protection and bearing capacity.</p>
             </div>
           </details>
@@ -125,7 +125,7 @@
                 <option value="rtl">RTL — hinges on the right</option>
               </select></label>
               <p class="hint">Left is as seen facing the house. Offset is measured from the existing house wall to the nearest edge of the door.</p>
-              <p class="hint">Hinge side is as seen from outside the door. Preview the outward swing in 3D, Left, or Plan.</p>
+              <p class="hint">Hinge side is as seen from outside the door. Preview the outward swing in 3D, Left, or Top view.</p>
               <p class="hint">Door opening dimensions use Swedish modules. Leaf thickness (40–100 mm) controls the solid swing preview; the door mass remains an area-based estimate.</p>
               <p class="hint" id="door-window-hint">Glazing styles follow common Swedish retail doors: a solid leaf, a narrow light above the handle, a framed upper rectangle, or a traditional semicircular fanlight with radial muntins. The narrow light follows the handle side. These are schematic proportions, not supplier glass-cutting dimensions; confirm the chosen door, safety glazing and performance with your supplier.</p>
               <p class="hint">The exterior step follows the door opening when its width or offset changes.</p>
@@ -145,7 +145,7 @@
             <p class="hint">The door and both farstu windows share the same trim width and colour. Set the width to zero to hide their casing. Existing-house window trims are unchanged.</p>
           </details>
           <p class="hint">Both windows are centred in their clear wall spans. New windows use Swedish module sizes M5–M15 (500–1500 mm) in each direction; these are rough openings, not frame outer dimensions. Check the chosen width/height combination and glazing with your supplier. Clearances can be entered independently. The last clearance edited stays fixed. Choose a muntin pattern for each window.</p>
-          <p class="hint">The casing runs along the sides and head; a sloped metal sill (fönsterbleck) replaces the bottom board. Head flashing (överbleck) is shown where there is room above the casing. Hiding Opening trim leaves the flashing visible. Plan shows the shallow frame setback.</p>
+          <p class="hint">The casing runs along the sides and head; a sloped metal sill (fönsterbleck) replaces the bottom board. Head flashing (överbleck) is shown where there is room above the casing. Hiding Opening trim leaves the flashing visible. Top view shows the shallow frame setback.</p>
           <p class="hint">Schematic only. Window units, flashing, frame screws, bearing blocks and perimeter seals are not priced in the lumber BOM. Confirm clearance, mounting and the drained exterior, insulated gap and airtight interior details with the window supplier.</p>
         </div>
       </details>
@@ -198,7 +198,7 @@
               <p class="hint">Tiles below 14° are rejected; tiles from 14° to 22° require a fully sealed high-grade underlayment. Standing-seam metal from 6° to 14° uses double-seamed joints. Manufacturer instructions and project-specific snow, wind, drainage, and building requirements take precedence.</p>
               <p class="hint" id="roof-guidance" role="status"></p>
               <p class="hint" id="tile-layout-guidance" role="status" hidden></p>
-              <p class="hint">The roof-to-house junction has a standing flashing (ståndskiva); its height is measured above the roof covering. This and the bargeboards and other flashings are schematic; confirm the actual detailing with a roofer. The front eave includes a drip edge, half-round gutter, and right-hand downpipe. Snow retention and roof access equipment are not included; have them specified separately for the site and local requirements.</p>
+              <p class="hint">The roof-to-house junction has a standing flashing (ståndskiva); its height is measured above the roof covering. The flashing is hidden in Top view to show the entrance, but remains in the other views. This and the bargeboards and other flashings are schematic; confirm the actual detailing with a roofer. The front eave includes a drip edge, half-round gutter, and right-hand downpipe. Snow retention and roof access equipment are not included; have them specified separately for the site and local requirements.</p>
             </div>
           </details>
           <details class="parameter-section" name="roof-parameters">
@@ -234,6 +234,16 @@
             <div class="parameter-content">
               <div class="fields" id="houseWall"></div>
               <p class="hint">The wall's left edge is measured from the origin. Wall and concrete base heights are measured above ground. Basement recession is how far the basement face is set back from the upper wall, toward the house.</p>
+              <p><strong>Existing house cladding</strong></p>
+              <div class="fields" id="houseCladding"></div>
+              <p class="hint">Board widths and thicknesses describe the existing house, not the new porch. Cover-board spacing remains shared with the porch. Top view shows the layers schematically. The slab meets the basement face; the upper wall projects over it by the basement recession. Its drawn depth is the porch wall thickness plus that recession, and must accommodate both cladding layers. With no concrete base, the wall meets the slab directly.</p>
+            </div>
+          </details>
+          <details class="parameter-section" name="house-parameters">
+            <summary>Existing entry</summary>
+            <div class="parameter-content">
+              <div class="fields" id="houseEntry"></div>
+              <p class="hint">The entry is inside the house, measured from its exterior wall. Its centre is measured from the house origin and remains fixed when the slab moves. Top view shows two schematic stairs beyond the back of the entry, up on the left and down on the right, with two 250 mm deep treads each. Check the actual stair dimensions and local requirements.</p>
             </div>
           </details>
           <p class="hint">Existing-house window widths and heights accept measured dimensions in 1 mm increments, including non-standard sizes. The upper window's centre is measured from the origin. Sill heights are measured above ground.</p>
@@ -262,7 +272,7 @@
             <summary>Hedge</summary>
             <div class="parameter-content">
               <div class="fields" id="hedge"></div>
-              <p class="hint">Distance is from the existing house wall to the hedge centre. Height is measured from ground level to the top of the hedge. The ferns and flowers sit on the house-facing side of the hedge. They appear with the hedge only in Left and Right views.</p>
+              <p class="hint">Distance is from the existing house wall to the hedge centre. Height is measured from ground level to the top of the hedge. Top view shows a schematic 900 mm deep hedge across the drawing; its length is not measured. The ferns and flowers appear only in Left and Right views.</p>
             </div>
           </details>
         </div>
@@ -377,7 +387,7 @@
     <details class="parameter-group">
       <summary>Method and material assumptions</summary>
       <div class="parameter-body">
-        <p class="hint">The slab is treated as supported only by the piers. Every load is shared between the neighbouring pier rows and columns with the lever rule (simple spans in both directions); loads outside the outer piers are cantilevered. Wall weights follow the stud layout, wall height and openings; rafters bear on the front wall and on the selected rear support, so a front overhang adds to the front piers. Drawing layer toggles do not change the estimate; the optional exterior insulation and roof safety/access equipment are excluded.</p>
+        <p class="hint">The slab is treated as supported only by the piers. Every load is shared between the neighbouring pier rows and columns with the lever rule (simple spans in both directions); loads outside the outer piers are cantilevered. Wall weights follow the stud layout, wall height and openings; rafters bear on the front wall and on the selected rear support at the house façade, so a front overhang adds to the front piers. Drawing layer toggles do not change the estimate; the optional exterior insulation and roof safety/access equipment are excluded.</p>
         <ul id="loads-assumptions" class="hint"></ul>
       </div>
     </details>

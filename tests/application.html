@@ -180,7 +180,8 @@ try {
     await load(true);
     const number = id => Number(field(id).value);
     const slope = Math.tan(number('pitch')*Math.PI/180);
-    const bottom = number('frontWallHeight')+slope*number('length')+
+    const recession = number('houseBaseHeight') > 0 ? number('houseBaseRecession') : 0;
+    const bottom = number('frontWallHeight')+slope*(number('length')-recession)+
       number('rafterDepth')*Math.hypot(1,slope)+8+2;
     const top = bottom+number('flashingHeight');
     const warning = () => field('flashing-warning').textContent;
@@ -221,9 +222,14 @@ try {
     edit('houseUpperSill',Math.floor(bottom+number('slabThickness')));
     for (const view of ['3d','front','left','right','plan']) {
       doc.querySelector(`[data-view="${view}"]`).click();
-      assert(doc.querySelector('.roof-abutment-flashing'),`Missing roof apron in ${view}`);
-      assert(doc.querySelector(view === '3d' || view === 'front'
-        ? '.roof-standing-flashing' : '.roof-standing-flashing-edge'),`Missing standing flashing in ${view}`);
+      if (view === 'plan') {
+        assert(!doc.querySelector('.roof-abutment-flashing, .roof-standing-flashing-edge'),
+          'Overhead flashing obscures the entrance in plan');
+      } else {
+        assert(doc.querySelector('.roof-abutment-flashing'),`Missing roof apron in ${view}`);
+        assert(doc.querySelector(view === '3d' || view === 'front'
+          ? '.roof-standing-flashing' : '.roof-standing-flashing-edge'),`Missing standing flashing in ${view}`);
+      }
     }
     edit('houseUpperOffset',4894);
     edit('houseUpperSill',gap+20);
@@ -311,6 +317,263 @@ try {
     assert(!doc.querySelector('.house-plan'),'An out-of-view house produced a phantom wall in plan');
   });
 
+  await check('Existing entry dimensions and stairs are fixed to the house in plan',async () => {
+    await load(true);
+    assert(doc.querySelector('[data-view="plan"]').textContent === 'Top view','Top view label is missing');
+    doc.querySelector('[data-view="plan"]').click();
+    assert(doc.querySelector('#drawing-title').textContent === 'Top view','Top view accessible title is missing');
+    const bounds = node => {
+      assert(node,'Missing entry geometry');
+      const points = node.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+      return {left:Math.min(...points.map(p => p[0])),right:Math.max(...points.map(p => p[0])),
+        top:Math.min(...points.map(p => p[1])),bottom:Math.max(...points.map(p => p[1]))};
+    };
+    const geometry = () => {
+      const floor = bounds(doc.querySelector('.house-entry-floor'));
+      const up = bounds(doc.querySelector('.house-entry-stair[data-direction="up"]'));
+      const down = bounds(doc.querySelector('.house-entry-stair[data-direction="down"]'));
+      const slab = bounds(doc.querySelector('.slab-plan'));
+      const scale = (slab.right-slab.left)/Number(field('width').value);
+      near((floor.right-floor.left)/scale,Number(field('houseEntryWidth').value),'Entry width');
+      near((floor.bottom-floor.top)/scale,Number(field('houseEntryDepth').value),'Entry depth');
+      near((floor.bottom-slab.top)/scale,Number(field('houseBaseHeight').value) > 0
+        ? Number(field('houseBaseRecession').value) : 0,'Entry front does not follow the house wall');
+      near(up.bottom,floor.top,'Up stairs do not meet entry back');
+      near(down.bottom,floor.top,'Down stairs do not meet entry back');
+      near(up.right,down.left,'Stairs are not side by side');
+      assert(doc.querySelectorAll('.house-entry-wall').length === 2,'Missing side walls');
+      const treads = [...doc.querySelectorAll('.house-entry-tread')];
+      assert(treads.length === 2,'Each stair should have two treads');
+      for (const [tread,stair] of [[treads[0],up],[treads[1],down]]) {
+        near(Number(tread.getAttribute('x1')),stair.left,'Tread start');
+        near(Number(tread.getAttribute('x2')),stair.right,'Tread end');
+        const division = Number(tread.getAttribute('y1'));
+        near((division-stair.top)/scale,250,'Outer tread depth');
+        near((stair.bottom-division)/scale,250,'Inner tread depth');
+      }
+      const brightness = direction => {
+        const colour = doc.querySelector(`.house-entry-stair[data-direction="${direction}"]`).getAttribute('fill');
+        return [1,3,5].reduce((sum,index) => sum+parseInt(colour.slice(index,index+2),16),0);
+      };
+      assert(brightness('up') > brightness('down'),'Up stairs should be lighter than down stairs');
+      assert(!doc.querySelector('.house-entry-arrow') &&
+        ![...doc.querySelectorAll('.annotation')].some(node => ['UP','DOWN'].includes(node.textContent)),
+      'Stair arrows and labels should not be shown');
+      return {floor,scale};
+    };
+    geometry();
+    edit('houseEntryWidth',2400);
+    edit('houseEntryDepth',1500);
+    edit('houseEntryOffset',5000);
+    geometry();
+    await load();
+    assert(field('houseEntryWidth').value === '2400' && field('houseEntryDepth').value === '1500' &&
+      field('houseEntryOffset').value === '5000','Entry settings did not survive reload');
+    const before = geometry();
+    const houseLeftBefore = bounds(doc.querySelector('.house-plan')).left;
+    edit('slabOriginOffset',3694);
+    const after = geometry();
+    const houseLeftAfter = bounds(doc.querySelector('.house-plan')).left;
+    // Both house plan strips begin at the slab's left edge here.
+    near((after.floor.left-houseLeftAfter)/after.scale-(before.floor.left-houseLeftBefore)/before.scale,
+      -200,'Moving the slab moved the entry with it');
+    field('houseEntryOffset').value = '20000';
+    field('houseEntryOffset').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent.includes('existing entry extends beyond'),
+      'An entry outside the house wall was accepted');
+    edit('houseEntryOffset',5000);
+    for (const roof of ['tiles','rafters','none']) {
+      change(field('roof-display'),roof);
+      geometry();
+    }
+    doc.querySelector('[data-view="front"]').click();
+    assert(!doc.querySelector('.house-entry-floor'),'Entry was drawn outside plan');
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    for (const key of ['houseEntryWidth','houseEntryDepth','houseEntryOffset']) delete saved.fields[key];
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('houseEntryWidth').value === '2000' && field('houseEntryDepth').value === '1200' &&
+      field('houseEntryOffset').value === '5094','Older settings did not acquire a centred entry');
+  });
+
+  await check('Plan house wall is clipped to the porch and entry opening',async () => {
+    await load(true);
+    doc.querySelector('[data-view="plan"]').click();
+    const bounds = node => {
+      const points = node.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+      return {left:Math.min(...points.map(p => p[0])),right:Math.max(...points.map(p => p[0])),
+        top:Math.min(...points.map(p => p[1])),bottom:Math.max(...points.map(p => p[1]))};
+    };
+    const checkSpans = (wallSpans,rearSpans) => {
+      const slab = bounds(doc.querySelector('.slab-plan'));
+      const scale = (slab.right-slab.left)/Number(field('width').value);
+      const walls = [...doc.querySelectorAll('.house-plan')];
+      assert(walls.length === wallSpans.length,'Incorrect number of house wall sections');
+      walls.forEach((wall,i) => {
+        const box = bounds(wall);
+        near((box.left-slab.left)/scale,wallSpans[i][0],'House wall start');
+        near((box.right-slab.left)/scale,wallSpans[i][1],'House wall end');
+        const recession = Number(field('houseBaseHeight').value) > 0 ? Number(field('houseBaseRecession').value) : 0;
+        near((box.bottom-slab.top)/scale,recession,'House face does not project by the basement recession');
+        near((slab.top-box.top)/scale,Number(field('wallThickness').value),'House wall rear edge');
+        near((box.bottom-box.top)/scale,Number(field('wallThickness').value)+recession,'House wall depth');
+      });
+      const rear = [...doc.querySelectorAll('.slab-plan-edge[data-edge="rear"]')];
+      assert(rear.length === rearSpans.length,'Incorrect number of rear slab edges');
+      rear.forEach((edge,i) => {
+        near((Number(edge.getAttribute('x1'))-slab.left)/scale,rearSpans[i][0],'Rear edge start');
+        near((Number(edge.getAttribute('x2'))-slab.left)/scale,rearSpans[i][1],'Rear edge end');
+      });
+    };
+    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    edit('houseBaseRecession',270);
+    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    edit('houseBaseRecession',500);
+    field('toggle-ground').click();
+    const floor = doc.querySelector('.house-entry-floor');
+    const piers = [...doc.querySelectorAll('.pier')];
+    assert(piers.length === 6 && piers.every(pier =>
+      floor.compareDocumentPosition(pier) & win.Node.DOCUMENT_POSITION_FOLLOWING),
+    'The entry floor obscures piers when the ground is hidden');
+    field('toggle-ground').click();
+    edit('offset',500);
+    edit('wallThickness',170);
+    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    edit('houseBaseHeight',0);
+    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    edit('houseBaseHeight',600);
+    edit('houseBaseRecession',100);
+    edit('wallThickness',145);
+    edit('houseEntryOffset',3294);
+    checkSpans([[800,2800]],[[800,2800]]);
+    edit('houseEntryOffset',6494);
+    checkSpans([[0,2000]],[[0,2000]]);
+    edit('houseEntryOffset',8494);
+    checkSpans([[0,2800]],[[0,2800]]);
+    edit('houseEntryOffset',4894);
+    edit('houseEntryWidth',4000);
+    checkSpans([],[]);
+    edit('houseEntryWidth',2000);
+    edit('slabOriginOffset',-1000);
+    checkSpans([[495,2800]],[[0,2800]]);
+  });
+
+  await check('Top view hedge follows the house and remains visible with ground hidden',async () => {
+    await load(true);
+    doc.querySelector('[data-view="plan"]').click();
+    const bounds = node => {
+      assert(node,'Missing top view geometry');
+      const points = node.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+      return {left:Math.min(...points.map(p => p[0])),right:Math.max(...points.map(p => p[0])),
+        top:Math.min(...points.map(p => p[1])),bottom:Math.max(...points.map(p => p[1]))};
+    };
+    const verify = () => {
+      const slab = bounds(doc.querySelector('.slab-plan'));
+      const hedge = bounds(doc.querySelector('.hedge-plan'));
+      const scale = (slab.right-slab.left)/Number(field('width').value);
+      const recession = Number(field('houseBaseHeight').value) > 0 ? Number(field('houseBaseRecession').value) : 0;
+      near(((hedge.top+hedge.bottom)/2-slab.top)/scale,recession+Number(field('hedgeDistance').value),
+        'Hedge centre from house');
+      near((hedge.bottom-hedge.top)/scale,900,'Hedge depth');
+      assert(!doc.querySelector('.eave-gutter, .downspout, .downspout-outline'),'Top view contains a gutter');
+    };
+    verify();
+    edit('hedgeDistance',4200);
+    edit('houseBaseRecession',300);
+    verify();
+    field('toggle-ground').click();
+    verify();
+    assert(!doc.querySelector('.roof-ground-projection'),'Hidden ground retained the roof footprint');
+    field('toggle-ground').click();
+    edit('houseBaseHeight',0);
+    verify();
+    doc.querySelector('[data-view="3d"]').click();
+    assert(doc.querySelector('.eave-gutter'),'The gutter disappeared from 3D');
+    assert(!doc.querySelector('.hedge-plan'),'The top-view hedge appeared in 3D');
+  });
+
+  await check('Existing house board dimensions affect cladding without changing porch estimates',async () => {
+    await load(true);
+    field('show-bom').click();
+    const bomBefore = field('bom-rows').textContent;
+    field('show-loads').click();
+    const loadsBefore = field('loads-total').textContent;
+    field('show-designer').click();
+    for (const [id,value] of [
+      ['houseBaseBoardWidth',170],['houseBaseBoardThickness',31],
+      ['houseCoverBoardWidth',110],['houseCoverBoardThickness',19]
+    ]) edit(id,value);
+    field('show-bom').click();
+    assert(field('bom-rows').textContent === bomBefore,'House boards changed the porch lumber estimate');
+    field('show-loads').click();
+    assert(field('loads-total').textContent === loadsBefore,'House boards changed the porch load estimate');
+    field('show-designer').click();
+    const bounds = node => {
+      const points = node.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+      return {left:Math.min(...points.map(p => p[0])),right:Math.max(...points.map(p => p[0])),
+        top:Math.min(...points.map(p => p[1])),bottom:Math.max(...points.map(p => p[1]))};
+    };
+    const hasWidth = (nodes,scale,width) => nodes.some(node => {
+      const box = bounds(node);
+      return Math.abs((box.right-box.left)/scale-width) < .01;
+    });
+    doc.querySelector('[data-view="front"]').click();
+    const facade = bounds(doc.querySelector('.house-facade'));
+    const facadeScale = (facade.right-facade.left)/Number(field('houseWallWidth').value);
+    assert(hasWidth([...doc.querySelectorAll('.house-cladding-base')],facadeScale,170),
+      'House base-board width did not change the facade');
+    assert(hasWidth([...doc.querySelectorAll('.cladding-cover:not([data-layer])')],facadeScale,110),
+      'House cover-board width did not change the facade');
+    doc.querySelector('[data-view="plan"]').click();
+    const slab = bounds(doc.querySelector('.slab-plan'));
+    const scale = (slab.right-slab.left)/Number(field('width').value);
+    const boards = layer => [...doc.querySelectorAll(`.house-cladding-plan[data-house-layer="${layer}"]`)];
+    for (const [layer,width,thickness] of [['base',170,31],['cover',110,19]]) {
+      assert(hasWidth(boards(layer),scale,width),`${layer} board width did not change the plan`);
+      assert(boards(layer).every(node => {
+        const box = bounds(node);
+        return Math.abs((box.bottom-box.top)/scale-thickness) < .01;
+      }),`${layer} board thickness did not change the plan`);
+    }
+    const coverPoints = boards('cover').map(node => node.getAttribute('points')).join(';');
+    edit('baseBoardWidth',195);
+    assert(boards('cover').map(node => node.getAttribute('points')).join(';') === coverPoints,
+      'Changing porch boards altered house cladding');
+    const floorBefore = doc.querySelector('.house-entry-floor').getAttribute('points');
+    field('houseCoverBoardThickness').value = '0';
+    field('houseCoverBoardThickness').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent && field('houseCoverBoardThickness').getAttribute('aria-invalid') === 'true',
+      'Invalid house board thickness was accepted');
+    assert(doc.querySelector('.house-entry-floor').getAttribute('points') === floorBefore,
+      'Invalid board thickness changed the drawing');
+    edit('houseCoverBoardThickness',19);
+    edit('houseBaseBoardThickness',80);
+    edit('houseCoverBoardThickness',100);
+    field('houseBaseRecession').value = '0';
+    field('houseBaseRecession').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent.includes('cladding is thicker than the wall'),
+      'Cladding thicker than the drawn house wall was accepted');
+    edit('houseCoverBoardThickness',65);
+    edit('houseBaseRecession',100);
+    edit('houseBaseBoardThickness',31);
+    edit('houseCoverBoardThickness',19);
+    await load();
+    for (const [id,value] of [
+      ['houseBaseBoardWidth','170'],['houseBaseBoardThickness','31'],
+      ['houseCoverBoardWidth','110'],['houseCoverBoardThickness','19']
+    ]) assert(field(id).value === value,`${id} did not survive reload`);
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    for (const id of ['houseBaseBoardWidth','houseBaseBoardThickness','houseCoverBoardWidth','houseCoverBoardThickness']) {
+      delete saved.fields[id];
+    }
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('houseBaseBoardWidth').value === '145' && field('houseBaseBoardThickness').value === '22' &&
+      field('houseCoverBoardWidth').value === '120' && field('houseCoverBoardThickness').value === '22' &&
+      field('baseBoardWidth').value === '195' && !field('status').textContent,
+    'Older settings did not restore default house boards independently');
+  });
+
   await check('Legacy house coordinates migrate to whole millimetres with a rounding notice',async () => {
     await load(true);
     const saved = JSON.parse(localStorage.getItem(settingsKey));
@@ -357,9 +620,10 @@ try {
     await load(true);
     edit('pitch',14.25);
     const slope = Math.tan(14.25*Math.PI/180);
-    const rear = 2350+slope*2200;
+    const recession = Number(field('houseBaseHeight').value) > 0 ? Number(field('houseBaseRecession').value) : 0;
+    const rear = 2350+slope*(2200-recession);
     assert(field('rear').textContent === `${Math.round(rear).toLocaleString('en').replaceAll(',','\u202f')} mm`,'Rear height retained decimals');
-    assert(field('rise').textContent === `${Math.round(slope*2200).toLocaleString('en').replaceAll(',','\u202f')} mm`,'Roof rise retained decimals');
+    assert(field('rise').textContent === `${Math.round(slope*(2200-recession)).toLocaleString('en').replaceAll(',','\u202f')} mm`,'Roof rise retained decimals');
     assert(field('area').textContent === '6.16 m²','Area lost its precision');
     for (const input of doc.querySelectorAll('#settings input[type="number"]')) {
       if (input.id === 'pitch') continue;
@@ -401,7 +665,7 @@ try {
     const percent = createNumberFormat({style:'percent',maximumFractionDigits:1});
     assert(percent.format(.125) === '12.5\u00a0%','Percent spacing or precision is incorrect');
     await load(true);
-    assert(field('rear').textContent === '2\u202f899 mm','Millimetres do not use space grouping');
+    assert(field('rear').textContent === '2\u202f874 mm','Millimetres do not use space grouping');
     assert(field('doorWidth').querySelector('[value="1000"]').textContent === '1\u202f000 mm' &&
       field('doorWidth').value === '1000','Formatted options changed their numeric values');
     for (const view of ['3d','front','left','right','plan']) {

@@ -1,5 +1,5 @@
 import { clippedHeight, rafterStarts, wallMembers } from './framing.js';
-import { roofMaterials } from './roofing.js';
+import { roofMaterials, roofRearOffset, roofRun } from './roofing.js';
 
 export const gravity = 9.81;
 export const adultMass = 80;
@@ -78,9 +78,10 @@ function wallLoads(model, add) {
   const timber = densities.timber.value / 1e9;
   const layerKg = wallLayerMasses(model).reduce((sum, layer) => sum + layer.kg, 0) / 1e6;
   const cavityKg = densities.mineralWool.value * studDepth / 1e9 * Math.max(0, 1 - studWidth / studSpacing);
-  const sideTop = u => rear - slope * u;
+  const rearY = roofRearOffset(model);
+  const sideTop = u => rear + slope * (rearY-u);
   const walls = [
-    { end: L - T, top: sideTop, op: { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight },
+    { end: L - T, top: sideTop, op: { start: rearY+offset, end: rearY+offset+doorWidth, bottom: 0, top: doorHeight },
       at: u => [T / 2, u], kind: 'door' },
     { end: W, top: () => frontWallHeight, op: windows.front, at: u => [u, L - T / 2], kind: 'window' },
     { end: L - T, top: sideTop, op: windows.right, at: u => [W - T / 2, u], kind: 'window' }
@@ -122,24 +123,25 @@ function roofLoads(model, add) {
   const { width: W, length: L, wallThickness: T, roofWidth, doorSideOverhang: S, frontOverhang: F, slope,
     rafterWidth, rafterDepth, rafterSpacing } = model;
   const factor = Math.hypot(1, slope);
+  const rearY = roofRearOffset(model), run = roofRun(model);
   const roofRight = roofWidth-S;
   const rafters = rafterStarts(roofWidth, S, rafterWidth, rafterSpacing);
-  const rafterKg = rafterWidth * rafterDepth * (L + F) * factor * densities.timber.value / 1e9;
+  const rafterKg = rafterWidth * rafterDepth * run * factor * densities.timber.value / 1e9;
   const areaKg = (roofCoveringMasses[roofCovering(model)] + roofLayerMasses.deck + roofLayerMasses.underlayment) / 1e6 * factor;
   const point = (part, x, y, kg) => add('roof', part, x, y, kg);
   const step = 50;
   const ys = [];
-  for (let start = 0; start < L + F; start += step) {
+  for (let start = rearY; start < L + F; start += step) {
     const dy = Math.min(step, L + F - start);
     ys.push([start + dy / 2, dy]);
   }
-  for (const x0 of rafters) for (const [y, dy] of ys) point('rafters', x0 + rafterWidth / 2, y, rafterKg * dy / (L + F));
+  for (const x0 of rafters) for (const [y, dy] of ys) point('rafters', x0 + rafterWidth / 2, y, rafterKg * dy / run);
   for (let start = -S; start < roofRight; start += step) {
     const dx = Math.min(step, roofRight - start);
     const x = start + dx / 2;
     for (const [y, dy] of ys) point('covering', x, y, dx * dy * areaKg);
     point('edges', x, L + F, dx / 1000 * roofEdgeMasses.eave);
-    point('edges', x, 0, dx / 1000 * roofEdgeMasses.abutment);
+    point('edges', x, rearY, dx / 1000 * roofEdgeMasses.abutment);
   }
   for (const [y, dy] of ys) {
     for (const x of [-S, roofRight]) point('edges', x, y, dy / 1000 * factor * roofEdgeMasses.verge);
@@ -185,19 +187,20 @@ export function computeLoads(model, { people, rearSupport = 'beam' }) {
   }
   wallLoads(model, add);
 
-  // Rafters span from the rear support at the house wall (y = 0) to the front wall; the reactions
+  // Rafters span from the rear support at the house wall to the front wall; the reactions
   // follow the lever rule, so the front overhang increases the front-wall share.
   const frontY = L - T / 2;
+  const rearY = roofRearOffset(model);
   const sides = [T / 2, W - T / 2];
   roofLoads(model, (group, part, x, y, kg) => {
     details[`${group}:${part}`] = (details[`${group}:${part}`] ?? 0) + kg;
-    const front = kg * y / frontY;
+    const front = kg * (y-rearY) / (frontY-rearY);
     const rearKg = kg - front;
     onSlab('roof', Math.max(sides[0], Math.min(sides[1], x)), frontY, front);
     if (rearSupport === 'house') {
       totals.house += rearKg;
     } else {
-      for (const [i, share] of leverShares(x, sides)) onSlab('roof', sides[i], T / 2, rearKg * share);
+      for (const [i, share] of leverShares(x, sides)) onSlab('roof', sides[i], rearY, rearKg * share);
     }
   });
   const footprint = adultFootprint;

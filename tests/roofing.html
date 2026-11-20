@@ -4,9 +4,10 @@
 <title>Roof tile regression tests</title>
 <pre id="results">Running...</pre>
 <script type="module">
-import { roofWidthRange, tileGaugeLimit } from '../js/roofing.js';
+import { buildRoofSchedule, roofWidthRange, tileGaugeLimit } from '../js/roofing.js';
 import { rafterStarts } from '../js/framing.js';
 import { computeLoads, densities, roofCoveringMasses, roofEdgeMasses, roofLayerMasses, wallLayerMasses } from '../js/loads.js';
+import { buildBom } from '../js/bom.js';
 
 const results = document.querySelector('#results');
 const key = 'farstu-designer-settings-v1';
@@ -83,6 +84,35 @@ try {
       close(result.piers.reduce((sum,pier) => sum+pier.fromAbove,0),result.onPiers);
       close(result.field.values.reduce((sum,value) => sum+value,0)*
         model.width*model.length/(result.field.nx*result.field.ny)/1e6*1000/9.81,result.onPiers);
+    }
+    if (remainder === 0) for (const [baseHeight,recession,effective] of [[600,0,0],[600,100,100],[600,500,500],[0,500,0]]) {
+      const recessed = {...model, houseBaseHeight:baseHeight, houseBaseRecession:recession,
+        rear:model.frontWallHeight+slope*(model.length-effective)};
+      const length = (model.length+model.frontOverhang-effective)*Math.hypot(1,slope);
+      const roofArea = model.roofWidth*length/1e6;
+      const schedule = buildRoofSchedule(recessed);
+      close(schedule.find(row => row.id === 'roof-deck').quantity,roofArea*1.05);
+      close(schedule.find(row => row.id === 'bargeboards-145').quantity,2*length/1000);
+      const cuts = buildBom(recessed).filter(row => row.role === 'Rafters').flatMap(row => row.cuts);
+      assert(cuts.length === rafterStarts(model.roofWidth,model.doorSideOverhang,
+        model.rafterWidth,model.rafterSpacing).length && cuts.every(cut => cut === Math.ceil(length-1e-8)),
+        'Rafter cuts do not use the façade-aligned roof length');
+      const result = computeLoads(recessed,{people:[],rearSupport:'house'});
+      close(result.details['roof:covering'],roofArea*
+        (roofCoveringMasses.standingSeam+roofLayerMasses.deck+roofLayerMasses.underlayment));
+      const end = model.length+model.frontOverhang;
+      const centre = (effective+end)/2;
+      const verge = 2*length/1000*roofEdgeMasses.verge;
+      const eave = model.roofWidth/1000*roofEdgeMasses.eave+roofEdgeMasses.downpipe;
+      const abutment = model.roofWidth/1000*roofEdgeMasses.abutment;
+      const distributed = result.details['roof:covering']+result.details['roof:rafters']+verge;
+      const front = distributed*(centre-effective)/(model.length-model.wallThickness/2-effective) +
+        eave*(end-effective)/(model.length-model.wallThickness/2-effective);
+      close(result.totals.house,result.details['roof:covering']+result.details['roof:rafters']+
+        result.details['roof:edges']-front);
+      const beam = computeLoads(recessed,{people:[],rearSupport:'beam'});
+      close(beam.piers.reduce((sum,pier) => sum+pier.parts.roof*pier.y,0),
+        distributed*centre+eave*end+abutment*effective);
     }
   }
   passed.push('Partial slab, wall and roof increments retain their full calculated loads');
@@ -210,11 +240,12 @@ try {
   passed.push('Asymmetric saved layouts round-trip and old symmetric settings migrate with notice');
 
   const factor = Math.hypot(1,Math.tan(Number(field('pitch').value)*Math.PI/180));
-  const area = total*(Number(field('length').value)+Number(field('frontOverhang').value))*factor/1e6;
+  const recession = Number(field('houseBaseHeight').value) > 0 ? Number(field('houseBaseRecession').value) : 0;
+  const area = total*(Number(field('length').value)+Number(field('frontOverhang').value)-recession)*factor/1e6;
   field('show-bom').click();
   const covering = [...doc().querySelectorAll('#roof-rows tr')]
     .find(row => row.textContent.includes('Benders concrete tiles covering'));
-  close(Number(covering.querySelector('td').textContent.replace(/\s/g,'')),Number((area*1.1).toFixed(2)));
+  close(Number(covering.querySelector('td').textContent.replace(/\s/g,'')),Number((area*1.1).toFixed(3)));
   field('show-loads').click();
   const roofLoad = [...doc().querySelectorAll('#loads-view tr')]
     .find(row => row.textContent.includes('Roof benders concrete tiles, deck'));
@@ -223,6 +254,8 @@ try {
   const outline = doc().querySelector('.loads-roof');
   close(Number(outline.getAttribute('x')),-180);
   close(Number(outline.getAttribute('width')),total);
+  close(Number(outline.getAttribute('y')),recession);
+  close(Number(outline.getAttribute('height')),Number(field('length').value)+Number(field('frontOverhang').value)-recession);
   const firstPierRoof = () => Number(field('loads-rows').querySelector('tr').cells[4].textContent.replace(/\s/g,''));
   const previousRoofLoad = firstPierRoof();
   edit('doorSideOverhang',400);
@@ -265,11 +298,45 @@ try {
         const grade = points(ground), footprint = points(shadow);
         const margin = Math.min(350,2400*.2,1800*.2);
         const roofLength = 1800+overhang;
-        const offsets = [[margin,0],[margin+width,0],[margin+width,roofLength],[margin,roofLength]];
+        const recession = Number(field('houseBaseHeight').value) > 0
+          ? Number(field('houseBaseRecession').value) : 0;
+        const gradeLength = view === 'plan'
+          ? Math.max(roofLength,recession+Number(field('hedgeDistance').value)+450)+margin
+          : roofLength+margin;
+        const offsets = [[margin,recession],[margin+width,recession],[margin+width,roofLength],[margin,roofLength]];
         for (let i=0;i<4;i++) for (let axis=0;axis<2;axis++) {
           close(footprint[i][axis],grade[0][axis] +
             (grade[1][axis]-grade[0][axis])*offsets[i][0]/(width+2*margin) +
-            (grade[3][axis]-grade[0][axis])*offsets[i][1]/(roofLength+margin));
+            (grade[3][axis]-grade[0][axis])*offsets[i][1]/gradeLength);
+        }
+        if (view === 'plan') {
+          const slab = points(doc().querySelector('.slab-plan'));
+          const scale = (slab[1][0]-slab[0][0])/2400;
+          close((footprint[0][0]-slab[0][0])/scale,-offset);
+          close((footprint[1][0]-slab[1][0])/scale,width-offset-2400);
+          close((footprint[0][1]-slab[0][1])/scale,recession);
+          close((footprint[2][1]-slab[2][1])/scale,overhang);
+          assert(!doc().querySelector('.eave-gutter, .downspout, .downspout-outline'),
+            'Top view contains a gutter or downpipe');
+          if (mode === 'rafters') {
+            for (const rafter of doc().querySelectorAll('polygon.rafter')) {
+              close((points(rafter)[0][1]-slab[0][1])/scale,recession);
+            }
+          }
+        } else if (mode === 'tiles') {
+          assert(doc().querySelector('.eave-gutter'),'3D view lost the gutter');
+          const covering = points(doc().querySelector('.roof-covering'));
+          const scale = (grade[1][0]-grade[0][0])/(width+2*margin)/.866;
+          const slope = Math.tan(pitch*Math.PI/180);
+          const depth = Number(field('rafterDepth').value)*Math.hypot(1,slope);
+          const slabThickness = Number(field('slabThickness').value);
+          const rearHeight = Number(field('frontWallHeight').value)+slope*(1800-recession);
+          const eaveHeight = Number(field('frontWallHeight').value)-slope*overhang;
+          for (let i=0;i<4;i++) {
+            close(covering[i][0],footprint[i][0]);
+            close(covering[i][1],footprint[i][1]-
+              ((i<2 ? rearHeight : eaveHeight)+depth+slabThickness)*scale);
+          }
         }
         const rgb = element => frame.contentWindow.getComputedStyle(element).fill.match(/\d+/g).map(Number);
         const grass = rgb(ground);
@@ -284,6 +351,20 @@ try {
           'Roof outline is visible over the shadow');
       }
     }
+  }
+  edit('offset',100);
+  doc().querySelector('[data-view="plan"]').click();
+  for (const [base,recession,effective] of [[600,500,500],[600,0,0],[0,500,0]]) {
+    if (Number(field('houseBaseHeight').value) !== base) edit('houseBaseHeight',base);
+    edit('houseBaseRecession',recession);
+    valid();
+    const slab = points(doc().querySelector('.slab-plan'));
+    const footprint = points(doc().querySelector('.roof-ground-projection'));
+    const scale = (slab[1][0]-slab[0][0])/2400;
+    close((footprint[0][1]-slab[0][1])/scale,effective);
+    close((footprint[2][1]-slab[2][1])/scale,Number(field('frontOverhang').value));
+    const door = doc().querySelector('.door-opening');
+    close((Number(door.getAttribute('y1'))-slab[0][1])/scale,effective+100);
   }
   for (const view of ['3d','plan']) {
     doc().querySelector(`[data-view="${view}"]`).click();

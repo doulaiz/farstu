@@ -3,6 +3,7 @@ import {
   openingMasses, roofCovering, roofCoveringLabels, roofCoveringMasses, roofEdgeMasses, roofLayerMasses, wallLayerMasses
 } from './loads.js';
 import { createNumberFormat } from './number-format.js';
+import { roofRearOffset, roofRun } from './roofing.js';
 
 const svgNS = 'http://www.w3.org/2000/svg';
 const kgFormat = createNumberFormat({ maximumFractionDigits: 0 });
@@ -147,6 +148,7 @@ export function createLoadsView($) {
 
   function drawDiagram(model, result, people) {
     const { width: W, length: L, wallThickness: T, roofWidth, doorSideOverhang: S, frontOverhang: F, windows, offset, doorWidth } = model;
+    const rearY = roofRearOffset(model), doorStart = rearY+offset;
     const { piers, layout, field } = result;
     const span = Math.max(roofWidth, L + F);
     const u = span / 640;
@@ -157,9 +159,9 @@ export function createLoadsView($) {
     svg.replaceChildren(...fixedNodes);
     const root = el('g', {}, svg);
 
-    el('rect', { x: minX, y: -houseBand, width: maxX - minX, height: houseBand, class: 'loads-house' }, root);
-    text(root, W / 2, -houseBand / 2, 'Existing house wall', 13 * u, { 'dominant-baseline': 'central', 'text-anchor': 'middle' });
-    el('rect', { x: -S, y: 0, width: roofWidth, height: L + F, class: 'loads-roof' }, root);
+    el('rect', { x: minX, y: rearY-houseBand, width: maxX - minX, height: houseBand, class: 'loads-house' }, root);
+    text(root, W / 2, rearY-houseBand / 2, 'Existing house wall', 13 * u, { 'dominant-baseline': 'central', 'text-anchor': 'middle' });
+    el('rect', { x: -S, y: rearY, width: roofWidth, height: roofRun(model), class: 'loads-roof' }, root);
     text(root, roofWidth - S - 4 * u, L + F - 6 * u, 'Roof outline', 10 * u, { 'text-anchor': 'end', class: 'loads-text loads-muted' });
 
     const max = Math.max(...field.values);
@@ -174,15 +176,15 @@ export function createLoadsView($) {
     el('rect', { x: 0, y: 0, width: W, height: L, class: 'loads-slab' }, root);
 
     const walls = el('g', { class: 'loads-walls' }, root);
-    el('rect', { x: 0, y: 0, width: T, height: offset }, walls);
-    el('rect', { x: 0, y: offset + doorWidth, width: T, height: Math.max(0, L - T - offset - doorWidth) }, walls);
+    el('rect', { x: 0, y: 0, width: T, height: doorStart }, walls);
+    el('rect', { x: 0, y: doorStart + doorWidth, width: T, height: Math.max(0, L - T - doorStart - doorWidth) }, walls);
     el('rect', { x: 0, y: L - T, width: W, height: T }, walls);
     el('rect', { x: W - T, y: 0, width: T, height: L - T }, walls);
     const glazing = el('g', { class: 'loads-glazing' }, root);
     el('line', { x1: windows.front.start, x2: windows.front.end, y1: L - T / 2, y2: L - T / 2 }, glazing);
     el('line', { x1: W - T / 2, x2: W - T / 2, y1: windows.right.start, y2: windows.right.end }, glazing);
-    text(root, -10 * u, offset + doorWidth / 2, 'Door', 10 * u,
-      { 'text-anchor': 'middle', transform: `rotate(-90 ${-10 * u} ${offset + doorWidth / 2})`, class: 'loads-text loads-muted' });
+    text(root, -10 * u, doorStart + doorWidth / 2, 'Door', 10 * u,
+      { 'text-anchor': 'middle', transform: `rotate(-90 ${-10 * u} ${doorStart + doorWidth / 2})`, class: 'loads-text loads-muted' });
 
     const pressures = piers.map(p => p.basePressure);
     const pMin = Math.min(...pressures), pMax = Math.max(...pressures);

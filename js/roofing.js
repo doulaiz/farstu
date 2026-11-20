@@ -14,6 +14,14 @@ export const tileSystems = {
   300: { label: 'Benders Palema', width: 330, length: 420, waves: 2 }
 };
 
+export function roofRearOffset({ houseBaseHeight, houseBaseRecession }) {
+  return houseBaseHeight > 0 ? houseBaseRecession : 0;
+}
+
+export function roofRun(model) {
+  return model.length+model.frontOverhang-roofRearOffset(model);
+}
+
 export function standingFlashing(model) {
    const { roofWidth, doorSideOverhang, rear, rafterDepth, slope, roofMaterial, tileRise, flashingHeight } = model;
    const coverRise = roofMaterial === 'tiles' ? tileRise : 8;
@@ -66,8 +74,8 @@ export function roofPitchGuidance(material, pitch) {
 }
 
 export function buildRoofSchedule(model) {
-  const { roofWidth: widthWithOverhang, length, frontOverhang, slope, pitch, roofMaterial } = model;
-  const slopedRun = (length + frontOverhang) * Math.hypot(1, slope);
+  const { roofWidth: widthWithOverhang, frontOverhang, slope, pitch, roofMaterial } = model;
+  const slopedRun = roofRun(model) * Math.hypot(1, slope);
   const area = widthWithOverhang * slopedRun / 1e6;
   const edgeLength = widthWithOverhang / 1000;
   const vergeLength = 2 * slopedRun / 1000;

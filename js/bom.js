@@ -1,5 +1,6 @@
 import { deromeCatalogue } from './derome.js';
 import { clippedHeight, rafterStarts, wallCourses, wallMembers } from './framing.js';
+import { roofRearOffset, roofRun } from './roofing.js';
 
 const kerf = 3;
 const roles = {
@@ -9,7 +10,7 @@ const roles = {
 function takeoff(model) {
   const {width, length, wallThickness, studWidth, studDepth, studSpacing, frontWallHeight, rear, slope,
     windows, offset, doorWidth, doorHeight, rafterWidth, rafterDepth, rafterSpacing,
-    roofWidth, doorSideOverhang, frontOverhang, slabThickness, claddingSpacing, baseBoardWidth, coverBoardWidth} = model;
+    roofWidth, doorSideOverhang, slabThickness, claddingSpacing, baseBoardWidth, coverBoardWidth} = model;
   const factor = Math.hypot(1,slope);
   const groups = new Map();
   function add(role, family, width, depth, length) {
@@ -18,8 +19,9 @@ function takeoff(model) {
     if (!groups.has(key)) groups.set(key,{role,family,width,depth,cuts:[]});
     groups.get(key).cuts.push(Math.ceil(length-1e-8));
   }
-  const door = {start:offset,end:offset+doorWidth,bottom:0,top:doorHeight};
-  const sideTop = u => rear-slope*u;
+  const start = roofRearOffset(model);
+  const door = {start:start+offset,end:start+offset+doorWidth,bottom:0,top:doorHeight};
+  const sideTop = u => rear+slope*(start-u);
   const walls = [
     {key:'door', end:length-wallThickness, face:length, top:sideTop, op:door},
     {key:'front', end:width, face:width, top:() => frontWallHeight, op:windows.front},
@@ -56,7 +58,7 @@ function takeoff(model) {
       ['Horizontal nailers','batten',48,25], ['Service battens','service',70,28]
     ]) {
       for (let z=0;z<top(0);z+=600) {
-        const run = slope && key !== 'front' ? Math.min(face,(rear-z)/slope) : face;
+        const run = slope && key !== 'front' ? Math.min(face,start+(rear-z)/slope) : face;
         if (z >= op.bottom && z+stockWidth <= op.top && run > op.start) {
           add(role,family,stockWidth,depth,op.start);
           add(role,family,stockWidth,depth,run-op.end);
@@ -71,7 +73,7 @@ function takeoff(model) {
     }
   }
   for (const _ of rafterStarts(roofWidth,doorSideOverhang,rafterWidth,rafterSpacing)) {
-    add('Rafters','frame',rafterWidth,rafterDepth,(length+frontOverhang)*factor);
+    add('Rafters','frame',rafterWidth,rafterDepth,roofRun(model)*factor);
   }
   return [...groups.values()];
 }

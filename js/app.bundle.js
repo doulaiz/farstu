@@ -174,6 +174,12 @@
     250: { label: "Benders Exklusiv", width: 280, length: 420, waves: 1 },
     300: { label: "Benders Palema", width: 330, length: 420, waves: 2 }
   };
+  function roofRearOffset({ houseBaseHeight, houseBaseRecession }) {
+    return houseBaseHeight > 0 ? houseBaseRecession : 0;
+  }
+  function roofRun(model) {
+    return model.length + model.frontOverhang - roofRearOffset(model);
+  }
   function standingFlashing(model) {
     const { roofWidth, doorSideOverhang, rear, rafterDepth, slope, roofMaterial, tileRise, flashingHeight } = model;
     const coverRise = roofMaterial === "tiles" ? tileRise : 8;
@@ -220,8 +226,8 @@
     };
   }
   function buildRoofSchedule(model) {
-    const { roofWidth: widthWithOverhang, length, frontOverhang, slope, pitch, roofMaterial } = model;
-    const slopedRun = (length + frontOverhang) * Math.hypot(1, slope);
+    const { roofWidth: widthWithOverhang, frontOverhang, slope, pitch, roofMaterial } = model;
+    const slopedRun = roofRun(model) * Math.hypot(1, slope);
     const area = widthWithOverhang * slopedRun / 1e6;
     const edgeLength = widthWithOverhang / 1e3;
     const vergeLength = 2 * slopedRun / 1e3;
@@ -344,7 +350,7 @@
             inputMode: unit === "mm" ? "numeric" : "decimal"
           });
         }
-        const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, "")}` : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}` : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}` : title;
+        const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, "")}` : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}` : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}` : group === "houseCladding" ? `Existing house: ${title.toLowerCase()}` : title;
         input.setAttribute("aria-label", unit ? `${fieldTitle} (${unit === "mm" ? "millimetres" : "degrees"})` : fieldTitle);
         const suffix = document.createElement("span");
         suffix.className = "unit";
@@ -457,6 +463,17 @@
       ["houseWallHeight", "House wall height above ground", 4540, 2500, "mm", 12400, 1],
       ["houseBaseHeight", "Concrete base height", 600, 0, "mm", 3e3, 1],
       ["houseBaseRecession", "Basement recession", 100, 0, "mm", 500, 1]
+    ]);
+    addFields("houseCladding", [
+      ["houseBaseBoardWidth", "Base-board width", 145, 20, "mm", 500, 1],
+      ["houseBaseBoardThickness", "Base-board thickness", 22, 1, "mm", 100, 1],
+      ["houseCoverBoardWidth", "Cover-board width", 120, 20, "mm", 500, 1],
+      ["houseCoverBoardThickness", "Cover-board thickness", 22, 1, "mm", 100, 1]
+    ]);
+    addFields("houseEntry", [
+      ["houseEntryWidth", "Entry width", 2e3, 400, "mm", 1e4, 1],
+      ["houseEntryDepth", "Entry depth", 1200, 200, "mm", 1e4, 1],
+      ["houseEntryOffset", "Entry centre from origin", 4894, -4e4, "mm", 4e4, 1]
     ]);
     addFields("hedge", [
       ["hedgeDistance", "Distance from house", 3500, 500, "mm", 2e4, 1],
@@ -590,7 +607,6 @@
       rafterSpacing,
       roofWidth,
       doorSideOverhang,
-      frontOverhang,
       slabThickness,
       claddingSpacing,
       baseBoardWidth,
@@ -604,8 +620,9 @@
       if (!groups.has(key)) groups.set(key, { role, family, width: width2, depth, cuts: [] });
       groups.get(key).cuts.push(Math.ceil(length2 - 1e-8));
     }
-    const door = { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight };
-    const sideTop = (u) => rear - slope * u;
+    const start = roofRearOffset(model);
+    const door = { start: start + offset, end: start + offset + doorWidth, bottom: 0, top: doorHeight };
+    const sideTop = (u) => rear + slope * (start - u);
     const walls = [
       { key: "door", end: length - wallThickness, face: length, top: sideTop, op: door },
       { key: "front", end: width, face: width, top: () => frontWallHeight, op: windows.front },
@@ -641,7 +658,7 @@
         ["Service battens", "service", 70, 28]
       ]) {
         for (let z = 0; z < top(0); z += 600) {
-          const run = slope && key !== "front" ? Math.min(face, (rear - z) / slope) : face;
+          const run = slope && key !== "front" ? Math.min(face, start + (rear - z) / slope) : face;
           if (z >= op.bottom && z + stockWidth <= op.top && run > op.start) {
             add(role, family, stockWidth, depth, op.start);
             add(role, family, stockWidth, depth, run - op.end);
@@ -656,7 +673,7 @@
       }
     }
     for (const _ of rafterStarts(roofWidth, doorSideOverhang, rafterWidth, rafterSpacing)) {
-      add("Rafters", "frame", rafterWidth, rafterDepth, (length + frontOverhang) * factor);
+      add("Rafters", "frame", rafterWidth, rafterDepth, roofRun(model) * factor);
     }
     return [...groups.values()];
   }
@@ -1032,12 +1049,13 @@
     const timber = densities.timber.value / 1e9;
     const layerKg = wallLayerMasses(model).reduce((sum, layer) => sum + layer.kg, 0) / 1e6;
     const cavityKg = densities.mineralWool.value * studDepth / 1e9 * Math.max(0, 1 - studWidth / studSpacing);
-    const sideTop = (u) => rear - slope * u;
+    const rearY = roofRearOffset(model);
+    const sideTop = (u) => rear + slope * (rearY - u);
     const walls = [
       {
         end: L - T,
         top: sideTop,
-        op: { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight },
+        op: { start: rearY + offset, end: rearY + offset + doorWidth, bottom: 0, top: doorHeight },
         at: (u) => [T / 2, u],
         kind: "door"
       },
@@ -1089,24 +1107,25 @@
       rafterSpacing
     } = model;
     const factor = Math.hypot(1, slope);
+    const rearY = roofRearOffset(model), run = roofRun(model);
     const roofRight = roofWidth - S;
     const rafters = rafterStarts(roofWidth, S, rafterWidth, rafterSpacing);
-    const rafterKg = rafterWidth * rafterDepth * (L + F) * factor * densities.timber.value / 1e9;
+    const rafterKg = rafterWidth * rafterDepth * run * factor * densities.timber.value / 1e9;
     const areaKg = (roofCoveringMasses[roofCovering(model)] + roofLayerMasses.deck + roofLayerMasses.underlayment) / 1e6 * factor;
     const point = (part, x, y, kg2) => add("roof", part, x, y, kg2);
     const step = 50;
     const ys = [];
-    for (let start = 0; start < L + F; start += step) {
+    for (let start = rearY; start < L + F; start += step) {
       const dy = Math.min(step, L + F - start);
       ys.push([start + dy / 2, dy]);
     }
-    for (const x0 of rafters) for (const [y, dy] of ys) point("rafters", x0 + rafterWidth / 2, y, rafterKg * dy / (L + F));
+    for (const x0 of rafters) for (const [y, dy] of ys) point("rafters", x0 + rafterWidth / 2, y, rafterKg * dy / run);
     for (let start = -S; start < roofRight; start += step) {
       const dx = Math.min(step, roofRight - start);
       const x = start + dx / 2;
       for (const [y, dy] of ys) point("covering", x, y, dx * dy * areaKg);
       point("edges", x, L + F, dx / 1e3 * roofEdgeMasses.eave);
-      point("edges", x, 0, dx / 1e3 * roofEdgeMasses.abutment);
+      point("edges", x, rearY, dx / 1e3 * roofEdgeMasses.abutment);
     }
     for (const [y, dy] of ys) {
       for (const x of [-S, roofRight]) point("edges", x, y, dy / 1e3 * factor * roofEdgeMasses.verge);
@@ -1153,16 +1172,17 @@
     }
     wallLoads(model, add);
     const frontY = L - T / 2;
+    const rearY = roofRearOffset(model);
     const sides = [T / 2, W - T / 2];
     roofLoads(model, (group, part, x, y, kg2) => {
       details[`${group}:${part}`] = (details[`${group}:${part}`] ?? 0) + kg2;
-      const front = kg2 * y / frontY;
+      const front = kg2 * (y - rearY) / (frontY - rearY);
       const rearKg = kg2 - front;
       onSlab("roof", Math.max(sides[0], Math.min(sides[1], x)), frontY, front);
       if (rearSupport === "house") {
         totals.house += rearKg;
       } else {
-        for (const [i, share] of leverShares(x, sides)) onSlab("roof", sides[i], T / 2, rearKg * share);
+        for (const [i, share] of leverShares(x, sides)) onSlab("roof", sides[i], rearY, rearKg * share);
       }
     });
     const footprint = adultFootprint;
@@ -1334,6 +1354,7 @@
     peopleSelect.addEventListener("change", () => render());
     function drawDiagram(model, result, people) {
       const { width: W, length: L, wallThickness: T, roofWidth, doorSideOverhang: S, frontOverhang: F, windows, offset, doorWidth } = model;
+      const rearY = roofRearOffset(model), doorStart = rearY + offset;
       const { piers, layout, field } = result;
       const span = Math.max(roofWidth, L + F);
       const u = span / 640;
@@ -1343,9 +1364,9 @@
       svg.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
       svg.replaceChildren(...fixedNodes);
       const root = el("g", {}, svg);
-      el("rect", { x: minX, y: -houseBand, width: maxX - minX, height: houseBand, class: "loads-house" }, root);
-      text(root, W / 2, -houseBand / 2, "Existing house wall", 13 * u, { "dominant-baseline": "central", "text-anchor": "middle" });
-      el("rect", { x: -S, y: 0, width: roofWidth, height: L + F, class: "loads-roof" }, root);
+      el("rect", { x: minX, y: rearY - houseBand, width: maxX - minX, height: houseBand, class: "loads-house" }, root);
+      text(root, W / 2, rearY - houseBand / 2, "Existing house wall", 13 * u, { "dominant-baseline": "central", "text-anchor": "middle" });
+      el("rect", { x: -S, y: rearY, width: roofWidth, height: roofRun(model), class: "loads-roof" }, root);
       text(root, roofWidth - S - 4 * u, L + F - 6 * u, "Roof outline", 10 * u, { "text-anchor": "end", class: "loads-text loads-muted" });
       const max = Math.max(...field.values);
       const cw = W / field.nx, ch = L / field.ny;
@@ -1361,8 +1382,8 @@
       });
       el("rect", { x: 0, y: 0, width: W, height: L, class: "loads-slab" }, root);
       const walls = el("g", { class: "loads-walls" }, root);
-      el("rect", { x: 0, y: 0, width: T, height: offset }, walls);
-      el("rect", { x: 0, y: offset + doorWidth, width: T, height: Math.max(0, L - T - offset - doorWidth) }, walls);
+      el("rect", { x: 0, y: 0, width: T, height: doorStart }, walls);
+      el("rect", { x: 0, y: doorStart + doorWidth, width: T, height: Math.max(0, L - T - doorStart - doorWidth) }, walls);
       el("rect", { x: 0, y: L - T, width: W, height: T }, walls);
       el("rect", { x: W - T, y: 0, width: T, height: L - T }, walls);
       const glazing = el("g", { class: "loads-glazing" }, root);
@@ -1371,10 +1392,10 @@
       text(
         root,
         -10 * u,
-        offset + doorWidth / 2,
+        doorStart + doorWidth / 2,
         "Door",
         10 * u,
-        { "text-anchor": "middle", transform: `rotate(-90 ${-10 * u} ${offset + doorWidth / 2})`, class: "loads-text loads-muted" }
+        { "text-anchor": "middle", transform: `rotate(-90 ${-10 * u} ${doorStart + doorWidth / 2})`, class: "loads-text loads-muted" }
       );
       const pressures = piers.map((p) => p.basePressure);
       const pMin = Math.min(...pressures), pMax = Math.max(...pressures);
@@ -1776,9 +1797,28 @@
         savedFields.pitch = "6";
         adjustedRoofSettings = true;
       }
+      if (savedFields.houseEntryOffset === void 0) {
+        const centre = Number(savedFields.slabOriginOffset) + Number(savedFields.width) / 2;
+        const left = Number(savedFields.houseWallLeft) + 1e3;
+        const right = Number(savedFields.houseWallLeft) + Number(savedFields.houseWallWidth) - 1e3;
+        savedFields.houseEntryOffset = String(Math.round(Math.max(left, Math.min(right, centre))));
+      }
       for (const [key, input] of Object.entries(fields)) {
         if (isCalculatedClearance(key, saved2.anchors)) continue;
-        const value = (["houseBaseRecession", "doorThickness", "baseBoardWidth", "coverBoardWidth", "flashingHeight"].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === void 0 ? input.dataset.initial : savedFields[key];
+        const value = ([
+          "houseBaseRecession",
+          "doorThickness",
+          "baseBoardWidth",
+          "coverBoardWidth",
+          "flashingHeight",
+          "houseEntryWidth",
+          "houseEntryDepth",
+          "houseEntryOffset",
+          "houseBaseBoardWidth",
+          "houseBaseBoardThickness",
+          "houseCoverBoardWidth",
+          "houseCoverBoardThickness"
+        ].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === void 0 ? input.dataset.initial : savedFields[key];
         if (typeof value !== "string" || value.trim() === "" || !Number.isFinite(Number(value))) return false;
         if (input.tagName === "SELECT") {
           if (Number(value) < 0 || Number(value) > 5e4 || Number(value) === 0 && !hasOption(input, "0")) return false;
@@ -1913,13 +1953,24 @@
           "tileLength"
         );
       }
-      const rear = v.frontWallHeight + slope * v.length;
+      const planRecession = roofRearOffset(v);
+      const rear = v.frontWallHeight + slope * (v.length - planRecession);
       const eave = v.frontWallHeight - slope * v.frontOverhang;
       const sideSpan = v.length - v.wallThickness;
       const frontSpan = v.width - 2 * v.wallThickness;
       if (sideSpan <= 0 || frontSpan <= 0) flag("The wall thickness leaves no clear interior span.", "wallThickness", "width", "length");
       if (v.houseBaseHeight + 1 > v.houseWallHeight) {
         flag("The concrete base must end below the top of the existing house wall.", "houseBaseHeight", "houseWallHeight");
+      }
+      if (v.houseBaseBoardThickness + v.houseCoverBoardThickness > v.wallThickness + planRecession) {
+        flag(
+          "The existing house cladding is thicker than the wall shown in Top view.",
+          "houseBaseBoardThickness",
+          "houseCoverBoardThickness",
+          "wallThickness",
+          "houseBaseRecession",
+          "houseBaseHeight"
+        );
       }
       if (![2, 3].includes(footingColumns) || ![2, 3].includes(footingRows)) {
         flag("Choose a pier grid from the list.", footingLayout.id);
@@ -1956,19 +2007,19 @@
         );
       }
       if (2 * v.rafterWidth > v.roofWidth) flag("The two edge rafters do not fit within the roof width.", "rafterWidth", "roofWidth");
-      const doorEnd = v.offset + v.doorWidth;
+      const doorEnd = planRecession + v.offset + v.doorWidth;
       if (doorEnd > sideSpan) flag("The left-side door extends into the front wall.", "offset", "doorWidth", "length", "wallThickness");
-      if (v.doorHeight > rear - slope * doorEnd) flag("The left-side door reaches above the roofline at its front edge.", "doorHeight", "frontWallHeight", "pitch");
+      if (v.doorHeight > rear - slope * (doorEnd - planRecession)) flag("The left-side door reaches above the roofline at its front edge.", "doorHeight", "frontWallHeight", "pitch");
       if (eave <= 0) flag("The front roof edge reaches slab level. Reduce the pitch or front overhang, or raise the front wall.", "pitch", "frontOverhang", "frontWallHeight");
       const windows = {};
       for (const [side, anchor] of Object.entries(anchors)) {
         const w = v[side + "Width"];
         const h = v[side + "Height"];
         const isFront = side === "front";
-        const span = isFront ? frontSpan : sideSpan;
-        const start = (span - w) / 2 + (isFront ? v.wallThickness : 0);
+        const span = isFront ? frontSpan : sideSpan - planRecession;
+        const start = (span - w) / 2 + (isFront ? v.wallThickness : planRecession);
         const end = start + w;
-        const available = (isFront ? v.frontWallHeight : rear - slope * end) - h;
+        const available = (isFront ? v.frontWallHeight : rear - slope * (end - planRecession)) - h;
         const complement = available - v[side + anchor];
         const other = anchor === "Bottom" ? "Top" : "Bottom";
         fields[side + other].value = Number.isFinite(complement) ? Math.round(complement) : "";
@@ -1984,6 +2035,16 @@
       }
       const origin = -v.slabOriginOffset;
       const houseA = origin + v.houseWallLeft, houseB = houseA + v.houseWallWidth;
+      const entryCentre = origin + v.houseEntryOffset;
+      if (entryCentre - v.houseEntryWidth / 2 < houseA || entryCentre + v.houseEntryWidth / 2 > houseB) {
+        flag(
+          "The existing entry extends beyond the sides of the house wall.",
+          "houseEntryWidth",
+          "houseEntryOffset",
+          "houseWallLeft",
+          "houseWallWidth"
+        );
+      }
       const houseOpenings = Object.keys(houseWindows).map((key) => {
         const left = key === "houseLeft" ? origin : key === "houseRight" ? origin + v.houseLeftWidth + v.houseWindowGap : origin + v.houseUpperOffset - v.houseUpperWidth / 2;
         const right = left + v[key + "Width"];
@@ -2071,7 +2132,7 @@
       loads.update(latest, true);
       $("area").textContent = `${fmt(v.width * v.length / 1e6)} m\xB2`;
       $("rear").textContent = mm(rear);
-      $("rise").textContent = mm(slope * v.length);
+      $("rise").textContent = mm(slope * (v.length - planRecession));
       $("assembly").textContent = `Slab: ${mm(v.slabThickness)} thick. Walls: ${mm(v.wallThickness)} thick. ${footingColumns * footingRows} piers (${footingColumns} \xD7 ${footingRows}): ${mm(v.footingDiameter)} diameter by ${mm(v.footingDepth)} deep below the slab.`;
       render();
       return true;
@@ -2106,6 +2167,13 @@
         houseBaseHeight,
         houseBaseRecession,
         slabOriginOffset,
+        houseBaseBoardWidth,
+        houseBaseBoardThickness,
+        houseCoverBoardWidth,
+        houseCoverBoardThickness,
+        houseEntryWidth,
+        houseEntryDepth,
+        houseEntryOffset,
         hedgeDistance,
         hedgeHeight,
         offset,
@@ -2154,14 +2222,19 @@
       const dimension2 = (a, b, gap, text2) => dims.push({ a, b, gap, text: text2 });
       const ground = (x, y) => [x, y, 0];
       const roofLeft = -doorSideOverhang, roofRight = roofLeft + roofWidth;
-      const planMargin = Math.max(360, doorSideOverhang + 170, rightOverhang + 170);
       const houseWallHeight = houseHeightAboveGround - slabThickness;
-      const houseAt = (x, z) => [x, 0, z];
-      const houseBaseAt = (x, z) => [x, -houseBaseRecession, z];
+      const housePlanRecession = roofRearOffset(latest);
+      const houseAt = (x, z) => [x, housePlanRecession, z];
+      const houseBaseAt = (x, z) => [x, 0, z];
       const roofDepth = rafterDepth * Math.hypot(1, slope);
       const tileRun = tileLength / Math.hypot(1, slope);
-      const roof = [[roofLeft, 0, R + roofDepth], [roofRight, 0, R + roofDepth], [roofRight, L + F, E + roofDepth], [roofLeft, L + F, E + roofDepth]];
-      const roofAt = (x, y, offset2 = 0) => [x, y, R - slope * y + roofDepth + offset2];
+      const roof = [
+        [roofLeft, housePlanRecession, R + roofDepth],
+        [roofRight, housePlanRecession, R + roofDepth],
+        [roofRight, L + F, E + roofDepth],
+        [roofLeft, L + F, E + roofDepth]
+      ];
+      const roofAt = (x, y, offset2 = 0) => [x, y, R - slope * (y - housePlanRecession) + roofDepth + offset2];
       const flashing = standingFlashing(latest);
       const slab = [ground(0, 0), ground(W, 0), ground(W, L), ground(0, L)];
       const frontAt = (x, z) => [x, L, z];
@@ -2173,14 +2246,16 @@
       const { radius: pierRadius, rows: pierRows, columns: pierColumns } = pierLayout(latest);
       const gradeMargin = Math.min(350, W * 0.2, L * 0.2);
       const hedgeHalfDepth = 450;
-      const sideGradeEnd = Math.max(L, hedgeDistance + hedgeHalfDepth) + gradeMargin;
+      const topHedgeCentre = housePlanRecession + hedgeDistance;
+      const sideGradeEnd = Math.max(L, topHedgeCentre + hedgeHalfDepth) + gradeMargin;
+      const gradeEnd = plan ? Math.max(L + F, topHedgeCentre + hedgeHalfDepth) + gradeMargin : L + F + gradeMargin;
       const grade = [
         [roofLeft - gradeMargin, 0, slabBase],
         [roofRight + gradeMargin, 0, slabBase],
-        [roofRight + gradeMargin, L + F + gradeMargin, slabBase],
-        [roofLeft - gradeMargin, L + F + gradeMargin, slabBase]
+        [roofRight + gradeMargin, gradeEnd, slabBase],
+        [roofLeft - gradeMargin, gradeEnd, slabBase]
       ];
-      const door = { start: offset, end: offset + doorWidth, bottom: 0, top: doorHeight };
+      const door = { start: housePlanRecession + offset, end: housePlanRecession + offset + doorWidth, bottom: 0, top: doorHeight };
       const rtl = doorHanding.value === "rtl";
       const hingeY = rtl ? door.end : door.start;
       const swingPoint = (angle, distance, height = 0) => [-Math.sin(angle) * distance, hingeY + (rtl ? -1 : 1) * Math.cos(angle) * distance, height];
@@ -2190,7 +2265,7 @@
       };
       const swingArc = Array.from({ length: 25 }, (_, i) => swingPoint(i * Math.PI / 48, doorWidth));
       const doorVisible = plan || iso || view === "left";
-      const wallTop = (y) => R - slope * y;
+      const wallTop = (y) => R - slope * (y - housePlanRecession);
       const frontTop = () => H;
       const frontSection = (u, d, z) => [u, L - d, z];
       const sideSection = (which) => (u, d, z) => [which === "left" ? d : W - d, u, z];
@@ -2333,10 +2408,11 @@
       function drawRafters() {
         const starts = rafterStarts(roofWidth, doorSideOverhang, rafterWidth, rafterSpacing);
         const y = L + F;
-        const top = (x) => [[x, 0, R + roofDepth], [x + rafterWidth, 0, R + roofDepth], [x + rafterWidth, y, E + roofDepth], [x, y, E + roofDepth]];
+        const start = housePlanRecession;
+        const top = (x) => [[x, start, R + roofDepth], [x + rafterWidth, start, R + roofDepth], [x + rafterWidth, y, E + roofDepth], [x, y, E + roofDepth]];
         if (!plan && !iso && !front) {
           const x = side === "left" ? roofLeft : roofRight;
-          lumber([[x, 0, R], [x, y, E], [x, y, E + roofDepth], [x, 0, R + roofDepth]], "rafter");
+          lumber([[x, start, R], [x, y, E], [x, y, E + roofDepth], [x, start, R + roofDepth]], "rafter");
           return;
         }
         for (const x of starts.reverse()) {
@@ -2397,16 +2473,17 @@
         const strip = wallStrip(at, start, end, top, bottom, openings);
         const high = top(start);
         const pitch2 = claddingSpacing;
-        const halfCover = pitch2 * 0.27;
-        const edge = Math.min(22, pitch2 * 0.08);
-        for (let i = 0; start + i * pitch2 - halfCover < end; i++) {
-          const centre = start + i * pitch2;
-          const a = centre - halfCover, b = centre + halfCover;
+        const edge = Math.min(22, pitch2 * 0.08, houseCoverBoardWidth * 0.2);
+        for (const [a, b] of wallCourses("base", end - start, pitch2, houseBaseBoardWidth, houseCoverBoardWidth)) {
+          strip(start + a, start + b, bottom, high, "#b99b63", "house-cladding-base", 0.13);
+        }
+        for (const [i, [left, right]] of wallCourses("cover", end - start, pitch2, houseBaseBoardWidth, houseCoverBoardWidth).entries()) {
+          const a = start + left, b = start + right;
           strip(a, b, bottom, high, i % 3 ? "hsl(var(--cladding-hue) 80% 94%)" : "hsl(var(--cladding-hue) 75% 84%)", "cladding-cover", 0.28);
           strip(a, a + edge, bottom, high, "hsl(var(--cladding-hue) 80% 94%)", "cladding-highlight", 0.62);
           strip(b - edge / 2, b, bottom, high, "#795a35", "cladding-return", 0.28);
           strip(b, b + edge, bottom, high, "#64492d", "cladding-shadow", 0.27);
-          strip(b + pitch2 * 0.15, b + pitch2 * 0.17, bottom, high, "#754e2c", "cladding-grain", 0.14);
+          strip(b - edge * 2, b - edge * 1.7, bottom, high, "#754e2c", "cladding-grain", 0.14);
           strip(a, b, bottom, bottom + 12, "#745430", "cladding-drip", 0.5);
         }
       }
@@ -2424,7 +2501,7 @@
         if (iso || front) {
           face([[outer2, b, slabBase], [0, b, slabBase], top[2], top[1]], "#9ba59a", { class: "face step-riser" });
         }
-        if (iso || plan) face(top, "#c7cfc2", { class: "face step-tread" });
+        if (iso || plan) face(top, "#b98d61", { class: "face step-tread" });
       }
       function drawGutter() {
         const y = L + F, lip = E + roofDepth;
@@ -2433,25 +2510,23 @@
         const at = (x, u, z) => [x, u, z];
         const left = roofLeft, right = roofRight;
         const outlet = W;
-        if (!plan) {
-          const elbow = Math.max(0, bottom - 200);
-          const points = [
-            at(outlet, y + 55, bottom),
-            at(outlet, y + 55, elbow),
-            at(outlet, L + 35, Math.max(0, elbow - 90)),
-            at(outlet, L + 35, 35),
-            at(outlet, L + 85, 15)
-          ];
-          for (let i = 1; i < points.length; i++) line(points[i - 1], points[i], "downspout-outline");
-          for (let i = 1; i < points.length; i++) line(points[i - 1], points[i], "downspout");
-        }
-        if (iso || front || plan) {
-          if (iso || plan) face(
+        const elbow = Math.max(0, bottom - 200);
+        const points = [
+          at(outlet, y + 55, bottom),
+          at(outlet, y + 55, elbow),
+          at(outlet, L + 35, Math.max(0, elbow - 90)),
+          at(outlet, L + 35, 35),
+          at(outlet, L + 85, 15)
+        ];
+        for (let i = 1; i < points.length; i++) line(points[i - 1], points[i], "downspout-outline");
+        for (let i = 1; i < points.length; i++) line(points[i - 1], points[i], "downspout");
+        if (iso || front) {
+          if (iso) face(
             [at(left, back, lip), at(right, back, lip), at(right, edge, lip), at(left, edge, lip)],
             "#fff",
             { class: "face eave-gutter" }
           );
-          if (!plan) face(
+          face(
             [at(left, edge, lip), at(right, edge, lip), at(right, edge - 25, bottom), at(left, edge - 25, bottom)],
             "#f3f5f5",
             { class: "face eave-gutter" }
@@ -2467,18 +2542,19 @@
       function drawTiles() {
         const start = roofLeft, end = roofRight, eaveY = L + F;
         const count = Math.round((end - start) / tileWidth);
-        const courses = Math.ceil(eaveY / tileRun);
+        const courses = Math.ceil((eaveY - housePlanRecession) / tileRun);
         const elevation = !iso && !front;
         if (elevation ? courses > 80 : count > 65 || iso && count * courses > 1800) {
-          note([W / 2, eaveY / 2, R + roofDepth - slope * eaveY / 2], "Tile profiles too dense to show", -10);
+          const centre = (housePlanRecession + eaveY) / 2;
+          note(roofAt(W / 2, centre), "Tile profiles too dense to show", -10);
           return;
         }
-        const at = (x, y, h) => [x, y, R + roofDepth - slope * y + h];
+        const at = (x, y, h) => roofAt(x, y, h);
         if (elevation) {
           const x = side === "left" ? start : end;
           for (let row = 0; row < courses; row++) {
             const b = eaveY - row * tileRun;
-            const a = Math.max(0, b - tileRun);
+            const a = Math.max(housePlanRecession, b - tileRun);
             const shoulder = b - Math.min((b - a) * 0.22, 55);
             face(
               [at(x, a, 0), at(x, b, 0), at(x, b, tileRise), at(x, shoulder, tileRise), at(x, a, tileRise * 0.6)],
@@ -2503,7 +2579,7 @@
         }
         if (iso) {
           for (const { a, b, h1, h2, tone } of [...strips].reverse()) {
-            face([at(a, 0, h1), at(b, 0, h2), at(b, eaveY, h2), at(a, eaveY, h1)], tone, { class: "tile-facet" });
+            face([at(a, housePlanRecession, h1), at(b, housePlanRecession, h2), at(b, eaveY, h2), at(a, eaveY, h1)], tone, { class: "tile-facet" });
           }
           for (let row = 1; row < courses; row++) {
             const y = eaveY - row * tileRun;
@@ -2523,20 +2599,20 @@
         const span = roofWidth;
         const spacing = Math.max(350, span / 120);
         for (let x = roofLeft + spacing; x < roofRight; x += spacing) {
-          line(roofAt(x, 0, 8), roofAt(x, L + F, 8), "roof-standing-seam");
+          line(roofAt(x, housePlanRecession, 8), roofAt(x, L + F, 8), "roof-standing-seam");
           if (pitch < 14 && x + 10 < roofRight) {
-            line(roofAt(x + 10, 0, 9), roofAt(x + 10, L + F, 9), "roof-standing-seam");
+            line(roofAt(x + 10, housePlanRecession, 9), roofAt(x + 10, L + F, 9), "roof-standing-seam");
           }
         }
       }
       function drawStandingFlashing() {
         const { left, right, bottom, top, coverRise } = flashing;
-        const apron = Math.min(150, L + F);
+        const apron = housePlanRecession + Math.min(150, L + F - housePlanRecession);
         const metal = "#555b5c";
         face(
           [
-            roofAt(left, 0, coverRise + 2),
-            roofAt(right, 0, coverRise + 2),
+            roofAt(left, housePlanRecession, coverRise + 2),
+            roofAt(right, housePlanRecession, coverRise + 2),
             roofAt(right, apron, coverRise + 2),
             roofAt(left, apron, coverRise + 2)
           ],
@@ -2544,15 +2620,18 @@
           { class: "face roof-abutment-flashing" }
         );
         if (sideElevation) {
-          line([0, 0, bottom], [0, 0, top], "roof-standing-flashing-edge");
-        } else if (!plan) {
+          line([0, housePlanRecession, bottom], [0, housePlanRecession, top], "roof-standing-flashing-edge");
+        } else {
           face(
-            [[left, 1, bottom], [right, 1, bottom], [right, 1, top], [left, 1, top]],
+            [
+              [left, housePlanRecession + 1, bottom],
+              [right, housePlanRecession + 1, bottom],
+              [right, housePlanRecession + 1, top],
+              [left, housePlanRecession + 1, top]
+            ],
             metal,
             { class: "face roof-standing-flashing" }
           );
-        } else {
-          line([left, 0, bottom], [right, 0, bottom], "roof-standing-flashing-edge");
         }
       }
       function drawRoofEdgeDetails() {
@@ -2565,14 +2644,14 @@
           roofAt(start, eave, -10)
         ], metal, { class: "face roof-eave-flashing" });
         face([
-          roofAt(start, 0, -10),
-          roofAt(start + 22, 0, -10),
+          roofAt(start, housePlanRecession, -10),
+          roofAt(start + 22, housePlanRecession, -10),
           roofAt(start + 22, eave, -10),
           roofAt(start, eave, -10)
         ], metal, { class: "face roof-verge-flashing" });
         face([
-          roofAt(end - 22, 0, -10),
-          roofAt(end, 0, -10),
+          roofAt(end - 22, housePlanRecession, -10),
+          roofAt(end, housePlanRecession, -10),
           roofAt(end, eave, -10),
           roofAt(end - 22, eave, -10)
         ], metal, { class: "face roof-verge-flashing" });
@@ -2585,12 +2664,12 @@
             roofAt(x, eave, -10)
           ], "#c18a5f", { class: "face roof-rafter-tail" });
         }
-        line(roofAt(start, 0, -15), roofAt(start, eave, -15), "roof-bargeboard");
-        line(roofAt(start + 25, 0, -18), roofAt(start + 25, eave, -18), "roof-bargeboard-secondary");
-        line(roofAt(end, 0, -15), roofAt(end, eave, -15), "roof-bargeboard");
-        line(roofAt(end - 25, 0, -18), roofAt(end - 25, eave, -18), "roof-bargeboard-secondary");
+        line(roofAt(start, housePlanRecession, -15), roofAt(start, eave, -15), "roof-bargeboard");
+        line(roofAt(start + 25, housePlanRecession, -18), roofAt(start + 25, eave, -18), "roof-bargeboard-secondary");
+        line(roofAt(end, housePlanRecession, -15), roofAt(end, eave, -15), "roof-bargeboard");
+        line(roofAt(end - 25, housePlanRecession, -18), roofAt(end - 25, eave, -18), "roof-bargeboard-secondary");
         line(roofAt(start, eave, -15), roofAt(end, eave, -15), "roof-eave-fascia");
-        line(roofAt(start, 0, -20), roofAt(end, 0, -20), "roof-underlayment-edge");
+        line(roofAt(start, housePlanRecession, -20), roofAt(end, housePlanRecession, -20), "roof-underlayment-edge");
       }
       function drawPiers() {
         const pier = (points) => face(points, footingColor, { class: "face pier" });
@@ -2619,8 +2698,8 @@
         }
       }
       function drawHouseFacade() {
-        const section = (u, d, z) => [u, -d, z];
-        const baseSection = (u, d, z) => [u, -houseBaseRecession - d, z];
+        const section = (u, d, z) => [u, housePlanRecession - d, z];
+        const baseSection = (u, d, z) => [u, -d, z];
         const facade = { start: houseA, end: houseB, top: () => houseWallHeight };
         if (houseBaseHeight > 0) {
           face(
@@ -2708,28 +2787,28 @@
         const foundationTop = Math.min(0, houseBaseTop);
         if (foundationTop > slabBase) {
           face([
-            at(-houseBaseRecession, slabBase),
             at(0, slabBase),
-            at(0, foundationTop),
-            at(-houseBaseRecession, foundationTop)
+            at(housePlanRecession, slabBase),
+            at(housePlanRecession, foundationTop),
+            at(0, foundationTop)
           ], "#8e9b92", { class: "face side-wall-basement-junction", "data-layer": "cover" });
         }
         const wallBottom = Math.max(0, slabBase);
         if (houseBaseTop > wallBottom) {
           face(
             [
-              at(-houseBaseRecession, wallBottom),
               at(0, wallBottom),
-              at(0, houseBaseTop),
-              at(-houseBaseRecession, houseBaseTop)
+              at(housePlanRecession, wallBottom),
+              at(housePlanRecession, houseBaseTop),
+              at(0, houseBaseTop)
             ],
             visible("cover") ? wallColour.cover : wallColour.studs,
             { class: "face side-wall-basement-junction", "data-layer": visible("cover") ? "cover" : "studs" }
           );
         }
         line(
-          at(-houseBaseRecession, slabBase),
-          at(-houseBaseRecession, houseBaseTop),
+          at(0, slabBase),
+          at(0, houseBaseTop),
           "face",
           { "data-layer": "cover" }
         );
@@ -2910,7 +2989,7 @@
         partWindow(Math.max(0, opening.start - extension), Math.min(end, opening.end + extension), -sillProjection, 0, "#aebec1", "sill");
       }
       function drawHedge() {
-        const points = (profile) => profile.map(([offset2, height]) => [0, hedgeDistance + offset2 * hedgeHalfDepth, slabBase + hedgeHeight * height]);
+        const points = (profile) => profile.map(([offset2, height]) => [0, topHedgeCentre + offset2 * hedgeHalfDepth, slabBase + hedgeHeight * height]);
         face(points([
           [-1, 0],
           [-1, 0.89],
@@ -2944,7 +3023,7 @@
       function drawHedgePlanting() {
         const plantScale = 1.2;
         const plant = (centre, profile, colour, kind) => face(
-          profile.map(([offset2, height]) => [0, hedgeDistance - hedgeHalfDepth - centre + offset2 * plantScale, slabBase + height * plantScale]),
+          profile.map(([offset2, height]) => [0, topHedgeCentre - hedgeHalfDepth - centre + offset2 * plantScale, slabBase + height * plantScale]),
           colour,
           { class: `hedge-plant ${kind}` }
         );
@@ -3002,15 +3081,76 @@
         for (const { points, original, attrs } of ordered) shapes.push(["polygon", points, attrs, original]);
       }
       if (plan) {
-        const planA = Math.max(houseA, -planMargin), planB = Math.min(houseB, W + planMargin);
-        if (planA < planB) {
-          face(
-            [ground(planA, -Math.min(520, L * 0.22)), ground(planB, -Math.min(520, L * 0.22)), ground(planB, 0), ground(planA, 0)],
-            houseColor,
-            { class: "face house-plan" }
-          );
+        face(
+          [
+            ground(roofLeft - gradeMargin, topHedgeCentre - hedgeHalfDepth),
+            ground(roofRight + gradeMargin, topHedgeCentre - hedgeHalfDepth),
+            ground(roofRight + gradeMargin, topHedgeCentre + hedgeHalfDepth),
+            ground(roofLeft - gradeMargin, topHedgeCentre + hedgeHalfDepth)
+          ],
+          "#617c4d",
+          { class: "face hedge-plan" }
+        );
+        const planA = Math.max(houseA, 0), planB = Math.min(houseB, W);
+        const houseFace = housePlanRecession;
+        const entryCentre = houseEntryOffset - slabOriginOffset;
+        const entryLeft = entryCentre - houseEntryWidth / 2, entryRight = entryCentre + houseEntryWidth / 2;
+        const entryVisible = entryRight > planA && entryLeft < planB && planA < planB;
+        const wallSpans = entryVisible ? [[planA, Math.min(planB, entryLeft)], [Math.max(planA, entryRight), planB]] : [[planA, planB]];
+        face(slab, "#f8f6e8", { class: "slab-plan" });
+        for (const [a, b] of [[ground(0, 0), ground(0, L)], [ground(0, L), ground(W, L)], [ground(W, L), ground(W, 0)]]) {
+          line(a, b, "slab-plan-edge");
         }
-        face(slab, "#f8f6e8");
+        const rearSpans = entryVisible ? [[0, Math.max(0, entryLeft)], [Math.min(W, entryRight), W]] : [[0, W]];
+        for (const [start, end] of rearSpans) {
+          if (start < end) line(ground(start, 0), ground(end, 0), "slab-plan-edge", { "data-edge": "rear" });
+        }
+        for (const [start, end] of wallSpans) {
+          if (start < end) face([
+            ground(start, -T),
+            ground(end, -T),
+            ground(end, houseFace),
+            ground(start, houseFace)
+          ], houseColor, { class: "face house-plan" });
+        }
+        for (const [kind, inner2, outer2, colour] of [
+          ["base", houseCoverBoardThickness, houseCoverBoardThickness + houseBaseBoardThickness, "hsl(var(--cladding-hue) 65% 82%)"],
+          ["cover", 0, houseCoverBoardThickness, "hsl(var(--cladding-hue) 75% 91%)"]
+        ]) {
+          for (const [a, b] of wallCourses(kind, houseB - houseA, claddingSpacing, houseBaseBoardWidth, houseCoverBoardWidth)) {
+            for (const [start, end] of wallSpans) {
+              const left = Math.max(start, houseA + a), right = Math.min(end, houseA + b);
+              if (left < right) face(
+                [
+                  ground(left, houseFace - inner2),
+                  ground(right, houseFace - inner2),
+                  ground(right, houseFace - outer2),
+                  ground(left, houseFace - outer2)
+                ],
+                colour,
+                { class: "house-cladding-plan", "data-house-layer": kind }
+              );
+            }
+          }
+        }
+        if (entryVisible) {
+          const back = houseFace - houseEntryDepth, treadDepth = 250, stairEnd = back - 2 * treadDepth;
+          face(
+            [ground(entryLeft, houseFace), ground(entryRight, houseFace), ground(entryRight, back), ground(entryLeft, back)],
+            "#cbd1ce",
+            { class: "house-entry-floor" }
+          );
+          for (const [left, right, direction] of [[entryLeft, entryCentre, "up"], [entryCentre, entryRight, "down"]]) {
+            face(
+              [ground(left, back), ground(right, back), ground(right, stairEnd), ground(left, stairEnd)],
+              direction === "up" ? "#e4ba89" : "#d9ab76",
+              { class: "face house-entry-stair", "data-direction": direction }
+            );
+            line(ground(left, back - treadDepth), ground(right, back - treadDepth), "house-entry-tread");
+          }
+          line(ground(entryLeft, houseFace), ground(entryLeft, back), "house-entry-wall");
+          line(ground(entryRight, houseFace), ground(entryRight, back), "house-entry-wall");
+        }
         if (groundHidden) drawPiers();
         if (groundHidden && (roofTiles || roofFraming)) face(roof, "none", { style: `stroke:${roofPaint}`, "stroke-dasharray": "7 5" });
         planWall((u, d) => ground(d, u), L - T, door, "door");
@@ -3018,14 +3158,10 @@
         planWall((u, d) => ground(u, L - d), W, windows.front, "front");
         drawEntryStep();
         if (roofFraming) drawRafters();
-        if (roofTiles) {
-          drawStandingFlashing();
-          drawGutter();
-        }
         shapes.push(["door-leaf", []]);
-        if (planA < planB) note(ground((planA + planB) / 2, -Math.min(260, L * 0.11)), "Existing house", -7);
+        if (planA < planB && !entryVisible) note(ground((planA + planB) / 2, (houseFace - T) / 2), "Existing house", -7);
         note(ground(T, (door.start + door.end) / 2), "Left door", -9, "start");
-        dimension2(ground(0, L + F), ground(W, L + F), [0, 35], mm(W));
+        dimension2(ground(0, L + F), ground(W, L + F), [0, 0], mm(W));
         dimension2(ground(roofLeft, 0), ground(roofLeft, L), [-43, 0], mm(L));
       } else {
         if (iso || front) drawHouseFacade();
@@ -3045,33 +3181,33 @@
           if (!iso) {
             if (houseBaseHeight > 0) {
               line(
-                [0, -houseBaseRecession, slabBase],
-                [0, -houseBaseRecession, houseBaseTop],
+                [0, 0, slabBase],
+                [0, 0, houseBaseTop],
                 "house-concrete-base",
                 { stroke: houseBaseColor, "stroke-width": 2.5 }
               );
               if (houseBaseRecession > 0) {
                 line(
-                  [0, -houseBaseRecession, slabBase],
                   [0, 0, slabBase],
+                  [0, housePlanRecession, slabBase],
                   "house-concrete-base",
                   { stroke: houseBaseColor, "stroke-width": 2.5 }
                 );
                 line(
-                  [0, -houseBaseRecession, houseBaseTop],
                   [0, 0, houseBaseTop],
+                  [0, housePlanRecession, houseBaseTop],
                   "house-base-reveal",
                   { stroke: "#858b81", "stroke-width": 1.7 }
                 );
               }
             }
             line(
-              [0, 0, houseBaseTop],
-              [0, 0, houseWallHeight],
+              [0, housePlanRecession, houseBaseTop],
+              [0, housePlanRecession, houseWallHeight],
               "face",
               { style: "stroke:#778a7b;stroke-width:1.7;stroke-dasharray:5 4" }
             );
-            note([0, 0, houseWallHeight], "House wall", -9);
+            note([0, housePlanRecession, houseWallHeight], "House wall", -9);
           }
           foundation(sideAt(side === "right" ? W : 0), L, "#8e9b92");
           drawWall(sideSection(side), L, wallTop, side === "left" ? door : windows.right, side === "left" ? "door" : "right");
@@ -3088,7 +3224,7 @@
           drawRafters();
           orderScene(rafters);
         } else if (roofTiles && (iso || front)) {
-          if (iso) face([roof[0], roof[3], [roofLeft, L + F, E], [roofLeft, 0, R]], material === "tiles" ? tileEdgeTones[0] : roofPaint);
+          if (iso) face([roof[0], roof[3], [roofLeft, L + F, E], [roofLeft, housePlanRecession, R]], material === "tiles" ? tileEdgeTones[0] : roofPaint);
           face(roof, roofPaint, { class: "face roof-covering" });
           face([roof[2], roof[3], [roofLeft, L + F, E], [roofRight, L + F, E]], material === "tiles" ? tileEdgeTones[0] : roofPaint);
           drawRoofCovering();
@@ -3096,12 +3232,12 @@
         }
         if (!iso && !front) {
           if (roofTiles) {
-            face([[0, 0, R], [0, L + F, E], [0, L + F, E + roofDepth], [0, 0, R + roofDepth]], roofPaint);
+            face([[0, housePlanRecession, R], [0, L + F, E], [0, L + F, E + roofDepth], [0, housePlanRecession, R + roofDepth]], roofPaint);
             drawRoofCovering();
             drawRoofEdgeDetails();
           }
           if (roofTiles || roofFraming) {
-            note([0, (L + F) / 2, (R + E) / 2 + roofDepth + (roofTiles && material === "tiles" ? tileRise : 0)], `${fmt(pitch)}\xB0 pitch`, -13);
+            note([0, (housePlanRecession + L + F) / 2, (R + E) / 2 + roofDepth + (roofTiles && material === "tiles" ? tileRise : 0)], `${fmt(pitch)}\xB0 pitch`, -13);
           }
         }
         if (roofTiles) drawGutter();
@@ -3174,7 +3310,7 @@
               m("doorWidth", "Door width", [0, door.start, 0], [0, door.end, 0], doorVisible),
               m("doorHeight", "Door height", [0, door.start, 0], [0, door.start, door.top], iso || left, doorHeight, [-14, 0]),
               m("doorThickness", "Leaf thickness", [0, hingeY, door.top], [doorThickness, hingeY, door.top], plan || iso, doorThickness),
-              m("offset", "Offset from house", [0, 0, 0], [0, door.start, 0], doorVisible, offset, [0, 12]),
+              m("offset", "Offset from house", [0, housePlanRecession, 0], [0, door.start, 0], doorVisible, offset, [0, 12]),
               m(
                 "trimWidth",
                 "Trim width",
@@ -3250,8 +3386,8 @@
               m(
                 "flashingHeight",
                 "Standing flashing height",
-                [roofLeft, 0, flashing.bottom],
-                [roofLeft, 0, flashing.top],
+                [roofLeft, housePlanRecession, flashing.bottom],
+                [roofLeft, housePlanRecession, flashing.top],
                 roofTiles && !plan,
                 latest.flashingHeight,
                 [-12, 0]
@@ -3261,7 +3397,7 @@
             const y2 = L + F, x2 = roofLeft, z = E + roofDepth;
             return [
               m("tileWidth", "Tile covering width", [x2, y2, z], [x2 + tileWidth, y2, z], roofTiles && material === "tiles" && onFacade && tileWidth <= roofWidth),
-              m("tileLength", "Exposed tile length", [x2, y2, z], [x2, y2 - tileRun, z + slope * tileRun], roofTiles && material === "tiles" && (iso || left || right) && tileRun <= y2),
+              m("tileLength", "Exposed tile length", [x2, y2, z], [x2, y2 - tileRun, z + slope * tileRun], roofTiles && material === "tiles" && (iso || left || right) && tileRun <= y2 - housePlanRecession),
               m(
                 "tileRise",
                 "Profile rise",
@@ -3277,7 +3413,7 @@
             const c = roofLeft + rafterWidth / 2, z = E + roofDepth;
             const visible2 = roofFraming && (onFacade || plan);
             const perpendicular = rafterDepth / Math.hypot(1, slope);
-            const startY = (L + F) / 2, startZ = R - slope * startY;
+            const startY = (housePlanRecession + L + F) / 2, startZ = wallTop(startY);
             return [
               m(
                 "rafterSpacing",
@@ -3342,24 +3478,62 @@
                 onFacade,
                 houseBaseHeight,
                 [-15, 0]
+              ),
+              m(
+                "houseBaseBoardWidth",
+                "House base-board width",
+                houseAt(houseA + claddingSpacing / 2 - houseBaseBoardWidth / 2, houseBaseTop),
+                houseAt(houseA + claddingSpacing / 2 + houseBaseBoardWidth / 2, houseBaseTop),
+                onFacade
+              ),
+              m(
+                "houseCoverBoardWidth",
+                "House cover-board width",
+                houseAt(houseA + claddingSpacing - houseCoverBoardWidth / 2, houseBaseTop),
+                houseAt(houseA + claddingSpacing + houseCoverBoardWidth / 2, houseBaseTop),
+                onFacade
+              ),
+              m(
+                "houseBaseBoardThickness",
+                "House base-board thickness",
+                ground(houseA + claddingSpacing / 2, housePlanRecession - houseCoverBoardThickness - houseBaseBoardThickness),
+                ground(houseA + claddingSpacing / 2, housePlanRecession - houseCoverBoardThickness),
+                plan
+              ),
+              m(
+                "houseCoverBoardThickness",
+                "House cover-board thickness",
+                ground(houseA + claddingSpacing, housePlanRecession - houseCoverBoardThickness),
+                ground(houseA + claddingSpacing, housePlanRecession),
+                plan
               )
             ];
+          case "houseEntry": {
+            const centre = houseEntryOffset - slabOriginOffset;
+            const left2 = centre - houseEntryWidth / 2, right2 = centre + houseEntryWidth / 2;
+            const face2 = housePlanRecession;
+            return [
+              m("houseEntryWidth", "Entry width", ground(left2, face2 - houseEntryDepth), ground(right2, face2 - houseEntryDepth), plan),
+              m("houseEntryDepth", "Entry depth", ground(left2, face2), ground(left2, face2 - houseEntryDepth), plan, houseEntryDepth, [-15, 0]),
+              m("houseEntryOffset", "Entry centre from origin", ground(-slabOriginOffset, face2), ground(centre, face2), plan)
+            ];
+          }
           case "hedge":
             return [
               m(
                 "hedgeDistance",
                 "Distance from house",
-                [0, 0, slabBase],
-                [0, hedgeDistance, slabBase],
-                sideElevation,
+                [0, housePlanRecession, slabBase],
+                [0, topHedgeCentre, slabBase],
+                sideElevation || plan,
                 hedgeDistance,
-                [0, 17]
+                plan ? [-15, 0] : [0, 17]
               ),
               m(
                 "hedgeHeight",
                 "Hedge height",
-                [0, hedgeDistance, slabBase],
-                [0, hedgeDistance, slabBase + hedgeHeight],
+                [0, topHedgeCentre, slabBase],
+                [0, topHedgeCentre, slabBase + hedgeHeight],
                 sideElevation,
                 hedgeHeight,
                 side === "left" ? [20, 0] : [-20, 0]
@@ -3564,11 +3738,11 @@
           }, parent);
         }
       }
-      const names = { "3d": "3D porch sketch", front: "Front elevation", left: "Left elevation", right: "Right elevation", plan: "Top-down plan" };
+      const names = { "3d": "3D porch sketch", front: "Front elevation", left: "Left elevation", right: "Right elevation", plan: "Top view" };
       node("title", { id: "drawing-title" }, timberOnly ? `${names[view]} \u2014 wall timber` : names[view], group);
       paintDoor = void 0;
       doorButton.disabled = !doorVisible;
-      doorButton.title = doorVisible ? "Preview the outward door swing" : "Available in 3D, Left, and Plan";
+      doorButton.title = doorVisible ? "Preview the outward door swing" : "Available in 3D, Left, and Top view";
       for (const [tag, points, attrs, original] of shapes) {
         if (tag === "door-leaf") drawDoorLeaf();
         else drawShape(tag, points, attrs, original);
