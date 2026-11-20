@@ -5,6 +5,9 @@
 <pre id="results">Running...</pre>
 <script type="module">
 import { deromeCatalogue } from '../js/derome.js';
+import { clippedHeight, wallMembers } from '../js/framing.js';
+import { buildBom } from '../js/bom.js';
+import { computeLoads, densities } from '../js/loads.js';
 
 const results = document.querySelector('#results');
 const settingsKey = 'farstu-designer-settings-v1';
@@ -75,6 +78,102 @@ try {
   function near(actual, expected, message) {
     assert(Math.abs(actual-expected) < .01,`${message}: ${actual} != ${expected}`);
   }
+
+  await check('Doubled sill studs avoid grid overlaps and feed lumber and load estimates',() => {
+    const top = () => 2350;
+    for (const start of [580.5,600]) {
+      const op = {start,end:start+900,bottom:900,top:1900};
+      const members = wallMembers(0,2800,top,op,45,600,true);
+      const lower = members.filter(m => m.kind === 'stud' && m.a >= op.start && m.b <= op.end &&
+        m.low(m.a) === 45 && m.high(m.a) === 855).sort((a,b) => a.a-b.a);
+      for (const a of [op.start,op.start+45,op.end-90,op.end-45]) {
+        assert(lower.filter(m => m.a === a && m.b === a+45).length === 1,'Missing or duplicated sill stud');
+      }
+      assert(lower.every((m,i) => !i || lower[i-1].b <= m.a),'Sill studs overlap a regular grid stud');
+      const above = list => list.filter(m => m.kind === 'stud' && m.a >= op.start && m.b <= op.end &&
+        m.low(m.a) === op.top+45).map(m => `${m.a},${m.b}`).join(';');
+      assert(above(members) === above(wallMembers(0,2800,top,op,45,600)),
+        'Adding sill studs changed the framing above the opening');
+    }
+
+    const slope = .25;
+    const model = {
+      width:2800,length:2200,wallThickness:145,slabThickness:140,footingColumns:3,footingRows:2,
+      footingDiameter:251,footingDepth:400,frontWallHeight:2350,rear:2350+slope*2200,slope,
+      windows:{front:{start:900,end:1800,bottom:900,top:1900},right:{start:500,end:1400,bottom:900,top:1900}},
+      offset:550,doorWidth:1000,doorHeight:2100,studWidth:45,studDepth:95,studSpacing:600,
+      roofWidth:3160,doorSideOverhang:180,frontOverhang:350,rafterWidth:45,rafterDepth:170,
+      rafterSpacing:600,roofMaterial:'standingSeam',baseBoardWidth:145,coverBoardWidth:120,claddingSpacing:200,trimWidth:95
+    };
+    const sideTop = u => model.rear-slope*u;
+    const walls = [
+      [model.length-model.wallThickness,sideTop,{start:550,end:1550,bottom:0,top:2100}],
+      [model.width,top,model.windows.front],
+      [model.length-model.wallThickness,sideTop,model.windows.right]
+    ];
+    let oldCount = 0, oldArea = 0;
+    for (const [end,wallTop,opening] of walls) {
+      for (const m of wallMembers(0,end,wallTop,opening,45,600)) {
+        const height = u => clippedHeight(wallTop,m.high,u)-clippedHeight(wallTop,m.low,u);
+        if (Math.max(height(m.a),height(m.b)) <= 0) continue;
+        if (m.kind === 'stud') oldCount++;
+        oldArea += (height(m.a)+height(m.b))/2*(m.b-m.a);
+      }
+    }
+    const studCuts = buildBom(model).filter(row => row.role === 'Studs').reduce((n,row) => n+row.cuts.length,0);
+    assert(studCuts === oldCount+8,'Lumber estimate did not add eight sill studs');
+    const expectedMass = (oldArea+8*45*(900-2*45))*95*densities.timber.value/1e9;
+    near(computeLoads(model,{people:[]}).details['walls:framing'],expectedMass,'Framing mass');
+  });
+
+  await check('Both porch windows show doubled sill studs and reject insufficient clearance',async () => {
+    await load(true);
+    doc.querySelector('[data-layer-preset="timber"]').click();
+    const bounds = node => {
+      const points = node.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
+      return {left:Math.min(...points.map(p => p[0])),right:Math.max(...points.map(p => p[0])),
+        top:Math.min(...points.map(p => p[1])),bottom:Math.max(...points.map(p => p[1]))};
+    };
+    for (const side of ['front','right']) {
+      doc.querySelector(`[data-view="${side}"]`).click();
+      const slab = bounds(doc.querySelector('.slab-edge'));
+      const opening = bounds(doc.querySelector('polygon.opening-guide.window-opening'));
+      const scale = (slab.right-slab.left)/Number(field(side === 'front' ? 'width' : 'length').value);
+      const width = Number(field('studWidth').value), sill = Number(field(side+'Bottom').value);
+      const studs = [...doc.querySelectorAll('polygon.lumber.stud')].map(bounds);
+      for (const x of [opening.left,opening.left+width*scale,opening.right-2*width*scale,opening.right-width*scale]) {
+        assert(studs.some(stud => Math.abs(stud.left-x) < .01 && Math.abs(stud.right-x-width*scale) < .01 &&
+          Math.abs(stud.top-(slab.top-(sill-width)*scale)) < .01 &&
+          Math.abs(stud.bottom-(slab.top-width*scale)) < .01),`Missing doubled sill stud in ${side} view`);
+      }
+    }
+    for (const side of ['front','right']) {
+      field(side+'Bottom').value = '90';
+      field(side+'Bottom').dispatchEvent(new win.Event('input',{bubbles:true}));
+      assert(field('status').textContent.includes(`Raise the ${side} window`) &&
+        field(side+'Bottom').getAttribute('aria-invalid') === 'true','Insufficient sill clearance was accepted');
+      edit(side+'Bottom',91);
+    }
+    const rightTop = Number(field('rightTop').value);
+    field('rightTop').value = String(rightTop+2);
+    field('rightTop').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent.includes('Raise the right window'),'An insufficient calculated bottom clearance was accepted');
+    edit('rightTop',rightTop);
+    edit('width',2850);
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    saved.fields.frontBottom = '90';
+    saved.anchors.front = 'Bottom';
+    localStorage.setItem(settingsKey,JSON.stringify(saved));
+    await load();
+    assert(field('width').value === '2850' && field('frontBottom').value === '90' &&
+      field('status').textContent.includes('Raise the front window') &&
+      JSON.parse(localStorage.getItem(settingsKey)).fields.frontBottom === '90',
+      'A saved layout with insufficient sill clearance was lost or silently changed');
+    edit('frontBottom',91);
+    await load();
+    assert(field('width').value === '2850' && field('frontBottom').value === '91' && !field('status').textContent,
+      'Correcting the saved layout did not preserve the other settings');
+  });
 
   await check('Standing flashing follows the roof and warns on upper-window contact',async () => {
     await load(true);

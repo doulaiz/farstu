@@ -87,7 +87,7 @@ function wallLoads(model, add) {
   ];
   const step = 25;
   for (const { end, top, op, at, kind } of walls) {
-    for (const { a, b, low, high } of wallMembers(0, end, top, op, studWidth, studSpacing)) {
+    for (const { a, b, low, high } of wallMembers(0, end, top, op, studWidth, studSpacing, kind === 'window')) {
       const n = Math.max(1, Math.ceil((b - a) / step));
       for (let i = 0; i < n; i++) {
         const u = a + (i + .5) * (b - a) / n;

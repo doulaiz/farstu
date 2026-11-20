@@ -26,7 +26,7 @@ function takeoff(model) {
     {key:'right', end:length-wallThickness, face:length, top:sideTop, op:windows.right}
   ];
   for (const {key,end,face,top,op} of walls) {
-    for (const {a,b,low,high,kind} of wallMembers(0,end,top,op,studWidth,studSpacing)) {
+    for (const {a,b,low,high,kind} of wallMembers(0,end,top,op,studWidth,studSpacing,key !== 'door')) {
       const height = u => clippedHeight(top,high,u)-clippedHeight(top,low,u);
       if (Math.max(height(a),height(b)) <= 0) continue;
       const cut = kind === 'stud' ? Math.max(height(a),height(b)) :

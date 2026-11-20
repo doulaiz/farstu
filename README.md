@@ -45,6 +45,8 @@ Under **Parameters → Openings**, choose a muntin pattern for each porch window
 
 New porch windows use Swedish module dimensions M5–M15 (500–1500 mm) in 100 mm increments for width and height. These describe rough openings, not frame outer dimensions; verify the specific combination and window type with a supplier. See [Byggmax's explanation of window modules](https://www.byggmax.se/montera-fonster).
 
+Each porch window has two adjacent studs beneath each end of its sill, between the bottom plate and sill. The bottom clearance must exceed twice the stud width so these studs fit; layouts without enough space are rejected. Saved layouts that need a higher sill remain editable so they can be corrected without losing other settings. The drawing, lumber estimate and framing loads use the same studs. Existing house windows and the door are unchanged.
+
 Existing-house and basement windows accept measured, non-standard sizes in 1 mm increments. Their dimensions are bounded for planning and must still fit the house façade or concrete base.
 
 Under **Parameters → Existing house → Position and window spacing**, the origin is at ground level directly below the left edge of the left main window, viewed facing the house. Set the signed distance to the slab's left edge and the clear gap between the main windows; a negative gap represents overlap. The wall's left edge and the upper and basement window centres are also measured from the origin. Window sills and wall height are measured above ground, independently of slab thickness. Moving or resizing the slab therefore does not move the existing house. Older saved designs are converted to these references without changing their geometry.

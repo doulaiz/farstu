@@ -496,7 +496,7 @@
     }
     return posts.sort(([a], [b]) => a - b);
   }
-  function wallMembers(start, end, top, op, studWidth, studSpacing) {
+  function wallMembers(start, end, top, op, studWidth, studSpacing, isWindow = false) {
     const members = [];
     function member(a, b, low, high, kind) {
       if (b > a) members.push({ a, b, low, high, kind });
@@ -504,14 +504,23 @@
     const constant = (z) => () => z;
     const plateTop = (u) => top(u) - studWidth;
     const zero = constant(0), plate = constant(studWidth);
+    const sillStuds = isWindow ? [
+      [op.start, op.start + studWidth],
+      [op.start + studWidth, op.start + 2 * studWidth],
+      [op.end - 2 * studWidth, op.end - studWidth],
+      [op.end - studWidth, op.end]
+    ] : [];
     for (const [a, b] of wallPosts(start, end, op, studWidth, studSpacing)) {
       if (a >= op.start && b <= op.end) {
-        member(a, b, plate, constant(op.bottom - studWidth), "stud");
+        if (!sillStuds.some(([left, right]) => a < right && b > left)) {
+          member(a, b, plate, constant(op.bottom - studWidth), "stud");
+        }
         member(a, b, constant(op.top + studWidth), plateTop, "stud");
       } else {
         member(a, b, plate, plateTop, "stud");
       }
     }
+    for (const [a, b] of sillStuds) member(a, b, plate, constant(op.bottom - studWidth), "stud");
     for (const [a, b] of [[start, op.start], [op.end, end]]) member(a, b, zero, plate, "wall-plate");
     member(op.start, op.end, zero, constant(Math.min(studWidth, op.bottom)), "wall-plate");
     member(start, op.start, plateTop, top, "wall-plate");
@@ -588,7 +597,7 @@
       { key: "right", end: length - wallThickness, face: length, top: sideTop, op: windows.right }
     ];
     for (const { key, end, face, top, op } of walls) {
-      for (const { a, b, low, high, kind } of wallMembers(0, end, top, op, studWidth, studSpacing)) {
+      for (const { a, b, low, high, kind } of wallMembers(0, end, top, op, studWidth, studSpacing, key !== "door")) {
         const height = (u) => clippedHeight(top, high, u) - clippedHeight(top, low, u);
         if (Math.max(height(a), height(b)) <= 0) continue;
         const cut = kind === "stud" ? Math.max(height(a), height(b)) : high(a) === top(a) && high(b) === top(b) && kind === "wall-plate" ? Math.hypot(b - a, top(b) - top(a)) : b - a;
@@ -1022,7 +1031,7 @@
     ];
     const step = 25;
     for (const { end, top, op, at, kind } of walls) {
-      for (const { a, b, low, high } of wallMembers(0, end, top, op, studWidth, studSpacing)) {
+      for (const { a, b, low, high } of wallMembers(0, end, top, op, studWidth, studSpacing, kind === "window")) {
         const n2 = Math.max(1, Math.ceil((b - a) / step));
         for (let i = 0; i < n2; i++) {
           const u = a + (i + 0.5) * (b - a) / n2;
@@ -1641,6 +1650,7 @@
     let groundHidden = false;
     let persistenceEnabled = true;
     let settingsValid = false;
+    let onlySillClearanceErrors = false;
     let doorAngle = 0;
     let doorOpen = false;
     let doorAnimation = 0;
@@ -1854,6 +1864,7 @@
       }
       const bad = /* @__PURE__ */ new Set();
       const messages = /* @__PURE__ */ new Set();
+      const sillMessages = /* @__PURE__ */ new Set();
       function flag(message, ...keys) {
         messages.add(message);
         keys.forEach((key) => bad.add(key));
@@ -1945,6 +1956,11 @@
         if (w > span) flag(`The ${side} window is wider than its clear wall span.`, side + "Width", isFront ? "width" : "length", "wallThickness");
         if (complement < -1e-8) flag(`The ${side} window does not fit between the slab and the roofline.`, side + "Height", side + anchor, side + other);
         const bottom = anchor === "Bottom" ? v[side + anchor] : Math.max(0, complement);
+        if (bottom <= 2 * v.studWidth) {
+          const message = `Raise the ${side} window: doubled studs below the sill need space above the bottom plate.`;
+          sillMessages.add(message);
+          flag(message, side + anchor, side + other, "studWidth");
+        }
         windows[side] = { start, end, bottom, top: bottom + h };
       }
       const origin = -v.slabOriginOffset;
@@ -1989,7 +2005,8 @@
         if (bad.has(key)) input.setAttribute("aria-invalid", "true");
         else input.removeAttribute("aria-invalid");
       }
-      $("status").textContent = messages.size ? `Showing the last valid drawing. ${[...messages].join(" ")}` : "";
+      onlySillClearanceErrors = messages.size > 0 && messages.size === sillMessages.size;
+      $("status").textContent = messages.size ? `${latest ? "Showing the last valid drawing." : "No valid drawing yet."} ${[...messages].join(" ")}` : "";
       if (messages.size) {
         settingsValid = false;
         bom.update(latest, false);
@@ -2258,8 +2275,8 @@
         orderFraming(facing ? positive : negative, output, eye);
       }
       const wallPosts2 = (start, end, op) => wallPosts(start, end, op, studWidth, studSpacing);
-      function drawWallFrame(at, start, end, top, op) {
-        const members = wallMembers(start, end, top, op, studWidth, studSpacing);
+      function drawWallFrame(at, start, end, top, op, isWindow) {
+        const members = wallMembers(start, end, top, op, studWidth, studSpacing, isWindow);
         const height = (fn, u) => clippedHeight(top, fn, u);
         if (visible("studs")) for (const { a, b, low, high, kind } of members) {
           const al = height(low, a), bl = height(low, b);
@@ -2734,7 +2751,7 @@
           const [depth] = bands[key];
           const at2 = (u, z) => section(u, depth, z);
           if (key === "studs") {
-            drawWallFrame((u, d, z) => section(u, depth + d, z), 0, isSide ? length - T : length, top, op);
+            drawWallFrame((u, d, z) => section(u, depth + d, z), 0, isSide ? length - T : length, top, op, name !== "door");
             continue;
           }
           const end = isSide ? length - depth : length;
@@ -2772,7 +2789,7 @@
           }
         }
         if (!visible("studs") && visible("cavity")) {
-          drawWallFrame((u, d, z) => section(u, bands.studs[0] + d, z), 0, isSide ? length - T : length, top, op);
+          drawWallFrame((u, d, z) => section(u, bands.studs[0] + d, z), 0, isSide ? length - T : length, top, op, name !== "door");
         }
         const at = (u, z) => section(u, 0, z);
         if (name === "door") {
@@ -3704,9 +3721,11 @@
     const valid = update(true);
     if (!valid && restored) {
       persistenceEnabled = false;
-      resetParameters(true);
-      storageStatus.textContent = "Saved settings are incompatible; defaults were loaded.";
-      update();
+      if (!onlySillClearanceErrors) {
+        resetParameters(true);
+        storageStatus.textContent = "Saved settings are incompatible; defaults were loaded.";
+        update();
+      }
     } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference)) {
       const notices = [];
       if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map((key) => `${key} = ${fields[key].value} mm`).join(", ")}. Review these changes before ordering.`);

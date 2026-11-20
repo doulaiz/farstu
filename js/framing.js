@@ -15,7 +15,7 @@ export function wallPosts(start, end, op, studWidth, studSpacing) {
   return posts.sort(([a],[b]) => a-b);
 }
 
-export function wallMembers(start, end, top, op, studWidth, studSpacing) {
+export function wallMembers(start, end, top, op, studWidth, studSpacing, isWindow = false) {
   const members = [];
   function member(a,b,low,high,kind) {
     if (b > a) members.push({a,b,low,high,kind});
@@ -23,14 +23,21 @@ export function wallMembers(start, end, top, op, studWidth, studSpacing) {
   const constant = (z) => () => z;
   const plateTop = (u) => top(u)-studWidth;
   const zero = constant(0), plate = constant(studWidth);
+  const sillStuds = isWindow ? [
+    [op.start,op.start+studWidth], [op.start+studWidth,op.start+2*studWidth],
+    [op.end-2*studWidth,op.end-studWidth], [op.end-studWidth,op.end]
+  ] : [];
   for (const [a,b] of wallPosts(start,end,op,studWidth,studSpacing)) {
     if (a >= op.start && b <= op.end) {
-      member(a,b,plate,constant(op.bottom-studWidth),'stud');
+      if (!sillStuds.some(([left,right]) => a < right && b > left)) {
+        member(a,b,plate,constant(op.bottom-studWidth),'stud');
+      }
       member(a,b,constant(op.top+studWidth),plateTop,'stud');
     } else {
       member(a,b,plate,plateTop,'stud');
     }
   }
+  for (const [a,b] of sillStuds) member(a,b,plate,constant(op.bottom-studWidth),'stud');
   for (const [a,b] of [[start,op.start],[op.end,end]]) member(a,b,zero,plate,'wall-plate');
   member(op.start,op.end,zero,constant(Math.min(studWidth,op.bottom)),'wall-plate');
   member(start,op.start,plateTop,top,'wall-plate');

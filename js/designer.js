@@ -51,6 +51,7 @@ export function initDesigner() {
   let groundHidden = false;
   let persistenceEnabled = true;
   let settingsValid = false;
+  let onlySillClearanceErrors = false;
   let doorAngle = 0;
   let doorOpen = false;
   let doorAnimation = 0;
@@ -291,6 +292,7 @@ export function initDesigner() {
     }
     const bad = new Set();
     const messages = new Set();
+    const sillMessages = new Set();
     function flag(message, ...keys) {
       messages.add(message);
       keys.forEach((key) => bad.add(key));
@@ -374,6 +376,11 @@ export function initDesigner() {
       if (w > span) flag(`The ${side} window is wider than its clear wall span.`, side + 'Width', isFront ? 'width' : 'length', 'wallThickness');
       if (complement < -1e-8) flag(`The ${side} window does not fit between the slab and the roofline.`, side + 'Height', side + anchor, side + other);
       const bottom = anchor === 'Bottom' ? v[side + anchor] : Math.max(0, complement);
+      if (bottom <= 2*v.studWidth) {
+        const message = `Raise the ${side} window: doubled studs below the sill need space above the bottom plate.`;
+        sillMessages.add(message);
+        flag(message,side + anchor,side + other,'studWidth');
+      }
       windows[side] = { start, end, bottom, top: bottom + h };
     }
 
@@ -414,7 +421,9 @@ export function initDesigner() {
       if (bad.has(key)) input.setAttribute('aria-invalid', 'true');
       else input.removeAttribute('aria-invalid');
     }
-    $('status').textContent = messages.size ? `Showing the last valid drawing. ${[...messages].join(' ')}` : '';
+    onlySillClearanceErrors = messages.size > 0 && messages.size === sillMessages.size;
+    $('status').textContent = messages.size
+      ? `${latest ? 'Showing the last valid drawing.' : 'No valid drawing yet.'} ${[...messages].join(' ')}` : '';
     if (messages.size) {
       settingsValid = false;
       bom.update(latest, false);
@@ -635,8 +644,8 @@ export function initDesigner() {
 
     const wallPosts = (start,end,op) => posts(start,end,op,studWidth,studSpacing);
 
-    function drawWallFrame(at, start, end, top, op) {
-      const members = wallMembers(start,end,top,op,studWidth,studSpacing);
+    function drawWallFrame(at, start, end, top, op, isWindow) {
+      const members = wallMembers(start,end,top,op,studWidth,studSpacing,isWindow);
       const height = (fn,u) => clippedHeight(top,fn,u);
       if (visible('studs')) for (const {a,b,low,high,kind} of members) {
         const al = height(low,a), bl = height(low,b);
@@ -1028,7 +1037,7 @@ export function initDesigner() {
         const [depth] = bands[key];
         const at = (u,z) => section(u,depth,z);
         if (key === 'studs') {
-          drawWallFrame((u,d,z) => section(u,depth+d,z),0,isSide ? length-T : length,top,op);
+          drawWallFrame((u,d,z) => section(u,depth+d,z),0,isSide ? length-T : length,top,op,name !== 'door');
           continue;
         }
         const end = isSide ? length-depth : length;
@@ -1067,7 +1076,7 @@ export function initDesigner() {
         }
       }
       if (!visible('studs') && visible('cavity')) {
-        drawWallFrame((u,d,z) => section(u,bands.studs[0]+d,z),0,isSide ? length-T : length,top,op);
+        drawWallFrame((u,d,z) => section(u,bands.studs[0]+d,z),0,isSide ? length-T : length,top,op,name !== 'door');
       }
       const at = (u,z) => section(u,0,z);
       if (name === 'door') {
@@ -1801,9 +1810,11 @@ export function initDesigner() {
   const valid = update(true);
   if (!valid && restored) {
     persistenceEnabled = false;
-    resetParameters(true);
-    storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
-    update();
+    if (!onlySillClearanceErrors) {
+      resetParameters(true);
+      storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
+      update();
+    }
   } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference)) {
     const notices = [];
     if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map(key => `${key} = ${fields[key].value} mm`).join(', ')}. Review these changes before ordering.`);
