@@ -145,6 +145,27 @@ try {
   edit('doorHeight',2100);
   passed.push('Four glazing styles, frame containment, handle clearance and mirrored proportions at door module limits');
 
+  doc.querySelector('[data-view="3d"]').click();
+  for (const handing of ['ltr','rtl']) {
+    edit('door-handing',handing,'change');
+    let overlapsDuringSwing = 0;
+    for (const open of [true,false]) {
+      const start = win.performance.now();
+      field('toggle-door').click();
+      for (const elapsed of [0,110,220,330,440,550]) {
+        tick(start+elapsed);
+        for (const part of parts()) for (const step of doc.querySelectorAll('.step-tread, .step-riser')) {
+          if (!overlaps(vertices(part),vertices(step))) continue;
+          if (elapsed > 0 && elapsed < 550) overlapsDuringSwing++;
+          assert(Boolean(step.compareDocumentPosition(part) & win.Node.DOCUMENT_POSITION_FOLLOWING),
+            `Step covers the ${handing} door while ${open ? 'opening' : 'closing'} at ${elapsed} ms`);
+        }
+      }
+    }
+    assert(overlapsDuringSwing > 0,`No step/door overlap was exercised during the ${handing} swing`);
+  }
+  passed.push('Step stays behind overlapping door faces throughout both 3D swing directions');
+
   for (const style of styles) for (const handing of ['ltr','rtl']) for (const thickness of [40,100]) {
     edit('door-window',style,'change');
     edit('door-handing',handing,'change');

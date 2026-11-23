@@ -4003,8 +4003,8 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         }
         if (sideElevation) drawSideWallBasementJunction(side);
         orderScene(wallScene);
-        if (doorVisible) shapes.push(["door-leaf", []]);
         drawEntryStep();
+        if (doorVisible) shapes.push(["door-leaf", []]);
         if (roofFraming) {
           const rafters = shapes.length;
           drawRafters();

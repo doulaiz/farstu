@@ -1403,8 +1403,8 @@ export function initDesigner() {
       }
       if (sideElevation) drawSideWallBasementJunction(side);
       orderScene(wallScene);
-      if (doorVisible) shapes.push(['door-leaf', []]);
       drawEntryStep();
+      if (doorVisible) shapes.push(['door-leaf', []]);
       if (roofFraming) {
         const rafters = shapes.length;
         drawRafters();
