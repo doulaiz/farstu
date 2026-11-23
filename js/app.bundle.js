@@ -1301,7 +1301,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     const v = s.view(105 - w / 200, 104 - l / 200, 100);
     const f = s.view(297 - w / 100, 133 - l / 100, 50);
     s.heading(14, 35, "01  Planritning  /  1:100");
-    s.heading(181, 35, "02  Platta, stomlinjer & plintar  /  1:50");
+    s.heading(181, 35, m.pier.columns.length ? "02  Platta, stomlinjer & plintar  /  1:50" : "02  Platta & stomlinjer  /  1:50");
     s.scaleBar(14, 41, 100, 2e3);
     s.scaleBar(181, 41, 50, 2e3);
     const rear = (view, showEntry = false) => {
@@ -1374,13 +1374,13 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     s.note(14, 160, ["Gr\xE5 v\xE4gg: befintlig byggnad (utsnitt).", "Streckad kontur: takutspr\xE5ng. A\u2013A: sektion.", "Fyllda markeringar: modellens v\xE4ggreglar."]);
     const outsideRise = tread.z - site.newGrade;
     s.note(181, 207, [
-      `Platta ${mm(m.slabThickness)} mm \xB7 ${columns.length} \xD7 ${rows.length} plintar \xD8${mm(m.footingDiameter)} \xB7 modellens entr\xE9steg, stegdjup 300 mm.`,
+      `Platta ${mm(m.slabThickness)} mm \xB7 ${columns.length ? `${columns.length} \xD7 ${rows.length} plintar \xD8${mm(m.footingDiameter)}` : "inga plintar i modellen"} \xB7 modellens entr\xE9steg, stegdjup 300 mm.`,
       `Stegh\xF6jd: ${mm(outsideRise)} mm (mark till steg) / ${mm(-tread.z)} mm (steg till FG).`
     ], 2.6);
     s.cloud(14, 185, 143, "OBS: VERIFIERA SP\xC4NNVIDDER, B\xC4RLINA OCH INF\xC4STNING");
     s.pending([
-      "Modellen har betongplatta p\xE5 plintar; golvbj\xE4lkar (riktning/c/c) \xE4r inte modellerade eller f\xF6reskrivna.",
-      "Takets bakre upplag (b\xE4rlina eller balk), plattans armering, sp\xE4nnvidder och plintreaktioner dimensioneras separat.",
+      columns.length ? "Modellen har betongplatta p\xE5 plintar; golvbj\xE4lkar (riktning/c/c) \xE4r inte modellerade eller f\xF6reskrivna." : "Inga plintar i modellen; grundl\xE4ggning projekteras. Golvbj\xE4lkar \xE4r inte modellerade eller f\xF6reskrivna.",
+      columns.length ? "Takets bakre upplag (b\xE4rlina eller balk), plattans armering, sp\xE4nnvidder och plintreaktioner dimensioneras separat." : "Takets bakre upplag, plattans armering, sp\xE4nnvidder och grundl\xE4ggning dimensioneras separat.",
       `${outsideRise <= 0 ? "Ny mark ligger i eller \xF6ver modellsteget. " : ""}Kontrollera trappans geometri, tillg\xE4nglighet, niv\xE5skillnader och fasts\xE4ttning p\xE5 plats.`
     ]);
     return s.svg();
@@ -1408,7 +1408,11 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     const baseTop = m.houseBaseHeight - m.slabThickness;
     const min = Math.min(m.houseA, -m.doorSideOverhang), max = Math.max(m.houseB, w + m.rightOverhang);
     const front = s.view(203 - (min + max) / 200, 125, 100);
-    const frontMin = Math.min(site.existingGrade, site.newGrade, m.frostLevel, m.pierBottom);
+    const frontMin = Math.min(
+      site.existingGrade,
+      site.newGrade,
+      ...m.pier.columns.length ? [m.frostLevel, m.pierBottom] : []
+    );
     const cropped = Math.max(ridge, m.roofTop, m.flashing.top, houseTop) > 8100 || frontMin < -2400 || max - min > 33800;
     const frontWindow = (v, op) => {
       v.rect(structure, op.start, op.bottom, op.end - op.start, op.top - op.bottom, glass);
@@ -1464,7 +1468,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         v.vertical(0, m.roofFront, sign * e, east ? -5 : 6, `Takfot ${level(m.roofFront)}`);
       });
     }
-    s.note(15, 221, ["Befintlig marklinje: streckad  \xB7  Ny marklinje: heldragen  \xB7  Plintar under mark: streckade; prickat visar bed\xF6mt tj\xE4ldjup."], 2.55);
+    s.note(15, 221, [m.pier.columns.length ? "Befintlig marklinje: streckad  \xB7  Ny marklinje: heldragen  \xB7  Plintar under mark: streckade; prickat visar bed\xF6mt tj\xE4ldjup." : "Befintlig marklinje: streckad  \xB7  Ny marklinje: heldragen  \xB7  Inga plintar i modellen."], 2.55);
     s.note(211, 228, [
       `Taklutning ${decimal(m.pitch, Number.isInteger(m.pitch) ? 0 : 1)}\xB0 \xB7 ${m.roofMaterial === "tiles" ? "betongpannor" : "bandt\xE4ckt pl\xE5t"}, ${roofColor[m.roofFinish] || "kul\xF6r ej angiven"}.`,
       "St\xE5ende tr\xE4panel, kul\xF6r och s\xE4kerhetsglas verifieras."
@@ -1482,9 +1486,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
   var treadSide = ({ start, end }, sign) => Math.min(sign * start, sign * end);
   function sectionDetails(s, m) {
     const a = s.view(229, 106, 20);
-    const b = s.view(229, 174, 20);
     s.heading(213, 35, "D1  Upplag mot befintlig v\xE4gg  /  1:20");
-    s.heading(213, 119, "D2  Platta / plint och princip f\xF6r plintj\xE4rn  /  1:20");
     const run = 610, fall = m.slope * run, depth = m.rafterDepth * Math.hypot(1, m.slope);
     s.viewport("D1 / wall connection", 213, 40, 54, 75, () => {
       a.rect(existing, -180, -260, 180, 680, gray);
@@ -1503,6 +1505,18 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       `Takregel ${mm(m.rafterWidth)} \xD7 ${mm(m.rafterDepth)} mm (modell).`,
       "Bakre upplag och inf\xE4stning projekteras."
     ]);
+    if (!m.pier.columns.length) {
+      s.note(213, 124, [
+        "Inga plintar i modellen. Grundl\xE4ggning projekteras.",
+        "Konstruktionsvirke: C24 (f\xF6rslag, verifieras).",
+        "NTR/A vid markkontakt; NTR/AB ovan mark",
+        "d\xE4r tr\xE4skydd beh\xF6vs. Fuktskydd projekteras."
+      ], 2.6);
+      s.scaleBar(269, 173, 20, 500);
+      return;
+    }
+    const b = s.view(229, 174, 20);
+    s.heading(213, 119, "D2  Platta / plint och princip f\xF6r plintj\xE4rn  /  1:20");
     s.viewport("D2 / footing", 213, 124, 54, 89, () => {
       b.rect(structure, -160, -m.slabThickness, 640, m.slabThickness, s.hatch);
       b.rect(structure, (m.studDepth - m.footingDiameter) / 2, -m.slabThickness - 360, m.footingDiameter, 360, gray);
@@ -1549,22 +1563,22 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       groundLines(v, site, -650, e + 250);
       v.vertical(0, m.frontWallHeight, m.length - m.wallThickness, -9, `Rumsh\xF6jd ca ${mm(m.frontWallHeight)} till takregel`);
       v.label(labels, m.face + 120, m.roofTop + 220, "D1", { weight: 700 });
-      v.label(labels, m.pier.rows[0] - 120, -m.slabThickness - 160, "D2", { weight: 700, anchor: "end" });
+      if (m.pier.rows.length) v.label(labels, m.pier.rows[0] - 120, -m.slabThickness - 160, "D2", { weight: 700, anchor: "end" });
     });
     s.note(14, 198, [
-      `Modell: betongplatta ${mm(m.slabThickness)} mm; plintbotten ${level(m.pierBottom)}.`,
+      m.pier.columns.length ? `Modell: betongplatta ${mm(m.slabThickness)} mm; plintbotten ${level(m.pierBottom)}.` : `Modell: betongplatta ${mm(m.slabThickness)} mm; inga plintar. Grundl\xE4ggning projekteras.`,
       `Tj\xE4lfritt djup (underlag): ${mm(site.frost)} mm under ny mark, niv\xE5 ${level(m.frostLevel)}.`,
       `Takreglar ${rafterStarts(m.roofWidth, m.doorSideOverhang, m.rafterWidth, m.rafterSpacing).length} st. \xB7 ${mm(m.rafterWidth)} \xD7 ${mm(m.rafterDepth)} \xB7 nominellt c/c ${mm(m.rafterSpacing)} mm.`
     ], 2.65);
     sectionDetails(s, m);
-    if (m.frostLevel < m.pierBottom) s.cloud(13, 215, 160, "KONTROLLERAS: PLINTBOTTEN \xD6VER ANTAGET TJ\xC4LDJUP");
+    if (m.pier.columns.length && m.frostLevel < m.pierBottom) s.cloud(13, 215, 160, "KONTROLLERAS: PLINTBOTTEN \xD6VER ANTAGET TJ\xC4LDJUP");
     s.cloud(213, 215, 189, `OBS: VERIFIERA DIMENSIONERING / SN\xD6ZON ${decimal(site.snow)} kN/m\xB2`);
     s.pending([
       "Verifiera sn\xF6, vind, sp\xE4nnvidder, jord/b\xE4righet, armering, frost, fuktskydd och alla inf\xE4stningar.",
       "R\xE4cke ej modellerat. Verifiera fallh\xF6jd och krav; 1 100 mm \xE4r ett kontrollm\xE5tt d\xE4r till\xE4mpligt.",
       "Fastst\xE4ll g\xE4llande byggregler med kommunen (BBR/EKS d\xE4r till\xE4mpligt); tr\xE4 enligt SS-EN 1995."
     ]);
-    if (Math.max(m.flashing.top, m.houseWallHeight - m.slabThickness) > 5200 || Math.min(m.frostLevel, m.pierBottom) < -2050 || m.slope * 610 > 180 || m.flashingHeight + m.rafterDepth * Math.hypot(1, m.slope) > 1150) {
+    if (Math.max(m.flashing.top, m.houseWallHeight - m.slabThickness) > 5200 || m.pier.columns.length && Math.min(m.frostLevel, m.pierBottom) < -2050 || m.slope * 610 > 180 || m.flashingHeight + m.rafterDepth * Math.hypot(1, m.slope) > 1150) {
       s.note(213, 209, ["Geometri utanf\xF6r ritf\xE4lt kapas; angivna skalor bibeh\xE5lls."], 2.55);
     }
     return s.svg();
@@ -2342,9 +2356,10 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
           "houseBaseHeight"
         );
       }
-      if (![2, 3].includes(footingColumns) || ![2, 3].includes(footingRows)) {
+      const noPiers = footingColumns === 0 && footingRows === 0;
+      if (!noPiers && (![2, 3].includes(footingColumns) || ![2, 3].includes(footingRows))) {
         flag("Choose a pier grid from the list.", footingLayout.id);
-      } else if (footingColumns * v.footingDiameter >= v.width || footingRows * v.footingDiameter >= v.length) {
+      } else if (!noPiers && (footingColumns * v.footingDiameter >= v.width || footingRows * v.footingDiameter >= v.length)) {
         flag(
           `The ${footingColumns} \xD7 ${footingRows} pier grid does not fit under this slab without touching. Choose a smaller grid, reduce the pier diameter, or enlarge the slab.`,
           footingLayout.id,
@@ -2506,7 +2521,8 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       $("area").textContent = `${fmt(v.width * v.length / 1e6)} m\xB2`;
       $("rear").textContent = mm2(rear);
       $("rise").textContent = mm2(slope * (v.length - planRecession));
-      $("assembly").textContent = `Slab: ${mm2(v.slabThickness)} thick. Walls: ${mm2(v.wallThickness)} thick. ${footingColumns * footingRows} piers (${footingColumns} \xD7 ${footingRows}): ${mm2(v.footingDiameter)} diameter by ${mm2(v.footingDepth)} deep below the slab.`;
+      const footingSummary = noPiers ? "No piers; foundation design must be verified." : `${footingColumns * footingRows} piers (${footingColumns} \xD7 ${footingRows}): ${mm2(v.footingDiameter)} diameter by ${mm2(v.footingDepth)} deep below the slab.`;
+      $("assembly").textContent = `Slab: ${mm2(v.slabThickness)} thick. Walls: ${mm2(v.wallThickness)} thick. ${footingSummary}`;
       render();
       return true;
     }
@@ -3558,7 +3574,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
           foundation(frontAt, W, "#aab4aa");
           drawWall(frontSection, W, frontTop, windows.front, "front");
           if (front) {
-            const baseline = groundHidden ? footingBase : slabBase;
+            const baseline = groundHidden && pierColumns.length ? footingBase : slabBase;
             dimension2(frontAt(0, baseline), frontAt(W, baseline), [0, 38], mm2(W));
           }
         }
@@ -3635,7 +3651,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       if (iso || plan) bounds.push(...grade);
       else if (front) bounds.push(frontAt(frontGradeLeft, slabBase), frontAt(frontGradeRight, slabBase));
       else bounds.push([0, sideGradeEnd, slabBase]);
-      if (!plan) bounds.push([0, 0, footingBase], [W, L, footingBase], [0, L, footingBase]);
+      if (!plan && pierColumns.length) bounds.push([0, 0, footingBase], [W, L, footingBase], [0, L, footingBase]);
       if (doorVisible) {
         for (let i = 0; i <= 24; i++) {
           for (const distance of [0, doorWidth]) for (const depth of [0, doorThickness]) {
@@ -3679,7 +3695,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
               m("slabThickness", "Slab thickness", [0, L, slabBase], [0, L, 0], !plan, slabThickness, [-16, 0])
             ];
           case "footings":
-            return [
+            return !pierColumns.length ? [] : [
               m(
                 "footingDiameter",
                 "Pier diameter",

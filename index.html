@@ -96,6 +96,7 @@
             <div class="parameter-content">
               <label class="footing-layout">Pier grid
                 <select id="footing-layout" aria-describedby="footing-hint">
+                  <option value="0x0">No piers</option>
                   <option value="2x2">2 × 2 (4 piers)</option>
                   <option value="3x2" selected>3 × 2 (6 piers)</option>
                   <option value="2x3">2 × 3 (6 piers)</option>
@@ -103,7 +104,7 @@
                 </select>
               </label>
               <div class="fields" id="footings"></div>
-              <p class="hint" id="footing-hint">The first number is across the slab width; the second is along its length, from the house out. Piers are evenly spaced on each axis. Depth is measured below the slab. Choose Hide ground, then Top view, to see every pier.</p>
+              <p class="hint" id="footing-hint">Choose No piers to omit them from the model; the foundation still needs to be designed. For a grid, the first number is across the slab width; the second is along its length, from the house out. Piers are evenly spaced on each axis. Depth is measured below the slab. Choose Hide ground, then Top view, to see every pier.</p>
               <p class="hint">Diameters follow <a href="https://k-bygg.se/kategori/byggmaterial/block-sten-och-sand/gjutror">Swedish retail casting tubes</a>: 150, 190, 251, 302 and 403 mm. Depth is site-designed, not determined by tube size; verify frost protection and bearing capacity.</p>
             </div>
           </details>

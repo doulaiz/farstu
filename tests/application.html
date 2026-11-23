@@ -926,6 +926,46 @@ try {
     verify(3,2,251,400);
   });
 
+  await check('No-pier layout persists and removes piers from all views and sheets',async () => {
+    await load(true);
+    edit('footing-layout','0x0');
+    assert(!field('status').textContent && field('assembly').textContent.includes('No piers'),
+      'No-pier layout was rejected or described incorrectly');
+    await load();
+    assert(field('footing-layout').value === '0x0', 'No-pier selection was not restored');
+    field('toggle-ground').click();
+    doc.querySelector('#footing-layout').closest('details').open = true;
+    for (const view of ['3d','front','left','right','plan']) {
+      doc.querySelector(`[data-view="${view}"]`).click();
+      for (const id of ['footingDiameter','footingDepth']) field(id).focus();
+      assert(!doc.querySelector('.pier'), `Piers remain in ${view}`);
+      assert(!doc.querySelector('.drawing-layer').outerHTML.includes('NaN'), `Invalid geometry in ${view}`);
+    }
+    doc.querySelector('[data-view="front"]').click();
+    const slab = doc.querySelector('.slab-edge').getAttribute('points');
+    edit('footingDepth',900);
+    assert(doc.querySelector('.slab-edge').getAttribute('points') === slab,
+      'Unused pier depth changed the no-pier view');
+    field('show-drawings').click();
+    const plan = doc.querySelector('[data-sheet="A-2"] svg');
+    const elevations = doc.querySelector('[data-sheet="A-3"] svg');
+    const section = doc.querySelector('[data-sheet="A-4"] svg');
+    assert(!plan.querySelector('[data-layer="STRUCTURE_NEW"] circle') &&
+      plan.textContent.includes('inga plintar i modellen'), 'Foundation plan still shows piers');
+    assert(!elevations.querySelector('[data-layer="HIDDEN_FOUNDATION"] rect') &&
+      elevations.textContent.includes('Inga plintar i modellen'), 'Elevations still show piers');
+    assert(section.textContent.includes('inga plintar') && !section.textContent.includes('plintbotten') &&
+      !section.querySelector('[data-zoom-label="D2 / footing"]') && !section.outerHTML.includes('NaN'),
+      'Section still shows a pier detail or invalid geometry');
+    assert([...doc.querySelectorAll('.permit-sheet svg')].every(svg => !svg.outerHTML.includes('NaN')),
+      'A drawing contains invalid geometry');
+    field('show-designer').click();
+    doc.querySelector('[data-view="plan"]').click();
+    edit('footing-layout','2x2');
+    assert(!field('status').textContent && doc.querySelectorAll('.pier').length === 4,
+      'Switching back to a pier grid did not restore the piers');
+  });
+
   await check('Legacy centred windows migrate to left and bottom clearances',async () => {
     await load(true);
     edit('length',6000);

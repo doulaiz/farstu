@@ -391,9 +391,10 @@ export function initDesigner() {
       flag('The existing house cladding is thicker than the wall shown in Top view.',
         'houseBaseBoardThickness','houseCoverBoardThickness','wallThickness','houseBaseRecession','houseBaseHeight');
     }
-    if (![2,3].includes(footingColumns) || ![2,3].includes(footingRows)) {
+    const noPiers = footingColumns === 0 && footingRows === 0;
+    if (!noPiers && (![2,3].includes(footingColumns) || ![2,3].includes(footingRows))) {
       flag('Choose a pier grid from the list.',footingLayout.id);
-    } else if (footingColumns * v.footingDiameter >= v.width || footingRows * v.footingDiameter >= v.length) {
+    } else if (!noPiers && (footingColumns * v.footingDiameter >= v.width || footingRows * v.footingDiameter >= v.length)) {
       flag(`The ${footingColumns} × ${footingRows} pier grid does not fit under this slab without touching. Choose a smaller grid, reduce the pier diameter, or enlarge the slab.`,
         footingLayout.id,'footingDiameter');
     }
@@ -534,7 +535,9 @@ export function initDesigner() {
     $('area').textContent = `${fmt(v.width * v.length / 1e6)} m\u00b2`;
     $('rear').textContent = mm(rear);
     $('rise').textContent = mm(slope * (v.length-planRecession));
-    $('assembly').textContent = `Slab: ${mm(v.slabThickness)} thick. Walls: ${mm(v.wallThickness)} thick. ${footingColumns * footingRows} piers (${footingColumns} × ${footingRows}): ${mm(v.footingDiameter)} diameter by ${mm(v.footingDepth)} deep below the slab.`;
+    const footingSummary = noPiers ? 'No piers; foundation design must be verified.'
+      : `${footingColumns * footingRows} piers (${footingColumns} × ${footingRows}): ${mm(v.footingDiameter)} diameter by ${mm(v.footingDepth)} deep below the slab.`;
+    $('assembly').textContent = `Slab: ${mm(v.slabThickness)} thick. Walls: ${mm(v.wallThickness)} thick. ${footingSummary}`;
     render();
     return true;
   }
@@ -1373,7 +1376,7 @@ export function initDesigner() {
         foundation(frontAt,W,'#aab4aa');
         drawWall(frontSection,W,frontTop,windows.front,'front');
         if (front) {
-          const baseline = groundHidden ? footingBase : slabBase;
+          const baseline = groundHidden && pierColumns.length ? footingBase : slabBase;
           dimension(frontAt(0,baseline),frontAt(W,baseline),[0,38],mm(W));
         }
       }
@@ -1436,7 +1439,7 @@ export function initDesigner() {
     if (iso || plan) bounds.push(...grade);
     else if (front) bounds.push(frontAt(frontGradeLeft,slabBase),frontAt(frontGradeRight,slabBase));
     else bounds.push([0,sideGradeEnd,slabBase]);
-    if (!plan) bounds.push([0,0,footingBase],[W,L,footingBase],[0,L,footingBase]);
+    if (!plan && pierColumns.length) bounds.push([0,0,footingBase],[W,L,footingBase],[0,L,footingBase]);
     if (doorVisible) {
       for (let i=0;i<=24;i++) {
         for (const distance of [0,doorWidth]) for (const depth of [0,doorThickness]) {
@@ -1479,7 +1482,7 @@ export function initDesigner() {
           m('length','Slab length',[0,0,0],[0,L,0],!front,L,plan?[-15,0]:[0,28]),
           m('slabThickness','Slab thickness',[0,L,slabBase],[0,L,0],!plan,slabThickness,[-16,0])
         ];
-        case 'footings': return [
+        case 'footings': return !pierColumns.length ? [] : [
           m('footingDiameter','Pier diameter',front||plan ? [x-pierRadius,y,slabBase] : [x,y-pierRadius,slabBase],
             front||plan ? [x+pierRadius,y,slabBase] : [x,y+pierRadius,slabBase],groundHidden),
           m('footingDepth','Pier depth',[x,y,footingBase],[x,y,slabBase],groundHidden&&!plan,footingDepth,[-12,0])

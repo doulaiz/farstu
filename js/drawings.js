@@ -114,7 +114,7 @@ export function floorPlan(m, site, date) {
   const v = s.view(105 - w / 200, 104 - l / 200, 100);
   const f = s.view(297 - w / 100, 133 - l / 100, 50);
   s.heading(14, 35, '01  Planritning  /  1:100');
-  s.heading(181, 35, '02  Platta, stomlinjer & plintar  /  1:50');
+  s.heading(181, 35, m.pier.columns.length ? '02  Platta, stomlinjer & plintar  /  1:50' : '02  Platta & stomlinjer  /  1:50');
   s.scaleBar(14, 41, 100, 2000);
   s.scaleBar(181, 41, 50, 2000);
   const rear = (view, showEntry = false) => {
@@ -182,13 +182,15 @@ export function floorPlan(m, site, date) {
   s.note(14, 160, ['Grå vägg: befintlig byggnad (utsnitt).', 'Streckad kontur: takutsprång. A–A: sektion.', 'Fyllda markeringar: modellens väggreglar.']);
   const outsideRise = tread.z - site.newGrade;
   s.note(181, 207, [
-    `Platta ${mm(m.slabThickness)} mm · ${columns.length} × ${rows.length} plintar Ø${mm(m.footingDiameter)} · modellens entrésteg, stegdjup 300 mm.`,
+    `Platta ${mm(m.slabThickness)} mm · ${columns.length ? `${columns.length} × ${rows.length} plintar Ø${mm(m.footingDiameter)}` : 'inga plintar i modellen'} · modellens entrésteg, stegdjup 300 mm.`,
     `Steghöjd: ${mm(outsideRise)} mm (mark till steg) / ${mm(-tread.z)} mm (steg till FG).`
   ], 2.6);
   s.cloud(14, 185, 143, 'OBS: VERIFIERA SPÄNNVIDDER, BÄRLINA OCH INFÄSTNING');
   s.pending([
-    'Modellen har betongplatta på plintar; golvbjälkar (riktning/c/c) är inte modellerade eller föreskrivna.',
-    'Takets bakre upplag (bärlina eller balk), plattans armering, spännvidder och plintreaktioner dimensioneras separat.',
+    columns.length ? 'Modellen har betongplatta på plintar; golvbjälkar (riktning/c/c) är inte modellerade eller föreskrivna.'
+      : 'Inga plintar i modellen; grundläggning projekteras. Golvbjälkar är inte modellerade eller föreskrivna.',
+    columns.length ? 'Takets bakre upplag (bärlina eller balk), plattans armering, spännvidder och plintreaktioner dimensioneras separat.'
+      : 'Takets bakre upplag, plattans armering, spännvidder och grundläggning dimensioneras separat.',
     `${outsideRise <= 0 ? 'Ny mark ligger i eller över modellsteget. ' : ''}Kontrollera trappans geometri, tillgänglighet, nivåskillnader och fastsättning på plats.`
   ]);
   return s.svg();
@@ -220,7 +222,8 @@ export function elevations(m, site, date) {
   const baseTop = m.houseBaseHeight - m.slabThickness;
   const min = Math.min(m.houseA, -m.doorSideOverhang), max = Math.max(m.houseB, w + m.rightOverhang);
   const front = s.view(203 - (min + max) / 200, 125, 100);
-  const frontMin = Math.min(site.existingGrade, site.newGrade, m.frostLevel, m.pierBottom);
+  const frontMin = Math.min(site.existingGrade, site.newGrade,
+    ...(m.pier.columns.length ? [m.frostLevel, m.pierBottom] : []));
   const cropped = Math.max(ridge, m.roofTop, m.flashing.top, houseTop) > 8100 || frontMin < -2400 ||
     max - min > 33800;
   const frontWindow = (v, op) => {
@@ -277,7 +280,9 @@ export function elevations(m, site, date) {
       v.vertical(0, m.roofFront, sign * e, east ? -5 : 6, `Takfot ${level(m.roofFront)}`);
     });
   }
-  s.note(15, 221, ['Befintlig marklinje: streckad  ·  Ny marklinje: heldragen  ·  Plintar under mark: streckade; prickat visar bedömt tjäldjup.'], 2.55);
+  s.note(15, 221, [m.pier.columns.length
+    ? 'Befintlig marklinje: streckad  ·  Ny marklinje: heldragen  ·  Plintar under mark: streckade; prickat visar bedömt tjäldjup.'
+    : 'Befintlig marklinje: streckad  ·  Ny marklinje: heldragen  ·  Inga plintar i modellen.'], 2.55);
   s.note(211, 228, [
     `Taklutning ${decimal(m.pitch, Number.isInteger(m.pitch) ? 0 : 1)}° · ${m.roofMaterial === 'tiles' ? 'betongpannor' : 'bandtäckt plåt'}, ${roofColor[m.roofFinish] || 'kulör ej angiven'}.`,
     'Stående träpanel, kulör och säkerhetsglas verifieras.'
@@ -297,9 +302,7 @@ const treadSide = ({ start, end }, sign) => Math.min(sign * start, sign * end);
 
 function sectionDetails(s, m) {
   const a = s.view(229, 106, 20);
-  const b = s.view(229, 174, 20);
   s.heading(213, 35, 'D1  Upplag mot befintlig vägg  /  1:20');
-  s.heading(213, 119, 'D2  Platta / plint och princip för plintjärn  /  1:20');
   const run = 610, fall = m.slope * run, depth = m.rafterDepth * Math.hypot(1, m.slope);
   s.viewport('D1 / wall connection', 213, 40, 54, 75, () => {
     a.rect(existing, -180, -260, 180, 680, gray);
@@ -315,6 +318,18 @@ function sectionDetails(s, m) {
     `Takregel ${mm(m.rafterWidth)} × ${mm(m.rafterDepth)} mm (modell).`,
     'Bakre upplag och infästning projekteras.'
   ]);
+  if (!m.pier.columns.length) {
+    s.note(213, 124, [
+      'Inga plintar i modellen. Grundläggning projekteras.',
+      'Konstruktionsvirke: C24 (förslag, verifieras).',
+      'NTR/A vid markkontakt; NTR/AB ovan mark',
+      'där träskydd behövs. Fuktskydd projekteras.'
+    ], 2.6);
+    s.scaleBar(269, 173, 20, 500);
+    return;
+  }
+  const b = s.view(229, 174, 20);
+  s.heading(213, 119, 'D2  Platta / plint och princip för plintjärn  /  1:20');
   s.viewport('D2 / footing', 213, 124, 54, 89, () => {
     b.rect(structure, -160, -m.slabThickness, 640, m.slabThickness, s.hatch);
     b.rect(structure, (m.studDepth - m.footingDiameter) / 2, -m.slabThickness - 360, m.footingDiameter, 360, gray);
@@ -362,22 +377,24 @@ export function section(m, site, date) {
     groundLines(v, site, -650, e + 250);
     v.vertical(0, m.frontWallHeight, m.length - m.wallThickness, -9, `Rumshöjd ca ${mm(m.frontWallHeight)} till takregel`);
     v.label(labels, m.face + 120, m.roofTop + 220, 'D1', { weight: 700 });
-    v.label(labels, m.pier.rows[0] - 120, -m.slabThickness - 160, 'D2', { weight: 700, anchor: 'end' });
+    if (m.pier.rows.length) v.label(labels, m.pier.rows[0] - 120, -m.slabThickness - 160, 'D2', { weight: 700, anchor: 'end' });
   });
   s.note(14, 198, [
-    `Modell: betongplatta ${mm(m.slabThickness)} mm; plintbotten ${level(m.pierBottom)}.`,
+    m.pier.columns.length ? `Modell: betongplatta ${mm(m.slabThickness)} mm; plintbotten ${level(m.pierBottom)}.`
+      : `Modell: betongplatta ${mm(m.slabThickness)} mm; inga plintar. Grundläggning projekteras.`,
     `Tjälfritt djup (underlag): ${mm(site.frost)} mm under ny mark, nivå ${level(m.frostLevel)}.`,
     `Takreglar ${rafterStarts(m.roofWidth, m.doorSideOverhang, m.rafterWidth, m.rafterSpacing).length} st. · ${mm(m.rafterWidth)} × ${mm(m.rafterDepth)} · nominellt c/c ${mm(m.rafterSpacing)} mm.`
   ], 2.65);
   sectionDetails(s, m);
-  if (m.frostLevel < m.pierBottom) s.cloud(13, 215, 160, 'KONTROLLERAS: PLINTBOTTEN ÖVER ANTAGET TJÄLDJUP');
+  if (m.pier.columns.length && m.frostLevel < m.pierBottom) s.cloud(13, 215, 160, 'KONTROLLERAS: PLINTBOTTEN ÖVER ANTAGET TJÄLDJUP');
   s.cloud(213, 215, 189, `OBS: VERIFIERA DIMENSIONERING / SNÖZON ${decimal(site.snow)} kN/m²`);
   s.pending([
     'Verifiera snö, vind, spännvidder, jord/bärighet, armering, frost, fuktskydd och alla infästningar.',
     'Räcke ej modellerat. Verifiera fallhöjd och krav; 1 100 mm är ett kontrollmått där tillämpligt.',
     'Fastställ gällande byggregler med kommunen (BBR/EKS där tillämpligt); trä enligt SS-EN 1995.'
   ]);
-  if (Math.max(m.flashing.top, m.houseWallHeight - m.slabThickness) > 5200 || Math.min(m.frostLevel, m.pierBottom) < -2050 ||
+  if (Math.max(m.flashing.top, m.houseWallHeight - m.slabThickness) > 5200 ||
+      (m.pier.columns.length && Math.min(m.frostLevel, m.pierBottom) < -2050) ||
       m.slope * 610 > 180 || m.flashingHeight + m.rafterDepth * Math.hypot(1, m.slope) > 1150) {
     s.note(213, 209, ['Geometri utanför ritfält kapas; angivna skalor bibehålls.'], 2.55);
   }
