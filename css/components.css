@@ -40,7 +40,8 @@
   .downspout-outline { stroke:#626c6e; stroke-width:5.1; }
   .pier { stroke:#5d5a78; }
   .ground-plane { stroke:none; filter:blur(3px); }
-  .roof-ground-projection { stroke:none; filter:blur(2px); }
+  .roof-ground-projection { stroke:none; }
+  .roof-ground-projection-edge { stroke:#789a60; stroke-width:3; stroke-linecap:butt; }
   .ground-line { stroke:#76866b; stroke-width:1.25; stroke-dasharray:6 4; }
   .property-line, .property-line-halo { stroke-dasharray:1 7; stroke-linecap:round; }
   .property-line { stroke:#a34235; stroke-width:2.2; }

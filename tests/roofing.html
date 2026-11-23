@@ -346,7 +346,7 @@ try {
         assert(frame.contentWindow.getComputedStyle(ground).stroke === 'none','Ground has a visible outline');
         assert(frame.contentWindow.getComputedStyle(shadow).stroke === 'none','Roof projection has a dark outline');
         assert(frame.contentWindow.getComputedStyle(ground).filter.includes('blur('),'Ground edges are not softened');
-        assert(frame.contentWindow.getComputedStyle(shadow).filter.includes('blur('),'Roof shadow has a hard edge');
+        assert(frame.contentWindow.getComputedStyle(shadow).filter === 'none','Roof footprint extends beyond its exact boundary');
         assert(!field('drawing').querySelector('polygon[stroke-dasharray="7 5"]'),
           'Roof outline is visible over the shadow');
       }
@@ -377,11 +377,44 @@ try {
     field('toggle-ground').click();
     assert(doc().querySelector('.roof-ground-projection'),'Restored ground lost the roof projection');
   }
-  for (const view of ['front','left','right']) {
-    doc().querySelector(`[data-view="${view}"]`).click();
-    assert(!doc().querySelector('.roof-ground-projection'),'An elevation rendered an edge-on ground polygon');
+  edit('roof-material','standingSeam','change');
+  edit('doorSideOverhang',1000);
+  edit('roofWidth',4201);
+  edit('frontOverhang',1000);
+  edit('hedgeDistance',500);
+  edit('propertyLineDistance',0);
+  for (const [base,recession,effective] of [[600,300,300],[600,0,0],[0,500,0]]) {
+    edit('houseBaseHeight',base);
+    edit('houseBaseRecession',recession);
+    valid();
+    for (const mode of ['tiles','rafters','none']) {
+      edit('roof-display',mode,'change');
+      for (const view of ['front','left','right']) {
+        doc().querySelector(`[data-view="${view}"]`).click();
+        assert(!doc().querySelector('.roof-ground-projection'),'An elevation rendered an edge-on ground polygon');
+        const slab = points(doc().querySelector('.slab-edge'));
+        const edge = doc().querySelector('.roof-ground-projection-edge');
+        assert(edge,'Elevation is missing the edge-on roof projection');
+        const line = node => ['x1','y1','x2','y2'].map(key => Number(node.getAttribute(key)));
+        const [x1,y1,x2,y2] = line(edge);
+        const scale = (slab[1][0]-slab[0][0])/(view === 'front' ? 2400 : 1800);
+        const start = view === 'front' ? -1000 : effective;
+        const end = view === 'front' ? 4201-1000 : 1800+1000;
+        close(x1,slab[0][0]+scale*start);
+        close(x2,slab[0][0]+scale*end);
+        close(y1,slab[0][1]);
+        close(y2,slab[0][1]);
+        const [g1,,g2] = line(doc().querySelector('.ground-line'));
+        assert(Math.min(g1,g2) <= Math.min(x1,x2)+1e-8 &&
+          Math.max(g1,g2) >= Math.max(x1,x2)-1e-8,
+          'Ground line does not cover the roof footprint');
+        field('toggle-ground').click();
+        assert(!doc().querySelector('.roof-ground-projection-edge'),'Hidden ground retained the roof footprint edge');
+        field('toggle-ground').click();
+      }
+    }
   }
-  passed.push('Vertical roof footprint follows asymmetric dimensions, stays on grade, uses subtle shading and respects display toggles');
+  passed.push('Vertical roof footprint follows the roof in every view and respects display toggles');
   results.textContent = `PASS (${passed.length})\n${passed.join('\n')}`;
 } catch (error) {
   results.textContent = `FAIL after ${passed.length} groups: ${error.message}\n${error.stack}`;

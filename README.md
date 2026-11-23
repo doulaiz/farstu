@@ -45,7 +45,7 @@ The porch and existing house share a yellow façade hue; the existing house is l
 - **Roof display** switches between the covering and details, rafters, or a hidden roof.
 - **Wall layers** lets you inspect the wall build-up or expose the timber. Hiding layers does not remove materials or weight from the estimates.
 - **Open door / Close door** animates the door where it is visible.
-- **Hide ground / Show ground** toggles the ground and roof-footprint shadow, which is not a sunlight simulation.
+- **Hide ground / Show ground** toggles the ground and vertical roof-footprint projection, which is not a sunlight simulation. Elevations show the footprint edge-on as a green ground segment.
 - Open a parameter section or focus a dimension to display temporary measurement arrows.
 - Use **Alt + mouse wheel** to zoom, and **R** to reset the zoom when you are not typing in a field.
 

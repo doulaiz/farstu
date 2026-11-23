@@ -3022,6 +3022,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       const frontAt = (x, z) => [x, L, z];
       const sideAt = (x) => (y, z) => [x, y, z];
       const slabBase = -slabThickness;
+      const roofFootprint = roof.map(([x, y]) => [x, y, slabBase]);
       const houseBaseTop = slabBase + houseBaseHeight;
       const houseBaseColor = "#d5d5d5";
       const footingBase = slabBase - footingDepth;
@@ -3030,7 +3031,9 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       const hedgeHalfDepth = 450;
       const topHedgeCentre = housePlanRecession + hedgeDistance;
       const propertyY = housePlanRecession + propertyLineDistance;
-      const sideGradeEnd = Math.max(L, topHedgeCentre + hedgeHalfDepth, propertyY) + gradeMargin;
+      const sideGradeEnd = Math.max(L + F, topHedgeCentre + hedgeHalfDepth, propertyY) + gradeMargin;
+      const frontGradeLeft = Math.min(0, roofLeft) - gradeMargin;
+      const frontGradeRight = Math.max(W, roofRight) + gradeMargin;
       const gradeEnd = Math.max(L + F, groundHidden ? 0 : propertyY, plan ? topHedgeCentre + hedgeHalfDepth : 0) + gradeMargin;
       const grade = [
         [roofLeft - gradeMargin, 0, slabBase],
@@ -3849,10 +3852,13 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       if (!groundHidden) {
         if (iso || plan) {
           face(grade, "#a8c987", { class: "ground-plane" });
-          face(roof.map(([x, y]) => [x, y, slabBase]), "#94b575", { class: "roof-ground-projection" });
+          face(roofFootprint, "#94b575", { class: "roof-ground-projection" });
           if (iso) propertyLine([roofLeft - gradeMargin, propertyY, slabBase], [roofRight + gradeMargin, propertyY, slabBase]);
-        } else if (front) line(frontAt(-gradeMargin, slabBase), frontAt(W + gradeMargin, slabBase), "ground-line");
-        else line([0, 0, slabBase], [0, sideGradeEnd, slabBase], "ground-line");
+        } else {
+          if (front) line(frontAt(frontGradeLeft, slabBase), frontAt(frontGradeRight, slabBase), "ground-line");
+          else line([0, 0, slabBase], [0, sideGradeEnd, slabBase], "ground-line");
+          line(roofFootprint[0], roofFootprint[front ? 1 : 3], "roof-ground-projection-edge");
+        }
       }
       function orderScene(start) {
         if (!iso) return;
@@ -4031,7 +4037,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       }
       const bounds = [...shapes.flatMap(([, points]) => points), ...roof];
       if (iso || plan) bounds.push(...grade);
-      else if (front) bounds.push(frontAt(-gradeMargin, slabBase), frontAt(W + gradeMargin, slabBase));
+      else if (front) bounds.push(frontAt(frontGradeLeft, slabBase), frontAt(frontGradeRight, slabBase));
       else bounds.push([0, sideGradeEnd, slabBase]);
       if (!plan) bounds.push([0, 0, footingBase], [W, L, footingBase], [0, L, footingBase]);
       if (doorVisible) {
