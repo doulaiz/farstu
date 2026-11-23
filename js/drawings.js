@@ -58,7 +58,7 @@ export function sitePlan(m, site, date) {
     [north === frame.north, frame.west, frame.north, frame.east, frame.north],
     [south === frame.south, frame.west, frame.south, frame.east, frame.south]
   ];
-  s.viewport(14, 40, 275, 184, () => {
+  s.viewport('Situationsplan', 14, 40, 275, 184, () => {
     v.rect(existing, houseA, -face, houseB - houseA, site.houseDepth, gray);
     v.rect(structure, 0, -l, w, l, s.hatch);
     for (const [visible, x, y, a, b] of edges) if (visible) v.line(centre, x, y, a, b);
@@ -129,7 +129,7 @@ export function floorPlan(m, site, date) {
       view.poly(existing, [[e1, -face], [e1, depth - face], [e2, depth - face], [e2, -face]]);
     }
   };
-  s.viewport(14, 46, 161, 110, () => {
+  s.viewport('Planritning', 14, 46, 161, 110, () => {
     v.rect(structure, 0, -l, w, l);
     rear(v, true);
     const walls = [
@@ -165,7 +165,7 @@ export function floorPlan(m, site, date) {
   });
 
   const { columns, rows } = m.pier;
-  s.viewport(181, 46, 222, 158, () => {
+  s.viewport('Grundplan', 181, 46, 222, 158, () => {
     f.rect(structure, 0, -l, w, l);
     rear(f);
     f.line(structure, 0, -face, w, -face, 'stroke-width=".75"');
@@ -231,7 +231,7 @@ export function elevations(m, site, date) {
   s.heading(14, 155, `02  Fasad mot ${swedishDirection[dir.left]} / dörrsida`);
   s.heading(208, 155, `03  Fasad mot ${swedishDirection[dir.right]}`);
   s.scaleBar(350, 34, 100, 5000);
-  s.viewport(13, 39, 394, 112, () => {
+  s.viewport('Fasad / front', 13, 39, 394, 112, () => {
     front.rect(existing, m.houseA, baseTop, m.houseB - m.houseA, houseTop - baseTop, 'fill="#f0f0ef"');
     if (m.houseBaseHeight) front.rect(existing, m.houseA, -m.slabThickness, m.houseB - m.houseA, m.houseBaseHeight, gray);
     if (ridge > houseTop) {
@@ -257,7 +257,7 @@ export function elevations(m, site, date) {
     const v = s.view(x - sign * e / 200, 201, 100);
     const span = (a, b) => [Math.min(sign * a, sign * b), b - a];
     const a = Math.min(sign * -850, sign * (e + 700)), b = Math.max(sign * -850, sign * (e + 700));
-    s.viewport(east ? 207 : 13, 156.5, 191, 63.5, () => {
+    s.viewport(east ? 'Fasad / right' : 'Fasad / door side', east ? 207 : 13, 156.5, 191, 63.5, () => {
       v.poly(existing, [[0, -m.slabThickness], [0, baseTop], [sign * face, baseTop], [sign * face, houseTop]]);
       piersInElevation(v, m, m.pier.rows.map(y => sign * y), m.frostLevel);
       const [slabStart, slabWidth] = span(0, l);
@@ -301,7 +301,7 @@ function sectionDetails(s, m) {
   s.heading(213, 35, 'D1  Upplag mot befintlig vägg  /  1:20');
   s.heading(213, 119, 'D2  Platta / plint och princip för plintjärn  /  1:20');
   const run = 610, fall = m.slope * run, depth = m.rafterDepth * Math.hypot(1, m.slope);
-  s.viewport(213, 40, 54, 75, () => {
+  s.viewport('D1 / wall connection', 213, 40, 54, 75, () => {
     a.rect(existing, -180, -260, 180, 680, gray);
     a.poly(structure, [[0, 0], [run, -fall], [run, -fall + depth], [0, depth]], s.hatch, true);
     a.poly(structure, [[0, depth + m.flashing.coverRise + m.flashingHeight], [0, depth + m.flashing.coverRise],
@@ -315,7 +315,7 @@ function sectionDetails(s, m) {
     `Takregel ${mm(m.rafterWidth)} × ${mm(m.rafterDepth)} mm (modell).`,
     'Bakre upplag och infästning projekteras.'
   ]);
-  s.viewport(213, 124, 54, 89, () => {
+  s.viewport('D2 / footing', 213, 124, 54, 89, () => {
     b.rect(structure, -160, -m.slabThickness, 640, m.slabThickness, s.hatch);
     b.rect(structure, (m.studDepth - m.footingDiameter) / 2, -m.slabThickness - 360, m.footingDiameter, 360, gray);
     b.rect(structure, 0, 0, m.studDepth, 180, s.hatch);
@@ -338,7 +338,7 @@ export function section(m, site, date) {
   const e = m.length + m.frontOverhang;
   s.heading(14, 35, 'A–A  Sektion genom farstu och husanslutning  /  1:50');
   s.scaleBar(14, 41, 50, 2000);
-  s.viewport(12, 47, 190, 148, () => {
+  s.viewport('Section A–A', 12, 47, 190, 148, () => {
     const baseTop = m.houseBaseHeight - m.slabThickness;
     const wallTop = m.houseWallHeight - m.slabThickness;
     if (m.houseBaseHeight > 0) v.rect(existing, -400, -m.slabThickness, 400, m.houseBaseHeight, gray);

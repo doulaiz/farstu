@@ -348,12 +348,26 @@
       <button type="button" id="show-permit-dialog" aria-haspopup="dialog">Site &amp; Permit Details</button>
       <button type="button" id="reset-permit-zoom">Reset sheet zoom</button>
     </div>
-    <p class="hint">A3 landscape preliminary drawings. Use <kbd>Alt</kbd> + mouse wheel over a drawing to zoom the preview only. Replace survey assumptions and resolve the verification notes before submission.</p>
+    <div class="permit-toolbar permit-navigation" role="group" aria-label="Drawing preview controls">
+      <label>Drawing <select id="permit-viewport" aria-label="Drawing to navigate"></select></label>
+      <button type="button" id="permit-zoom-out" aria-label="Zoom out">−</button>
+      <output id="permit-zoom-level" aria-live="polite">100%</output>
+      <button type="button" id="permit-zoom-in" aria-label="Zoom in">+</button>
+      <span class="permit-pan" role="group" aria-label="Move drawing">
+        <button type="button" id="permit-pan-left" aria-label="Move drawing left">←</button>
+        <button type="button" id="permit-pan-up" aria-label="Move drawing up">↑</button>
+        <button type="button" id="permit-pan-down" aria-label="Move drawing down">↓</button>
+        <button type="button" id="permit-pan-right" aria-label="Move drawing right">→</button>
+      </span>
+    </div>
+    <p class="hint" id="permit-navigation-help">Preview only: select or tap a drawing, then use the controls, drag or pinch. With the sheet focused, use +/− to zoom and arrow keys to move. Alt + mouse wheel also zooms. PDF and SVG exports keep their original scale.</p>
+    <p class="hint">A3 landscape preliminary drawings. Replace survey assumptions and resolve the verification notes before submission.</p>
     <p class="status" id="drawings-status" role="status"></p>
-    <div id="permit-sheets"></div>
+    <div id="permit-sheets" tabindex="0" role="region" aria-label="Drawing sheet preview" aria-describedby="permit-navigation-help"></div>
     <div class="permit-toolbar permit-export">
       <button type="button" id="print-permit-sheets">Download All Sheets as PDF</button>
-      <span class="hint">Choose Save as PDF, A3 landscape, 100% (actual size), and turn off headers and footers.</span>
+      <button type="button" id="download-permit-svgs">Download All Sheets as SVG</button>
+      <span class="hint">For PDF, choose Save as PDF, A3 landscape, 100% (actual size), and turn off headers and footers. Allow multiple downloads for SVG.</span>
     </div>
   </main>
   <dialog id="permit-dialog" aria-labelledby="permit-dialog-heading" aria-describedby="permit-dialog-hint">

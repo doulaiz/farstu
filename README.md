@@ -66,7 +66,7 @@ Review the separate roofing and drainage schedule, and **Window installation ite
 
 Use the sheet selector to preview the four A3 SVGs. They update from the latest valid Designer model; if an edit is invalid, the last valid set stays visible and printing is disabled.
 
-Use **Alt + mouse wheel** over a drawing to enlarge that view without changing the page, legend or PDF scale. **Reset sheet zoom** restores all views on the selected sheet.
+Select a drawing in the toolbar or tap/click it on the sheet. Use the zoom and arrow buttons, drag with a mouse or finger, or pinch with two fingers. With the sheet focused, use **+ / −** to zoom and arrow keys to move; **Alt + mouse wheel** zooms under the pointer. **Reset sheet zoom** restores all views on the selected sheet. Navigation changes the preview only; PDF and SVG exports retain their original scales and positions.
 
 | Sheet | Contents | Scale |
 | --- | --- | --- |
@@ -77,7 +77,7 @@ Use **Alt + mouse wheel** over a drawing to enlarge that view without changing t
 
 1. Open **Site & Permit Details** to set the address, property ID, drawn-by name, orientation, boundary distances from the slab edges, house depth and ridge height, ground offsets from finished floor (FG), frost depth and local snow load for the drawing notes. Blank measurements use the displayed assumptions, such as 4,500 mm boundary offsets and 1.5 kN/m² snow load.
 2. Before submitting, use the **KONTROLLERAS** clouds and **Komplettering** notes to identify what still needs verification. Replace the schematic site plan with the municipality's required base map and confirm the applicable permit route and area rules. The 4.5 m and 15 m² warnings are not approvals or evidence of neighbour consent.
-3. Choose **Download All Sheets as PDF** to print all four sheets, regardless of which is selected. In the browser dialog, choose **Save as PDF**, **A3 landscape**, **100% / actual size**, and turn off headers and footers. Check the printed scale bar.
+3. Choose **Download All Sheets as PDF** to print all four sheets, regardless of which is selected. In the browser dialog, choose **Save as PDF**, **A3 landscape**, **100% / actual size**, and turn off headers and footers. Check the printed scale bar. **Download All Sheets as SVG** downloads four separate A3 SVG files; allow multiple downloads if the browser asks.
 
 ### Keeping your work
 

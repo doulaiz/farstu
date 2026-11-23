@@ -1226,6 +1226,120 @@ try {
       'Alt-wheel down did not restore the base scale');
   });
 
+  await check('Drawing preview supports buttons, keyboard, touch pan and pinch without moving the sheet', async () => {
+    await load(true);
+    field('show-drawings').click();
+    change(field('permit-sheet'), 'A-2');
+    const svg = doc.querySelector('[data-sheet="A-2"] svg');
+    const host = field('permit-sheets'), select = field('permit-viewport');
+    const [plan,foundation] = svg.querySelectorAll('[data-layer="STRUCTURE_NEW"] [data-zoom-view]');
+    const title = svg.querySelector('[data-layer="TITLE_BLOCK"] > rect');
+    const titleBox = title.getBoundingClientRect().toJSON();
+    assert([...select.options].map(option => option.textContent).join(',') === 'Planritning,Grundplan',
+      'Drawing selector does not identify both plan views');
+    const originalScale = plan.getScreenCTM().a;
+    field('permit-zoom-in').click();
+    assert(Math.abs(plan.getScreenCTM().a/originalScale-1.25) < 1e-8 &&
+      foundation.getScreenCTM().a === originalScale && field('permit-zoom-level').textContent === '125%',
+      'Zoom button changed the wrong drawing or level');
+    const initialTransform = plan.getAttribute('transform');
+    field('permit-pan-right').click();
+    assert(plan.getAttribute('transform') !== initialTransform,'Pan button did not move the drawing');
+    const groups = [...svg.querySelectorAll(`[data-zoom-view="${select.value}"]`)];
+    assert(groups.every(group => group.getAttribute('transform') === plan.getAttribute('transform')),
+      'Pan separated drawing layers');
+    const key = name => {
+      const event = new win.KeyboardEvent('keydown',{key:name,bubbles:true,cancelable:true});
+      host.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    assert(key('+') && plan.getScreenCTM().a > originalScale*1.5,'Keyboard zoom failed');
+    const beforeArrow = plan.getAttribute('transform');
+    assert(key('ArrowDown') && plan.getAttribute('transform') !== beforeArrow,'Keyboard pan failed');
+    assert(!key('x'),'Unrelated keyboard input was intercepted');
+    change(select,select.options[1].value);
+    field('permit-zoom-in').click();
+    assert(foundation.getScreenCTM().a > originalScale && plan.getScreenCTM().a > originalScale*1.5,
+      'Drawing selection did not isolate zoom state');
+    const pointer = (type,id,x,y) => {
+      const point = new win.DOMPoint(x,y).matrixTransform(svg.getScreenCTM());
+      svg.dispatchEvent(new win.PointerEvent(type,{bubbles:true,cancelable:true,pointerType:'touch',
+        pointerId:id,clientX:point.x,clientY:point.y}));
+    };
+    svg.setPointerCapture = () => {};
+    const beforePan = foundation.getAttribute('transform');
+    pointer('pointerdown',1,260,100);
+    pointer('pointermove',1,270,105);
+    assert(foundation.getAttribute('transform') !== beforePan,'One-finger drag did not pan');
+    pointer('pointerdown',2,310,100);
+    const beforePinch = foundation.getScreenCTM().a;
+    pointer('pointermove',2,330,100);
+    assert(foundation.getScreenCTM().a > beforePinch,'Two-finger pinch did not zoom');
+    pointer('pointerup',2,330,100);
+    pointer('pointerup',1,270,105);
+    pointer('pointerdown',3,270,105);
+    pointer('pointermove',3,275,105);
+    pointer('pointercancel',3,275,105);
+    const afterCancel = foundation.getAttribute('transform');
+    pointer('pointermove',3,300,105);
+    assert(foundation.getAttribute('transform') === afterCancel,'Cancelled touch continued moving the drawing');
+    assert(JSON.stringify(title.getBoundingClientRect().toJSON()) === JSON.stringify(titleBox),
+      'Preview navigation moved the title block');
+    for (let i=0;i<20;i++) field('permit-zoom-in').click();
+    assert(field('permit-zoom-level').textContent === '400%','Zoom exceeded its upper limit');
+    field('reset-permit-zoom').click();
+    assert(!plan.hasAttribute('transform') && !foundation.hasAttribute('transform') &&
+      field('permit-zoom-level').textContent === '100%', 'Reset did not restore both views');
+    field('permit-pan-left').click();
+    assert(foundation.hasAttribute('transform'),'Pan at original scale was ignored');
+    field('reset-permit-zoom').click();
+  });
+
+  await check('SVG export downloads all original-scale sheets and rejects invalid models', async () => {
+    await load(true);
+    field('show-drawings').click();
+    const svg = doc.querySelector('[data-sheet="A-1"] svg');
+    field('permit-zoom-in').click();
+    field('permit-pan-right').click();
+    assert(svg.querySelector('[data-zoom-view][transform]'),'Preview was not adjusted before export');
+    const files = [], links = [], urls = [];
+    win.URL.createObjectURL = blob => { files.push(blob); return `blob:sheet-${files.length}`; };
+    win.URL.revokeObjectURL = url => urls.push(url);
+    win.HTMLAnchorElement.prototype.click = function() { links.push({name:this.download,href:this.href}); };
+    field('download-permit-svgs').click();
+    assert(files.length === 4 && links.map(link => link.name).join(',') ===
+      'farstu-A-1.svg,farstu-A-2.svg,farstu-A-3.svg,farstu-A-4.svg',
+      'SVG export did not create all four named files');
+    for (let i=0;i<files.length;i++) {
+      assert(files[i].type.startsWith('image/svg+xml'),`Sheet ${i+1} has the wrong file type`);
+      const parsed = new win.DOMParser().parseFromString(await files[i].text(),'image/svg+xml');
+      const sheet = parsed.documentElement;
+      assert(!parsed.querySelector('parsererror'),`Sheet ${i+1} is invalid XML: ${parsed.querySelector('parsererror')?.textContent}`);
+      assert(sheet.localName === 'svg' && sheet.getAttribute('viewBox') === '0 0 420 297' &&
+        sheet.getAttribute('width') === '420mm' && sheet.getAttribute('height') === '297mm' &&
+        sheet.querySelector('title').textContent.startsWith(`A-${i+1}`) &&
+        !sheet.querySelector('[data-zoom-view][transform]'), `Sheet ${i+1} is not an original-scale SVG`);
+    }
+    await new Promise(resolve => setTimeout(resolve,1100));
+    assert(urls.length === 4,'SVG download URLs were not released');
+    let attempts = 0;
+    win.URL.createObjectURL = () => {
+      if (++attempts === 2) throw new Error('Test SVG export failure');
+      return 'blob:partial-sheet';
+    };
+    field('download-permit-svgs').click();
+    assert(field('drawings-status').textContent.includes('could not be exported') &&
+      urls.includes('blob:partial-sheet'),'SVG export failure or cleanup was not reported');
+    field('show-designer').click();
+    field('width').value = '999999';
+    field('width').dispatchEvent(new win.Event('input',{bubbles:true}));
+    field('show-drawings').click();
+    assert(field('download-permit-svgs').disabled && field('print-permit-sheets').disabled &&
+      field('drawings-status').textContent.includes('invalid'), 'Invalid model still permits export');
+    field('download-permit-svgs').click();
+    assert(files.length === 4,'Disabled SVG export created files');
+  });
+
   await check('House window tables configure all nine openings and flag flashing contact', async () => {
     await load(true);
     doc.querySelector('[data-view="front"]').click();

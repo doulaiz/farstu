@@ -1,9 +1,13 @@
 main.drawings:not([hidden]) { display:block; padding:18px; }
 .permit-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
 .permit-toolbar h2 { margin:0 auto 0 0; }
+.permit-navigation { margin:12px 0; }
+.permit-navigation select { min-height:34px; }
+.permit-navigation output { min-width:4em; text-align:center; font-variant-numeric:tabular-nums; }
+.permit-pan { display:inline-flex; gap:4px; }
 .permit-export { margin-top:14px; }
 #permit-sheets { background:#e9edeb; }
-.permit-sheet svg { width:100%; height:auto; min-height:0; }
+.permit-sheet svg { width:100%; height:auto; min-height:0; touch-action:none; }
 #permit-dialog {
   width:min(680px, calc(100% - 28px));
   max-height:calc(100% - 28px);

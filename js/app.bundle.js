@@ -1111,9 +1111,9 @@
       pending,
       scaleBar,
       view,
-      viewport(x, y, w, h, draw) {
+      viewport(label, x, y, w, h, draw) {
         const clipId = `${id}-clip-${clips.length}`;
-        clips.push(`<clipPath id="${clipId}" data-zoom-viewport><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`);
+        clips.push(`<clipPath id="${clipId}" data-zoom-viewport="" data-zoom-label="${esc(label)}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`);
         const starts = Object.entries(content).map(([key, shapes]) => [key, shapes.length]);
         draw();
         for (const [key, start] of starts) {
@@ -1246,7 +1246,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       [north === frame.north, frame.west, frame.north, frame.east, frame.north],
       [south === frame.south, frame.west, frame.south, frame.east, frame.south]
     ];
-    s.viewport(14, 40, 275, 184, () => {
+    s.viewport("Situationsplan", 14, 40, 275, 184, () => {
       v.rect(existing, houseA, -face, houseB - houseA, site.houseDepth, gray);
       v.rect(structure, 0, -l, w, l, s.hatch);
       for (const [visible, x, y, a, b] of edges) if (visible) v.line(centre, x, y, a, b);
@@ -1316,7 +1316,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         view.poly(existing, [[e1, -face], [e1, depth - face], [e2, depth - face], [e2, -face]]);
       }
     };
-    s.viewport(14, 46, 161, 110, () => {
+    s.viewport("Planritning", 14, 46, 161, 110, () => {
       v.rect(structure, 0, -l, w, l);
       rear(v, true);
       const walls = [
@@ -1357,7 +1357,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       v.label(labels, w * 0.5, -l * 0.51 - 320, "\xD6A 0,00 m\xB2", { anchor: "middle", size: 2.3 });
     });
     const { columns, rows } = m.pier;
-    s.viewport(181, 46, 222, 158, () => {
+    s.viewport("Grundplan", 181, 46, 222, 158, () => {
       f.rect(structure, 0, -l, w, l);
       rear(f);
       f.line(structure, 0, -face, w, -face, 'stroke-width=".75"');
@@ -1418,7 +1418,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     s.heading(14, 155, `02  Fasad mot ${swedishDirection[dir.left]} / d\xF6rrsida`);
     s.heading(208, 155, `03  Fasad mot ${swedishDirection[dir.right]}`);
     s.scaleBar(350, 34, 100, 5e3);
-    s.viewport(13, 39, 394, 112, () => {
+    s.viewport("Fasad / front", 13, 39, 394, 112, () => {
       front.rect(existing, m.houseA, baseTop, m.houseB - m.houseA, houseTop - baseTop, 'fill="#f0f0ef"');
       if (m.houseBaseHeight) front.rect(existing, m.houseA, -m.slabThickness, m.houseB - m.houseA, m.houseBaseHeight, gray);
       if (ridge > houseTop) {
@@ -1444,7 +1444,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       const v = s.view(x - sign * e / 200, 201, 100);
       const span = (a2, b2) => [Math.min(sign * a2, sign * b2), b2 - a2];
       const a = Math.min(sign * -850, sign * (e + 700)), b = Math.max(sign * -850, sign * (e + 700));
-      s.viewport(east ? 207 : 13, 156.5, 191, 63.5, () => {
+      s.viewport(east ? "Fasad / right" : "Fasad / door side", east ? 207 : 13, 156.5, 191, 63.5, () => {
         v.poly(existing, [[0, -m.slabThickness], [0, baseTop], [sign * face, baseTop], [sign * face, houseTop]]);
         piersInElevation(v, m, m.pier.rows.map((y) => sign * y), m.frostLevel);
         const [slabStart, slabWidth] = span(0, l);
@@ -1486,7 +1486,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     s.heading(213, 35, "D1  Upplag mot befintlig v\xE4gg  /  1:20");
     s.heading(213, 119, "D2  Platta / plint och princip f\xF6r plintj\xE4rn  /  1:20");
     const run = 610, fall = m.slope * run, depth = m.rafterDepth * Math.hypot(1, m.slope);
-    s.viewport(213, 40, 54, 75, () => {
+    s.viewport("D1 / wall connection", 213, 40, 54, 75, () => {
       a.rect(existing, -180, -260, 180, 680, gray);
       a.poly(structure, [[0, 0], [run, -fall], [run, -fall + depth], [0, depth]], s.hatch, true);
       a.poly(structure, [
@@ -1503,7 +1503,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       `Takregel ${mm(m.rafterWidth)} \xD7 ${mm(m.rafterDepth)} mm (modell).`,
       "Bakre upplag och inf\xE4stning projekteras."
     ]);
-    s.viewport(213, 124, 54, 89, () => {
+    s.viewport("D2 / footing", 213, 124, 54, 89, () => {
       b.rect(structure, -160, -m.slabThickness, 640, m.slabThickness, s.hatch);
       b.rect(structure, (m.studDepth - m.footingDiameter) / 2, -m.slabThickness - 360, m.footingDiameter, 360, gray);
       b.rect(structure, 0, 0, m.studDepth, 180, s.hatch);
@@ -1525,7 +1525,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     const e = m.length + m.frontOverhang;
     s.heading(14, 35, "A\u2013A  Sektion genom farstu och husanslutning  /  1:50");
     s.scaleBar(14, 41, 50, 2e3);
-    s.viewport(12, 47, 190, 148, () => {
+    s.viewport("Section A\u2013A", 12, 47, 190, 148, () => {
       const baseTop = m.houseBaseHeight - m.slabThickness;
       const wallTop = m.houseWallHeight - m.slabThickness;
       if (m.houseBaseHeight > 0) v.rect(existing, -400, -m.slabThickness, 400, m.houseBaseHeight, gray);
@@ -1586,10 +1586,13 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
   var storageKey2 = "farstu-permit-settings-v1";
   function createDrawingsView($) {
     const panel2 = $("drawings-view"), host = $("permit-sheets"), selector = $("permit-sheet");
-    const status = $("drawings-status"), print = $("print-permit-sheets");
+    const status = $("drawings-status"), print = $("print-permit-sheets"), download = $("download-permit-svgs");
+    const viewportSelector = $("permit-viewport"), zoomLevel = $("permit-zoom-level");
     const dialog = $("permit-dialog"), form = $("permit-form"), fieldset = $("permit-fields");
     const zoomByViewport = /* @__PURE__ */ new WeakMap();
-    let values = {}, model, valid = false, renderedModel, renderedValues, storageStatus = "";
+    const selectedBySheet = /* @__PURE__ */ new Map();
+    let values = {}, model, valid = false, renderedModel, renderedValues, storageStatus = "", exportStatus = "";
+    let compiledSheets = [], gesture;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey2));
       if (saved && typeof saved === "object" && !Array.isArray(saved)) values = saved;
@@ -1615,57 +1618,217 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     });
     function showSelectedSheet() {
       for (const sheet of host.children) sheet.hidden = sheet.dataset.sheet !== selector.value;
+      const viewports = currentViewports();
+      viewportSelector.replaceChildren(...viewports.map((viewport) => new Option(viewport.dataset.zoomLabel, viewport.id)));
+      const selected = selectedBySheet.get(selector.value);
+      if (viewports.some((viewport) => viewport.id === selected)) viewportSelector.value = selected;
+      updateZoomLevel();
     }
     function render() {
-      print.disabled = !valid;
+      print.disabled = download.disabled = !valid;
       status.textContent = [
-        model ? valid ? "" : "Designer has invalid values. Showing the last valid model; correct the errors to print." : "No valid Designer model is available yet.",
-        storageStatus
+        model ? valid ? "" : "Designer has invalid values. Showing the last valid model; correct the errors to export." : "No valid Designer model is available yet.",
+        storageStatus,
+        exportStatus
       ].filter(Boolean).join(" ");
       if (!model || model === renderedModel && values === renderedValues) return;
-      const sheets2 = compileDrawings(model, values).map(({ id, svg }) => {
+      compiledSheets = compileDrawings(model, values);
+      const sheets2 = compiledSheets.map(({ id, svg }) => {
         const sheet = document.createElement("div");
         sheet.className = "permit-sheet";
         sheet.dataset.sheet = id;
         sheet.innerHTML = svg;
         return sheet;
       });
+      gesture = void 0;
       host.replaceChildren(...sheets2);
       renderedModel = model;
       renderedValues = values;
       showSelectedSheet();
     }
-    selector.addEventListener("change", showSelectedSheet);
-    host.addEventListener("wheel", (event) => {
-      if (!event.altKey || !event.deltaY) return;
-      const svg = event.target.closest("svg");
-      const matrix = svg?.getScreenCTM();
-      if (!matrix) return;
-      const { x, y } = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-      const viewport = [...svg.querySelectorAll("[data-zoom-viewport]")].find(({ firstElementChild: rect }) => {
-        const left = rect.x.baseVal.value, top = rect.y.baseVal.value;
-        return x >= left && x <= left + rect.width.baseVal.value && y >= top && y <= top + rect.height.baseVal.value;
-      });
-      if (!viewport) return;
-      event.preventDefault();
-      const previous = zoomByViewport.get(viewport) || { scale: 1, x: 0, y: 0 };
-      const scale = wheelZoom(event, previous.scale);
-      if (scale === previous.scale) return;
-      const ratio = scale / previous.scale;
-      const transform = { scale, x: x - (x - previous.x) * ratio, y: y - (y - previous.y) * ratio };
-      const groups = svg.querySelectorAll(`[data-zoom-view="${viewport.id}"]`);
-      if (scale === 1) {
+    function currentViewports() {
+      return [...host.querySelector(".permit-sheet:not([hidden])")?.querySelectorAll("[data-zoom-viewport]") || []];
+    }
+    function activeViewport() {
+      return currentViewports().find((viewport) => viewport.id === viewportSelector.value);
+    }
+    function selectViewport(viewport) {
+      viewportSelector.value = viewport.id;
+      selectedBySheet.set(selector.value, viewport.id);
+      updateZoomLevel();
+    }
+    function state(viewport) {
+      return zoomByViewport.get(viewport) || { scale: 1, x: 0, y: 0 };
+    }
+    function bounds(viewport) {
+      const rect = viewport.firstElementChild;
+      return {
+        x: rect.x.baseVal.value,
+        y: rect.y.baseVal.value,
+        width: rect.width.baseVal.value,
+        height: rect.height.baseVal.value
+      };
+    }
+    function updateZoomLevel() {
+      const viewport = activeViewport();
+      zoomLevel.textContent = `${Math.round((viewport ? state(viewport).scale : 1) * 100)}%`;
+    }
+    function transformViewport(viewport, next) {
+      const box = bounds(viewport), scale = Math.max(1, Math.min(4, next.scale));
+      const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+      const x = clamp(
+        next.x,
+        box.x - scale * (box.x + box.width) + box.width * 0.2,
+        box.x + box.width * 0.8 - scale * box.x
+      );
+      const y = clamp(
+        next.y,
+        box.y - scale * (box.y + box.height) + box.height * 0.2,
+        box.y + box.height * 0.8 - scale * box.y
+      );
+      const groups = viewport.ownerSVGElement.querySelectorAll(`[data-zoom-view="${viewport.id}"]`);
+      if (scale === 1 && x === 0 && y === 0) {
         zoomByViewport.delete(viewport);
         for (const group of groups) group.removeAttribute("transform");
       } else {
-        zoomByViewport.set(viewport, transform);
-        for (const group of groups) group.setAttribute("transform", `translate(${transform.x} ${transform.y}) scale(${scale})`);
+        zoomByViewport.set(viewport, { scale, x, y });
+        for (const group of groups) group.setAttribute("transform", `translate(${x} ${y}) scale(${scale})`);
       }
+      if (viewport === activeViewport()) updateZoomLevel();
+    }
+    function zoomAt(viewport, scale, point) {
+      const previous = state(viewport);
+      scale = Math.max(1, Math.min(4, scale));
+      if (scale === previous.scale) return;
+      if (scale === 1) {
+        transformViewport(viewport, { scale: 1, x: 0, y: 0 });
+        return;
+      }
+      const ratio = scale / previous.scale;
+      transformViewport(viewport, {
+        scale,
+        x: point.x - (point.x - previous.x) * ratio,
+        y: point.y - (point.y - previous.y) * ratio
+      });
+    }
+    function zoomSelected(factor) {
+      const viewport = activeViewport();
+      if (!viewport) return;
+      const box = bounds(viewport);
+      zoomAt(viewport, state(viewport).scale * factor, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    }
+    function panSelected(dx, dy) {
+      const viewport = activeViewport();
+      if (!viewport) return;
+      const previous = state(viewport), box = bounds(viewport);
+      transformViewport(viewport, {
+        ...previous,
+        x: previous.x + dx * box.width * 0.05,
+        y: previous.y + dy * box.height * 0.05
+      });
+    }
+    function sheetPoint(svg, event) {
+      const matrix = svg.getScreenCTM();
+      if (!matrix) return;
+      return new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    }
+    function viewportAt(svg, point) {
+      return [...svg.querySelectorAll("[data-zoom-viewport]")].find((viewport) => {
+        const box = bounds(viewport);
+        return point.x >= box.x && point.x <= box.x + box.width && point.y >= box.y && point.y <= box.y + box.height;
+      });
+    }
+    selector.addEventListener("change", () => {
+      gesture = void 0;
+      showSelectedSheet();
+    });
+    viewportSelector.addEventListener("change", () => {
+      gesture = void 0;
+      selectedBySheet.set(selector.value, viewportSelector.value);
+      updateZoomLevel();
+    });
+    $("permit-zoom-in").addEventListener("click", () => zoomSelected(1.25));
+    $("permit-zoom-out").addEventListener("click", () => zoomSelected(1 / 1.25));
+    for (const [direction, dx, dy] of [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]]) {
+      $(`permit-pan-${direction}`).addEventListener("click", () => panSelected(dx, dy));
+    }
+    host.addEventListener("keydown", (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const actions = {
+        "+": () => zoomSelected(1.25),
+        "=": () => zoomSelected(1.25),
+        "-": () => zoomSelected(1 / 1.25),
+        ArrowLeft: () => panSelected(-1, 0),
+        ArrowRight: () => panSelected(1, 0),
+        ArrowUp: () => panSelected(0, -1),
+        ArrowDown: () => panSelected(0, 1)
+      };
+      if (!actions[event.key]) return;
+      event.preventDefault();
+      actions[event.key]();
+    });
+    host.addEventListener("wheel", (event) => {
+      if (!event.altKey || !event.deltaY) return;
+      const svg = event.target.closest("svg");
+      const point = svg && sheetPoint(svg, event);
+      const viewport = point && viewportAt(svg, point);
+      if (!viewport) return;
+      event.preventDefault();
+      selectViewport(viewport);
+      zoomAt(viewport, wheelZoom(event, state(viewport).scale), point);
     }, { passive: false });
+    host.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      const svg = event.target.closest("svg");
+      const point = svg && sheetPoint(svg, event);
+      const viewport = point && viewportAt(svg, point);
+      if (!viewport || gesture && (gesture.svg !== svg || gesture.viewport !== viewport || gesture.points.size >= 2)) return;
+      if (!gesture) gesture = { svg, viewport, points: /* @__PURE__ */ new Map() };
+      gesture.points.set(event.pointerId, point);
+      selectViewport(viewport);
+      svg.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    host.addEventListener("pointermove", (event) => {
+      if (!gesture?.points.has(event.pointerId)) return;
+      const point = sheetPoint(gesture.svg, event);
+      if (!point) return;
+      const before = [...gesture.points.values()];
+      gesture.points.set(event.pointerId, point);
+      const after = [...gesture.points.values()], previous = state(gesture.viewport);
+      if (after.length === 1) {
+        transformViewport(gesture.viewport, {
+          ...previous,
+          x: previous.x + after[0].x - before[0].x,
+          y: previous.y + after[0].y - before[0].y
+        });
+      } else {
+        const centre2 = (points) => ({ x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 });
+        const distance = (points) => Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+        const oldDistance = distance(before);
+        if (!oldDistance) return;
+        const a = centre2(before), b = centre2(after);
+        const scale = Math.max(1, Math.min(4, previous.scale * distance(after) / oldDistance));
+        const ratio = scale / previous.scale;
+        transformViewport(gesture.viewport, {
+          scale,
+          x: b.x - (a.x - previous.x) * ratio,
+          y: b.y - (a.y - previous.y) * ratio
+        });
+      }
+      event.preventDefault();
+    });
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      host.addEventListener(type, (event) => {
+        if (!gesture?.points.delete(event.pointerId)) return;
+        if (!gesture.points.size) gesture = void 0;
+      });
+    }
     $("reset-permit-zoom").addEventListener("click", () => {
       const sheet = host.querySelector(".permit-sheet:not([hidden])");
       for (const viewport of sheet?.querySelectorAll("[data-zoom-viewport]") || []) zoomByViewport.delete(viewport);
       for (const group of sheet?.querySelectorAll("[data-zoom-view][transform]") || []) group.removeAttribute("transform");
+      updateZoomLevel();
     });
     $("show-permit-dialog").addEventListener("click", () => {
       const site = permitSettings(values, model?.slabThickness);
@@ -1696,6 +1859,31 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       window.print();
     });
     window.addEventListener("afterprint", () => document.body.classList.remove("printing-permit"));
+    download.addEventListener("click", () => {
+      if (!valid) return;
+      const urls = [];
+      let link;
+      try {
+        for (const { id, svg } of compiledSheets) {
+          const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+          urls.push(url);
+          link = document.createElement("a");
+          link.href = url;
+          link.download = `farstu-${id}.svg`;
+          document.body.append(link);
+          link.click();
+          link.remove();
+        }
+        setTimeout(() => urls.forEach((url) => URL.revokeObjectURL(url)), 1e3);
+        exportStatus = "";
+      } catch (error) {
+        if (link?.isConnected) link.remove();
+        urls.forEach((url) => URL.revokeObjectURL(url));
+        console.error("Unable to export SVG drawings.", error);
+        exportStatus = "SVG drawings could not be exported in this browser.";
+      }
+      render();
+    });
     return {
       render,
       update(next, isValid) {
