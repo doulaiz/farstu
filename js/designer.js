@@ -1303,7 +1303,7 @@ export function initDesigner() {
         ground(roofRight+gradeMargin,topHedgeCentre+hedgeHalfDepth),
         ground(roofLeft-gradeMargin,topHedgeCentre+hedgeHalfDepth)],
       '#617c4d',{class:'face hedge-plan'});
-      const planA = Math.max(houseA,0), planB = Math.min(houseB,W);
+      const planA = Math.max(houseA,-1000), planB = Math.min(houseB,W+1000);
       const houseFace = housePlanRecession;
       const entryCentre = houseEntryOffset-slabOriginOffset;
       const entryLeft = entryCentre-houseEntryWidth/2, entryRight = entryCentre+houseEntryWidth/2;
@@ -1316,7 +1316,7 @@ export function initDesigner() {
         line(a,b,'slab-plan-edge');
       }
       const rearSpans = entryVisible
-        ? [[0,Math.max(0,entryLeft)],[Math.min(W,entryRight),W]]
+        ? [[0,Math.max(0,Math.min(W,entryLeft))],[Math.max(0,Math.min(W,entryRight)),W]]
         : [[0,W]];
       for (const [start,end] of rearSpans) {
         if (start < end) line(ground(start,0),ground(end,0),'slab-plan-edge',{'data-edge':'rear'});

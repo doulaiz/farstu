@@ -369,7 +369,7 @@ try {
     edit('slabOriginOffset',3694);
     const after = geometry();
     const houseLeftAfter = bounds(doc.querySelector('.house-plan')).left;
-    // Both house plan strips begin at the slab's left edge here.
+    // Both house plan strips start at the same offset from the slab here.
     near((after.floor.left-houseLeftAfter)/after.scale-(before.floor.left-houseLeftBefore)/before.scale,
       -200,'Moving the slab moved the entry with it');
     field('houseEntryOffset').value = '20000';
@@ -391,7 +391,7 @@ try {
       field('houseEntryOffset').value === '5094','Older settings did not acquire a centred entry');
   });
 
-  await check('Plan house wall is clipped to the porch and entry opening',async () => {
+  await check('Plan wall extends beyond the slab and respects house ends and entry',async () => {
     await load(true);
     doc.querySelector('[data-view="plan"]').click();
     const bounds = node => {
@@ -420,9 +420,9 @@ try {
         near((Number(edge.getAttribute('x2'))-slab.left)/scale,rearSpans[i][1],'Rear edge end');
       });
     };
-    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    checkSpans([[-1000,400],[2400,3800]],[[0,400],[2400,2800]]);
     edit('houseBaseRecession',270);
-    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    checkSpans([[-1000,400],[2400,3800]],[[0,400],[2400,2800]]);
     edit('houseBaseRecession',500);
     field('toggle-ground').click();
     const floor = doc.querySelector('.house-entry-floor');
@@ -433,24 +433,30 @@ try {
     field('toggle-ground').click();
     edit('offset',500);
     edit('wallThickness',170);
-    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    checkSpans([[-1000,400],[2400,3800]],[[0,400],[2400,2800]]);
     edit('houseBaseHeight',0);
-    checkSpans([[0,400],[2400,2800]],[[0,400],[2400,2800]]);
+    checkSpans([[-1000,400],[2400,3800]],[[0,400],[2400,2800]]);
     edit('houseBaseHeight',600);
     edit('houseBaseRecession',100);
     edit('wallThickness',145);
     edit('houseEntryOffset',3294);
-    checkSpans([[800,2800]],[[800,2800]]);
+    checkSpans([[800,3800]],[[800,2800]]);
     edit('houseEntryOffset',6494);
-    checkSpans([[0,2000]],[[0,2000]]);
+    checkSpans([[-1000,2000]],[[0,2000]]);
     edit('houseEntryOffset',8494);
-    checkSpans([[0,2800]],[[0,2800]]);
+    checkSpans([[-1000,3800]],[[0,2800]]);
+    edit('houseEntryOffset',2094);
+    checkSpans([[-400,3800]],[[0,2800]]);
+    edit('houseEntryOffset',7494);
+    checkSpans([[-1000,3000]],[[0,2800]]);
     edit('houseEntryOffset',4894);
     edit('houseEntryWidth',4000);
-    checkSpans([],[]);
+    checkSpans([[-1000,-600],[3400,3800]],[]);
     edit('houseEntryWidth',2000);
     edit('slabOriginOffset',-1000);
-    checkSpans([[495,2800]],[[0,2800]]);
+    checkSpans([[495,3800]],[[0,2800]]);
+    edit('slabOriginOffset',8494);
+    checkSpans([[-1000,1799]],[[0,2800]]);
   });
 
   await check('Top view hedge follows the house and remains visible with ground hidden',async () => {

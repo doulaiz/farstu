@@ -3875,7 +3875,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
           "#617c4d",
           { class: "face hedge-plan" }
         );
-        const planA = Math.max(houseA, 0), planB = Math.min(houseB, W);
+        const planA = Math.max(houseA, -1e3), planB = Math.min(houseB, W + 1e3);
         const houseFace = housePlanRecession;
         const entryCentre = houseEntryOffset - slabOriginOffset;
         const entryLeft = entryCentre - houseEntryWidth / 2, entryRight = entryCentre + houseEntryWidth / 2;
@@ -3885,7 +3885,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         for (const [a, b] of [[ground(0, 0), ground(0, L)], [ground(0, L), ground(W, L)], [ground(W, L), ground(W, 0)]]) {
           line(a, b, "slab-plan-edge");
         }
-        const rearSpans = entryVisible ? [[0, Math.max(0, entryLeft)], [Math.min(W, entryRight), W]] : [[0, W]];
+        const rearSpans = entryVisible ? [[0, Math.max(0, Math.min(W, entryLeft))], [Math.max(0, Math.min(W, entryRight)), W]] : [[0, W]];
         for (const [start, end] of rearSpans) {
           if (start < end) line(ground(start, 0), ground(end, 0), "slab-plan-edge", { "data-edge": "rear" });
         }
