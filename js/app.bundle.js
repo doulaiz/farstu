@@ -3561,7 +3561,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
             { key: w.key, pattern: "cross", thickness: 145, trim: houseTrim, trimColour: "#f5efe1" }
           );
         }
-        note(houseAt(houseA, houseWallHeight), "Existing house", -9, "start");
+        if (front) note(houseAt(houseA, houseWallHeight), "Existing house", -9, "start");
       }
       function drawSideWallBasementJunction(which) {
         if (!sideElevation || houseBaseRecession <= 0 || houseBaseHeight <= 0 || !visible("cover") && !visible("studs")) return;
@@ -3955,8 +3955,10 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         if (iso || front) {
           foundation(frontAt, W, "#aab4aa");
           drawWall(frontSection, W, frontTop, windows.front, "front");
-          const baseline = groundHidden ? footingBase : slabBase;
-          dimension2(frontAt(0, baseline), frontAt(W, baseline), [0, 38], mm2(W));
+          if (front) {
+            const baseline = groundHidden ? footingBase : slabBase;
+            dimension2(frontAt(0, baseline), frontAt(W, baseline), [0, 38], mm2(W));
+          }
         }
         if (iso || !front) {
           if (!iso) {
@@ -3992,10 +3994,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
           }
           foundation(sideAt(side === "right" ? W : 0), L, "#8e9b92");
           drawWall(sideSection(side), L, wallTop, side === "left" ? door : windows.right, side === "left" ? "door" : "right");
-          if (iso) {
-            const baseline = groundHidden ? footingBase : slabBase;
-            dimension2([0, 0, baseline], [0, L, baseline], [0, 38], mm2(L));
-          }
         }
         if (sideElevation) drawSideWallBasementJunction(side);
         orderScene(wallScene);

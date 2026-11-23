@@ -769,7 +769,7 @@ try {
     for (const view of ['3d','front','left','right','plan']) {
       doc.querySelector(`[data-view="${view}"]`).click();
       const text = field('drawing').textContent;
-      assert(!/\d,\d{3}/.test(text) && (['left','right','plan'].includes(view) || /\d\u202f\d{3} mm/.test(text)),
+      assert(!/\d,\d{3}/.test(text) && (view !== 'front' || /\d\u202f\d{3} mm/.test(text)),
         `Incorrect grouping in ${view}`);
     }
     field('show-bom').click();
@@ -1000,7 +1000,7 @@ try {
         svg.querySelectorAll('.dimension').length === 0, `Unexpected pitch or slab dimension in ${side} view`);
     }
     doc.querySelector('[data-view="3d"]').click();
-    assert(field('drawing').querySelectorAll('.dimension').length === 2, '3D slab dimensions were removed');
+    assert(!field('drawing').querySelector('.dimension'), '3D slab dimensions were not removed');
     doc.querySelector('[data-view="front"]').click();
     assert(field('drawing').querySelectorAll('.dimension').length === 2, 'Front dimensions were removed');
   });
@@ -1020,7 +1020,33 @@ try {
     doc.querySelector('[data-view="front"]').click();
     assert(svg.querySelectorAll('.dimension').length === 2, 'Front dimensions were removed');
     doc.querySelector('[data-view="3d"]').click();
-    assert(svg.querySelectorAll('.dimension').length === 2, '3D dimensions were removed');
+    assert(!svg.querySelector('.dimension'), '3D slab dimensions were not removed');
+  });
+
+  await check('3D sketch omits slab dimensions and the existing-house label', async () => {
+    await load(true);
+    const svg = field('drawing');
+    for (const mode of ['tiles','rafters','none']) {
+      change(field('roof-display'),mode);
+      for (let i=0;i<2;i++) {
+        assert(!svg.querySelector('.dimension') &&
+          ![...svg.querySelectorAll('.annotation')].some(node => node.textContent === 'Existing house'),
+          `Unwanted 3D annotation with ${mode}, ground state ${i}`);
+        assert(svg.querySelector('.house-facade') && svg.querySelector('.slab-edge'),
+          `3D house or slab geometry missing with ${mode}, ground state ${i}`);
+        field('toggle-ground').click();
+      }
+    }
+    field('width').closest('.parameter-group').open = true;
+    field('width').closest('.parameter-section').open = true;
+    for (const [id,label] of [['width','Slab width'],['length','Slab length']]) {
+      field(id).focus();
+      assert(svg.querySelector('.measurement-guides')?.textContent.includes(label),
+        `Missing temporary ${label} measurement`);
+    }
+    doc.querySelector('[data-view="front"]').click();
+    assert([...svg.querySelectorAll('.annotation')].some(node => node.textContent === 'Existing house') &&
+      svg.querySelectorAll('.dimension').length === 2, 'Front annotations changed');
   });
 
   await check('Stored lumber and roof quotes use the same bounds as entered prices',async () => {

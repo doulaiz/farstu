@@ -1060,7 +1060,7 @@ export function initDesigner() {
         drawWindow(face,section,{start:w.left,end:w.right,bottom:w.sill,top:w.head},facade,
           {key:w.key,pattern:'cross',thickness:145,trim:houseTrim,trimColour:'#f5efe1'});
       }
-      note(houseAt(houseA,houseWallHeight),'Existing house',-9,'start');
+      if (front) note(houseAt(houseA,houseWallHeight),'Existing house',-9,'start');
     }
 
     function drawSideWallBasementJunction(which) {
@@ -1371,8 +1371,10 @@ export function initDesigner() {
       if (iso || front) {
         foundation(frontAt,W,'#aab4aa');
         drawWall(frontSection,W,frontTop,windows.front,'front');
-        const baseline = groundHidden ? footingBase : slabBase;
-        dimension(frontAt(0,baseline),frontAt(W,baseline),[0,38],mm(W));
+        if (front) {
+          const baseline = groundHidden ? footingBase : slabBase;
+          dimension(frontAt(0,baseline),frontAt(W,baseline),[0,38],mm(W));
+        }
       }
       if (iso || !front) {
         if (!iso) {
@@ -1392,10 +1394,6 @@ export function initDesigner() {
         }
         foundation(sideAt(side === 'right' ? W : 0),L,'#8e9b92');
         drawWall(sideSection(side),L,wallTop,side === 'left' ? door : windows.right,side === 'left' ? 'door' : 'right');
-        if (iso) {
-          const baseline = groundHidden ? footingBase : slabBase;
-          dimension([0,0,baseline],[0,L,baseline],[0,38],mm(L));
-        }
       }
       if (sideElevation) drawSideWallBasementJunction(side);
       orderScene(wallScene);
