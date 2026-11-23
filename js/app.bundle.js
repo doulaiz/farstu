@@ -768,9 +768,9 @@
   }
   function readQuotes(status) {
     try {
-      const text2 = localStorage.getItem(storageKey);
-      if (text2 === null) return /* @__PURE__ */ new Map();
-      const quotes = JSON.parse(text2);
+      const text = localStorage.getItem(storageKey);
+      if (text === null) return /* @__PURE__ */ new Map();
+      const quotes = JSON.parse(text);
       if (!Array.isArray(quotes) || !quotes.every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" && ["piece", "metre"].includes(entry[1]?.unit) && validQuote(entry[1].amount))) {
         throw new Error("Unrecognized quote format.");
       }
@@ -783,9 +783,9 @@
   }
   function readRoofQuotes(status) {
     try {
-      const text2 = localStorage.getItem(roofStorageKey);
-      if (text2 === null) return /* @__PURE__ */ new Map();
-      const quotes = JSON.parse(text2);
+      const text = localStorage.getItem(roofStorageKey);
+      if (text === null) return /* @__PURE__ */ new Map();
+      const quotes = JSON.parse(text);
       if (!Array.isArray(quotes) || !quotes.every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" && validQuote(entry[1]))) {
         throw new Error("Unrecognized roof quote format.");
       }
@@ -995,606 +995,6 @@
     } };
   }
 
-  // js/loads.js
-  var gravity = 9.81;
-  var adultMass = 80;
-  var adultCount = 3;
-  var adultFootprint = 400;
-  var densities = {
-    concrete: { value: 2500, label: "Reinforced concrete (slab and piers)" },
-    timber: { value: 450, label: "Structural spruce, C24 incl. moisture" },
-    mineralWool: { value: 30, label: "Mineral-wool insulation" }
-  };
-  var wallLayerMasses = ({ baseBoardWidth, coverBoardWidth, claddingSpacing }) => [
-    { key: "cladding", label: "Board-on-board cladding, 22 mm", kg: (baseBoardWidth + coverBoardWidth) / claddingSpacing * 0.022 * densities.timber.value },
-    { key: "battens", label: "Nailers and counter-battens, 48 \xD7 25 @ 600", kg: 2 * 0.048 * 0.025 / 0.6 * 450 },
-    { key: "wind", label: "Wind-barrier board, 9 mm", kg: 7 },
-    { key: "vapour", label: "Vapour control membrane", kg: 0.2 },
-    { key: "service", label: "Service battens 70 \xD7 28 @ 600 with insulation", kg: 0.07 * 0.028 / 0.6 * 450 + 0.028 * 30 },
-    { key: "osb", label: "OSB / plywood, 12 mm", kg: 0.012 * 620 },
-    { key: "gypsum", label: "Gypsum lining, 13 mm", kg: 9 }
-  ];
-  var openingMasses = { window: 35, door: 30 };
-  var roofCoveringMasses = {
-    tiles: 45,
-    standingSeam: 6
-  };
-  var roofCoveringLabels = {
-    tiles: roofMaterials.tiles.label,
-    standingSeam: roofMaterials.standingSeam.label
-  };
-  var roofCovering = ({ roofMaterial }) => roofMaterial in roofCoveringMasses ? roofMaterial : "tiles";
-  var roofLayerMasses = { deck: 10, underlayment: 1.5 };
-  var roofEdgeMasses = { eave: 6, verge: 3.6, abutment: 1, downpipe: 5 };
-  function pierLayout({ width, length, footingColumns, footingRows, footingDiameter }) {
-    const radius = footingDiameter / 2;
-    const inset = radius + Math.min(
-      100,
-      (width - footingColumns * footingDiameter) / 4,
-      (length - footingRows * footingDiameter) / 4
-    );
-    const axis = (span, count) => Array.from({ length: count }, (_, i) => inset + i * (span - 2 * inset) / (count - 1));
-    return { radius, columns: axis(width, footingColumns), rows: axis(length, footingRows) };
-  }
-  function leverShares(u, supports) {
-    const last = supports.length - 2;
-    let k = 0;
-    while (k < last && u > supports[k + 1]) k++;
-    const t = (u - supports[k]) / (supports[k + 1] - supports[k]);
-    return [[k, 1 - t], [k + 1, t]];
-  }
-  function defaultPeople(model, preset = "spread") {
-    const { width: W, length: L, wallThickness: T } = model;
-    const ix = [T, W - T], iy = [0, L - T];
-    const cx = (ix[0] + ix[1]) / 2, cy = (iy[0] + iy[1]) / 2;
-    if (preset === "spread") return [0.25, 0.5, 0.75].map((f) => ({ x: ix[0] + f * (ix[1] - ix[0]), y: cy }));
-    return [[-1, -1], [1, -1], [0, 1]].map(([dx, dy]) => ({ x: cx + dx * 220, y: cy + dy * 190 }));
-  }
-  function clampPerson(model, { x, y }) {
-    const { width: W, length: L, wallThickness: T } = model;
-    const m = adultFootprint / 2;
-    const clamp = (v, a, b) => a > b ? (a + b) / 2 : Math.max(a, Math.min(b, v));
-    return { x: clamp(x, T + m, W - T - m), y: clamp(y, m, L - T - m) };
-  }
-  function wallLoads(model, add) {
-    const {
-      width: W,
-      length: L,
-      wallThickness: T,
-      studWidth,
-      studDepth,
-      studSpacing,
-      rear,
-      slope,
-      frontWallHeight,
-      windows,
-      offset,
-      doorWidth,
-      doorHeight
-    } = model;
-    const timber = densities.timber.value / 1e9;
-    const layerKg = wallLayerMasses(model).reduce((sum, layer) => sum + layer.kg, 0) / 1e6;
-    const cavityKg = densities.mineralWool.value * studDepth / 1e9 * Math.max(0, 1 - studWidth / studSpacing);
-    const rearY = roofRearOffset(model);
-    const sideTop = (u) => rear + slope * (rearY - u);
-    const walls = [
-      {
-        end: L - T,
-        top: sideTop,
-        op: { start: rearY + offset, end: rearY + offset + doorWidth, bottom: 0, top: doorHeight },
-        at: (u) => [T / 2, u],
-        kind: "door"
-      },
-      { end: W, top: () => frontWallHeight, op: windows.front, at: (u) => [u, L - T / 2], kind: "window" },
-      { end: L - T, top: sideTop, op: windows.right, at: (u) => [W - T / 2, u], kind: "window" }
-    ];
-    const step = 25;
-    for (const { end, top, op, at, kind } of walls) {
-      for (const { a, b, low, high } of wallMembers(0, end, top, op, studWidth, studSpacing, kind === "window")) {
-        const n3 = Math.max(1, Math.ceil((b - a) / step));
-        for (let i = 0; i < n3; i++) {
-          const u = a + (i + 0.5) * (b - a) / n3;
-          const h = clippedHeight(top, high, u) - clippedHeight(top, low, u);
-          if (h > 0) add("walls", "framing", ...at(u), h * (b - a) / n3 * studDepth * timber);
-        }
-      }
-      for (let start = 0; start < end; ) {
-        const boundary = start < op.start ? op.start : start < op.end ? op.end : end;
-        const du = Math.min(step, end - start, boundary - start);
-        const u = start + du / 2;
-        const inOpening = u > op.start && u < op.end;
-        const solid = Math.max(0, top(u) - (inOpening ? op.top - op.bottom : 0));
-        add("walls", "layers", ...at(u), solid * du * layerKg);
-        add("walls", "insulation", ...at(u), solid * du * cavityKg);
-        start += du;
-      }
-      const area = (op.end - op.start) * (op.top - op.bottom) / 1e6;
-      const unitKg = area * openingMasses[kind];
-      const trimWidth = model.trimWidth ?? 0;
-      const trimKg = trimWidth * 22 * densities.timber.value / 1e9 * (2 * (op.top - op.bottom) + (op.end - op.start) + 2 * trimWidth);
-      const n2 = Math.max(1, Math.ceil((op.end - op.start) / step));
-      for (let i = 0; i < n2; i++) {
-        const u = op.start + (i + 0.5) * (op.end - op.start) / n2;
-        add("walls", "openings", ...at(u), (unitKg + trimKg) / n2);
-      }
-    }
-  }
-  function roofLoads(model, add) {
-    const {
-      width: W,
-      length: L,
-      wallThickness: T,
-      roofWidth,
-      doorSideOverhang: S,
-      frontOverhang: F,
-      slope,
-      rafterWidth,
-      rafterDepth,
-      rafterSpacing
-    } = model;
-    const factor = Math.hypot(1, slope);
-    const rearY = roofRearOffset(model), run = roofRun(model);
-    const roofRight = roofWidth - S;
-    const rafters = rafterStarts(roofWidth, S, rafterWidth, rafterSpacing);
-    const rafterKg = rafterWidth * rafterDepth * run * factor * densities.timber.value / 1e9;
-    const areaKg = (roofCoveringMasses[roofCovering(model)] + roofLayerMasses.deck + roofLayerMasses.underlayment) / 1e6 * factor;
-    const point = (part, x, y, kg2) => add("roof", part, x, y, kg2);
-    const step = 50;
-    const ys = [];
-    for (let start = rearY; start < L + F; start += step) {
-      const dy = Math.min(step, L + F - start);
-      ys.push([start + dy / 2, dy]);
-    }
-    for (const x0 of rafters) for (const [y, dy] of ys) point("rafters", x0 + rafterWidth / 2, y, rafterKg * dy / run);
-    for (let start = -S; start < roofRight; start += step) {
-      const dx = Math.min(step, roofRight - start);
-      const x = start + dx / 2;
-      for (const [y, dy] of ys) point("covering", x, y, dx * dy * areaKg);
-      point("edges", x, L + F, dx / 1e3 * roofEdgeMasses.eave);
-      point("edges", x, rearY, dx / 1e3 * roofEdgeMasses.abutment);
-    }
-    for (const [y, dy] of ys) {
-      for (const x of [-S, roofRight]) point("edges", x, y, dy / 1e3 * factor * roofEdgeMasses.verge);
-    }
-    point("edges", W - T / 2, L + F, roofEdgeMasses.downpipe);
-  }
-  function computeLoads(model, { people, rearSupport = "beam" }) {
-    const { width: W, length: L, wallThickness: T, slabThickness, footingDiameter, footingDepth } = model;
-    const layout = pierLayout(model);
-    const { columns, rows, radius } = layout;
-    const piers = rows.flatMap((y, r) => columns.map((x, c) => ({
-      id: `${String.fromCharCode(65 + r)}${c + 1}`,
-      x,
-      y,
-      row: r,
-      column: c,
-      parts: { slab: 0, walls: 0, roof: 0, people: 0 }
-    })));
-    const totals = { slab: 0, walls: 0, roof: 0, people: 0, house: 0 };
-    const details = {};
-    const cell2 = 100;
-    const nx = Math.max(1, Math.ceil(W / cell2)), ny = Math.max(1, Math.ceil(L / cell2));
-    const field = new Float64Array(nx * ny);
-    function onSlab(group, x, y, kg2) {
-      totals[group] += kg2;
-      const cx = Math.min(nx - 1, Math.max(0, Math.floor(x / W * nx)));
-      const cy = Math.min(ny - 1, Math.max(0, Math.floor(y / L * ny)));
-      field[cy * nx + cx] += kg2;
-      for (const [r, wr] of leverShares(y, rows)) {
-        for (const [c, wc] of leverShares(x, columns)) piers[r * columns.length + c].parts[group] += kg2 * wr * wc;
-      }
-    }
-    function add(group, part, x, y, kg2) {
-      details[`${group}:${part}`] = (details[`${group}:${part}`] ?? 0) + kg2;
-      onSlab(group, x, y, kg2);
-    }
-    const slabKg = densities.concrete.value * slabThickness / 1e9;
-    for (let y = 0; y < L; y += 50) {
-      const dy = Math.min(50, L - y);
-      for (let x = 0; x < W; x += 50) {
-        const dx = Math.min(50, W - x);
-        add("slab", "concrete", x + dx / 2, y + dy / 2, dx * dy * slabKg);
-      }
-    }
-    wallLoads(model, add);
-    const frontY = L - T / 2;
-    const rearY = roofRearOffset(model);
-    const sides = [T / 2, W - T / 2];
-    roofLoads(model, (group, part, x, y, kg2) => {
-      details[`${group}:${part}`] = (details[`${group}:${part}`] ?? 0) + kg2;
-      const front = kg2 * (y - rearY) / (frontY - rearY);
-      const rearKg = kg2 - front;
-      onSlab("roof", Math.max(sides[0], Math.min(sides[1], x)), frontY, front);
-      if (rearSupport === "house") {
-        totals.house += rearKg;
-      } else {
-        for (const [i, share] of leverShares(x, sides)) onSlab("roof", sides[i], rearY, rearKg * share);
-      }
-    });
-    const footprint = adultFootprint;
-    const steps = 4;
-    for (const person of people) {
-      for (let i = 0; i < steps; i++) {
-        for (let j = 0; j < steps; j++) {
-          const x = person.x - footprint / 2 + (i + 0.5) * footprint / steps;
-          const y = person.y - footprint / 2 + (j + 0.5) * footprint / steps;
-          add("people", "adults", x, y, adultMass / steps / steps);
-        }
-      }
-    }
-    const area = Math.PI * radius * radius / 1e6;
-    const selfWeight = densities.concrete.value * area * footingDepth / 1e3;
-    const onPiers = totals.slab + totals.walls + totals.roof + totals.people;
-    for (const pier of piers) {
-      pier.fromAbove = Object.values(pier.parts).reduce((a, b) => a + b, 0);
-      pier.selfWeight = selfWeight;
-      pier.atBase = pier.fromAbove + selfWeight;
-      pier.share = pier.fromAbove / onPiers;
-      pier.topPressure = pier.fromAbove * gravity / 1e3 / area;
-      pier.basePressure = pier.atBase * gravity / 1e3 / area;
-    }
-    const cellArea = W / nx * (L / ny) / 1e6;
-    return {
-      piers,
-      layout,
-      totals,
-      details,
-      onPiers,
-      area,
-      footingDiameter,
-      pierSelfWeight: selfWeight * piers.length,
-      field: { nx, ny, values: Array.from(field, (kg2) => kg2 * gravity / 1e3 / cellArea) }
-    };
-  }
-
-  // js/loads-view.js
-  var svgNS = "http://www.w3.org/2000/svg";
-  var kgFormat = createNumberFormat({ maximumFractionDigits: 0 });
-  var oneDecimal = createNumberFormat({ minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  var twoDecimals = createNumberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  var percent = createNumberFormat({ style: "percent", maximumFractionDigits: 1 });
-  var kg = (n2) => kgFormat.format(Math.round(n2));
-  var kN = (n2) => twoDecimals.format(n2 * gravity / 1e3);
-  var ramp = [[255, 247, 214], [253, 205, 120], [240, 133, 62], [204, 64, 44], [128, 20, 34]];
-  function heat(t) {
-    const x = Math.max(0, Math.min(1, t)) * (ramp.length - 1);
-    const i = Math.min(ramp.length - 2, Math.floor(x));
-    const f = x - i;
-    return `rgb(${ramp[i].map((c, k) => Math.round(c + f * (ramp[i + 1][k] - c))).join(",")})`;
-  }
-  function el(name, attrs = {}, parent) {
-    const node = document.createElementNS(svgNS, name);
-    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
-    parent?.append(node);
-    return node;
-  }
-  function text(parent, x, y, content, size, attrs = {}) {
-    const node = el("text", { x, y, "font-size": size, class: "loads-text", ...attrs }, parent);
-    node.textContent = content;
-    return node;
-  }
-  function createLoadsView($) {
-    const panel2 = $("loads-view");
-    const svg = $("loads-diagram");
-    const status = $("loads-status");
-    const rearSupport = $("loads-rear-support");
-    const peopleSelect = $("loads-people");
-    const rows = $("loads-rows");
-    const breakdown = $("loads-breakdown");
-    const assumptions = $("loads-assumptions");
-    const fixedNodes = [...svg.childNodes];
-    $("loads-adult-mass").textContent = adultMass;
-    let latest, valid;
-    let custom;
-    let dragging = null;
-    let renderFrame = 0;
-    let focusIndex = null;
-    const interior = (model) => ({ x0: model.wallThickness, x1: model.width - model.wallThickness, y0: 0, y1: model.length - model.wallThickness });
-    function peopleFor(model) {
-      let people;
-      if (peopleSelect.value === "custom" && custom) {
-        const box = interior(model);
-        people = custom.map(({ fx, fy }) => ({ x: box.x0 + fx * (box.x1 - box.x0), y: box.y0 + fy * (box.y1 - box.y0) }));
-      } else if (peopleSelect.value === "worst") {
-        const dead = computeLoads(model, { people: [], rearSupport: rearSupport.value });
-        const pier = dead.piers.reduce((a, b) => b.fromAbove > a.fromAbove ? b : a);
-        const group = defaultPeople(model, "together");
-        const cx = group.reduce((s, q) => s + q.x, 0) / group.length;
-        const cy = group.reduce((s, q) => s + q.y, 0) / group.length;
-        people = group.map((p) => ({ x: p.x - cx + pier.x, y: p.y - cy + pier.y }));
-      } else {
-        people = defaultPeople(model, peopleSelect.value);
-      }
-      return people.slice(0, adultCount).map((p) => clampPerson(model, p));
-    }
-    function storeCustom(model, people) {
-      const box = interior(model);
-      custom = people.map(({ x, y }) => ({
-        fx: (x - box.x0) / Math.max(1, box.x1 - box.x0),
-        fy: (y - box.y0) / Math.max(1, box.y1 - box.y0)
-      }));
-      peopleSelect.querySelector('option[value="custom"]').disabled = false;
-      peopleSelect.value = "custom";
-    }
-    function moveTo(index, point, defer = false) {
-      const people = peopleFor(latest);
-      people[index] = clampPerson(latest, point);
-      storeCustom(latest, people);
-      if (defer) {
-        if (!renderFrame) renderFrame = requestAnimationFrame(() => {
-          renderFrame = 0;
-          render();
-        });
-      } else render();
-    }
-    function svgPoint(event) {
-      const point = svg.createSVGPoint();
-      point.x = event.clientX;
-      point.y = event.clientY;
-      const matrix = svg.getScreenCTM();
-      return matrix ? point.matrixTransform(matrix.inverse()) : null;
-    }
-    svg.addEventListener("pointerdown", (event) => {
-      const person = event.target.closest("[data-person]");
-      if (!person || !latest || panel2.hidden || event.button !== 0 || dragging) return;
-      const point = svgPoint(event);
-      if (!point) return;
-      event.preventDefault();
-      const index = Number(person.dataset.person);
-      const { x, y } = point;
-      const current = peopleFor(latest)[index];
-      dragging = { index, pointer: event.pointerId, dx: current.x - x, dy: current.y - y };
-      svg.setPointerCapture(event.pointerId);
-    });
-    svg.addEventListener("pointermove", (event) => {
-      if (!dragging || event.pointerId !== dragging.pointer) return;
-      if (panel2.hidden) {
-        stop(event);
-        return;
-      }
-      const point = svgPoint(event);
-      if (!point) return;
-      moveTo(dragging.index, { x: point.x + dragging.dx, y: point.y + dragging.dy }, true);
-    });
-    const stop = (event) => {
-      if (!dragging || event.pointerId !== dragging.pointer) return;
-      dragging = null;
-      if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
-      if (renderFrame) render();
-    };
-    svg.addEventListener("pointerup", stop);
-    svg.addEventListener("pointercancel", stop);
-    svg.addEventListener("lostpointercapture", stop);
-    svg.addEventListener("keydown", (event) => {
-      const person = event.target.closest?.("[data-person]");
-      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
-      if (!person || !step || !latest || panel2.hidden) return;
-      event.preventDefault();
-      const index = Number(person.dataset.person);
-      const current = peopleFor(latest)[index];
-      const distance = event.shiftKey ? 500 : 100;
-      focusIndex = index;
-      moveTo(index, { x: current.x + step[0] * distance, y: current.y + step[1] * distance });
-    });
-    rearSupport.addEventListener("change", () => render());
-    peopleSelect.addEventListener("change", () => render());
-    function drawDiagram(model, result, people) {
-      const { width: W, length: L, wallThickness: T, roofWidth, doorSideOverhang: S, frontOverhang: F, windows, offset, doorWidth } = model;
-      const rearY = roofRearOffset(model), doorStart = rearY + offset;
-      const { piers, layout, field } = result;
-      const span = Math.max(roofWidth, L + F);
-      const u = span / 640;
-      const margin = 70 * u;
-      const houseBand = 46 * u;
-      const minX = -S - margin, minY = -houseBand - 14 * u, maxX = roofWidth - S + margin, maxY = L + F + margin;
-      svg.setAttribute("viewBox", `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
-      svg.replaceChildren(...fixedNodes);
-      const root = el("g", {}, svg);
-      el("rect", { x: minX, y: rearY - houseBand, width: maxX - minX, height: houseBand, class: "loads-house" }, root);
-      text(root, W / 2, rearY - houseBand / 2, "Existing house wall", 13 * u, { "dominant-baseline": "central", "text-anchor": "middle" });
-      el("rect", { x: -S, y: rearY, width: roofWidth, height: roofRun(model), class: "loads-roof" }, root);
-      text(root, roofWidth - S - 4 * u, L + F - 6 * u, "Roof outline", 10 * u, { "text-anchor": "end", class: "loads-text loads-muted" });
-      const max = Math.max(...field.values);
-      const cw = W / field.nx, ch = L / field.ny;
-      const cells = el("g", { "aria-hidden": "true", "shape-rendering": "crispEdges" }, root);
-      field.values.forEach((value, i) => {
-        el("rect", {
-          x: i % field.nx * cw,
-          y: Math.floor(i / field.nx) * ch,
-          width: cw + 0.5,
-          height: ch + 0.5,
-          fill: heat(Math.sqrt(value / max))
-        }, cells);
-      });
-      el("rect", { x: 0, y: 0, width: W, height: L, class: "loads-slab" }, root);
-      const walls = el("g", { class: "loads-walls" }, root);
-      el("rect", { x: 0, y: 0, width: T, height: doorStart }, walls);
-      el("rect", { x: 0, y: doorStart + doorWidth, width: T, height: Math.max(0, L - T - doorStart - doorWidth) }, walls);
-      el("rect", { x: 0, y: L - T, width: W, height: T }, walls);
-      el("rect", { x: W - T, y: 0, width: T, height: L - T }, walls);
-      const glazing = el("g", { class: "loads-glazing" }, root);
-      el("line", { x1: windows.front.start, x2: windows.front.end, y1: L - T / 2, y2: L - T / 2 }, glazing);
-      el("line", { x1: W - T / 2, x2: W - T / 2, y1: windows.right.start, y2: windows.right.end }, glazing);
-      text(
-        root,
-        -10 * u,
-        doorStart + doorWidth / 2,
-        "Door",
-        10 * u,
-        { "text-anchor": "middle", transform: `rotate(-90 ${-10 * u} ${doorStart + doorWidth / 2})`, class: "loads-text loads-muted" }
-      );
-      const pressures = piers.map((p) => p.basePressure);
-      const pMin = Math.min(...pressures), pMax = Math.max(...pressures);
-      for (const pier of piers) {
-        const g = el("g", { class: "loads-pier" }, root);
-        const t = pMax > pMin ? (pier.basePressure - pMin) / (pMax - pMin) : 0.5;
-        el("circle", { cx: pier.x, cy: pier.y, r: layout.radius, fill: `hsl(250 ${25 + 30 * t}% ${78 - 30 * t}%)` }, g);
-        const size = Math.min(12 * u, layout.radius / 3.2);
-        text(g, pier.x, pier.y - size * 1.15, pier.id, size, { "text-anchor": "middle", class: "loads-text loads-pier-id" });
-        text(g, pier.x, pier.y, `${kg(pier.fromAbove)} kg`, size, { "text-anchor": "middle", "dominant-baseline": "central", class: `loads-text${pier.fromAbove < 0 ? " loads-uplift" : ""}` });
-        text(g, pier.x, pier.y + size * 1.2, `${oneDecimal.format(pier.basePressure)} kPa`, size * 0.9, { "text-anchor": "middle", "dominant-baseline": "hanging", class: "loads-text" });
-      }
-      people.forEach((person, index) => {
-        const g = el("g", {
-          class: "loads-person",
-          "data-person": index,
-          tabindex: 0,
-          role: "button",
-          "aria-label": `Adult ${index + 1}, ${adultMass} kg, ${kgFormat.format(person.x)} mm from the left and ${kgFormat.format(person.y)} mm from the house. Use the arrow keys to move.`
-        }, root);
-        el("rect", {
-          x: person.x - adultFootprint / 2,
-          y: person.y - adultFootprint / 2,
-          width: adultFootprint,
-          height: adultFootprint,
-          rx: adultFootprint / 5,
-          class: "loads-person-area"
-        }, g);
-        el("circle", { cx: person.x, cy: person.y - 60, r: 55, class: "loads-person-head" }, g);
-        el("path", { d: `M${person.x - 110} ${person.y + 120} Q${person.x} ${person.y - 30} ${person.x + 110} ${person.y + 120} Z`, class: "loads-person-head" }, g);
-        text(g, person.x, person.y + adultFootprint / 2 + 12 * u, `${adultMass} kg`, 10 * u, { "text-anchor": "middle", "dominant-baseline": "hanging" });
-      });
-      const dims = el("g", { class: "loads-dims" }, root);
-      const dy = L + F + 28 * u;
-      el("line", { x1: 0, x2: W, y1: dy, y2: dy }, dims);
-      for (const x of [0, W]) el("line", { x1: x, x2: x, y1: dy - 7 * u, y2: dy + 7 * u }, dims);
-      text(root, W / 2, dy + 6 * u, `Slab width ${kgFormat.format(W)} mm`, 11 * u, { "text-anchor": "middle", "dominant-baseline": "hanging" });
-      const dx = -S - 28 * u;
-      el("line", { x1: dx, x2: dx, y1: 0, y2: L }, dims);
-      for (const y of [0, L]) el("line", { x1: dx - 7 * u, x2: dx + 7 * u, y1: y, y2: y }, dims);
-      text(
-        root,
-        dx - 6 * u,
-        L / 2,
-        `Slab length ${kgFormat.format(L)} mm`,
-        11 * u,
-        { "text-anchor": "middle", transform: `rotate(-90 ${dx - 6 * u} ${L / 2})` }
-      );
-      $("loads-ramp-range").textContent = `0 \u2013 ${oneDecimal.format(max)} kPa (square-root scale; walls and feet are concentrated loads)`;
-      if (focusIndex !== null) svg.querySelector(`[data-person="${focusIndex}"]`)?.focus({ preventScroll: true });
-      focusIndex = null;
-    }
-    function fillTables(model, result) {
-      const { piers, totals, details, onPiers, area } = result;
-      const fragment = document.createDocumentFragment();
-      const cell2 = (row, value, className = "numeric") => {
-        const td = row.insertCell();
-        td.textContent = value;
-        if (className) td.className = className;
-        return td;
-      };
-      for (const pier of piers) {
-        const tr2 = document.createElement("tr");
-        const th2 = document.createElement("th");
-        th2.scope = "row";
-        th2.textContent = pier.id;
-        tr2.append(th2);
-        cell2(tr2, `${kgFormat.format(pier.x)} / ${kgFormat.format(pier.y)}`);
-        for (const key of ["slab", "walls", "roof", "people"]) cell2(tr2, kg(pier.parts[key]));
-        cell2(tr2, kg(pier.fromAbove), pier.fromAbove < 0 ? "numeric bom-flag" : "numeric");
-        cell2(tr2, kN(pier.fromAbove));
-        cell2(tr2, kg(pier.selfWeight));
-        cell2(tr2, kN(pier.atBase));
-        cell2(tr2, oneDecimal.format(pier.basePressure));
-        cell2(tr2, percent.format(pier.share));
-        fragment.append(tr2);
-      }
-      const tr = document.createElement("tr");
-      tr.className = "loads-total-row";
-      const th = document.createElement("th");
-      th.scope = "row";
-      th.textContent = "Total";
-      tr.append(th);
-      cell2(tr, `${piers.length} piers, ${twoDecimals.format(area)} m\xB2 each`, "");
-      for (const key of ["slab", "walls", "roof", "people"]) cell2(tr, kg(totals[key]));
-      cell2(tr, kg(onPiers));
-      cell2(tr, kN(onPiers));
-      cell2(tr, kg(result.pierSelfWeight));
-      cell2(tr, kN(onPiers + result.pierSelfWeight));
-      cell2(tr, "");
-      cell2(tr, percent.format(1));
-      fragment.append(tr);
-      rows.replaceChildren(fragment);
-      const factor = Math.hypot(1, model.slope);
-      const covering = roofCovering(model);
-      const coveringLabel = roofCoveringLabels[covering].toLowerCase();
-      const lines = [
-        ["Concrete slab", details["slab:concrete"], `${kgFormat.format(model.width)} \xD7 ${kgFormat.format(model.length)} \xD7 ${kgFormat.format(model.slabThickness)} mm at ${kgFormat.format(densities.concrete.value)} kg/m\xB3`],
-        ["Wall studs, plates, sills & headers", details["walls:framing"], `Stud layout from the Designer at ${densities.timber.value} kg/m\xB3`],
-        ["Wall cladding, battens, boards & linings", details["walls:layers"], `${oneDecimal.format(wallLayerMasses(model).reduce((s, l) => s + l.kg, 0))} kg/m\xB2 of solid wall`],
-        ["Stud-bay insulation", details["walls:insulation"], `${densities.mineralWool.value} kg/m\xB3 mineral wool, ${kgFormat.format(model.studDepth)} mm deep`],
-        ["Windows, door & opening trim", details["walls:openings"], `Windows ${openingMasses.window} kg/m\xB2, door ${openingMasses.door} kg/m\xB2`],
-        ["Rafters", details["roof:rafters"], `${kgFormat.format(model.rafterWidth)} \xD7 ${kgFormat.format(model.rafterDepth)} mm at ${densities.timber.value} kg/m\xB3`],
-        [`Roof ${coveringLabel}, deck & underlayment`, details["roof:covering"], `${oneDecimal.format((roofCoveringMasses[covering] + roofLayerMasses.deck + roofLayerMasses.underlayment) * factor)} kg per m\xB2 of plan`],
-        ["Fascia, flashings & gutter", details["roof:edges"], "Line loads along the roof edges"],
-        [`${adultCount} adults`, details["people:adults"], `${adultMass} kg each, spread over ${adultFootprint} \xD7 ${adultFootprint} mm`]
-      ];
-      const out = document.createDocumentFragment();
-      const addLine = (label, mass, basis, className) => {
-        const row = document.createElement("tr");
-        if (className) row.className = className;
-        const head = document.createElement("th");
-        head.scope = "row";
-        head.textContent = label;
-        row.append(head);
-        cell2(row, kg(mass));
-        cell2(row, basis, "");
-        out.append(row);
-      };
-      for (const line of lines) addLine(...line);
-      if (totals.house > 0) addLine("Less: rear roof share carried by the house", -totals.house, "Ledger on the existing house wall");
-      addLine("Total on the piers", onPiers, `${kN(onPiers)} kN`, "loads-total-row");
-      addLine("Pier self-weight", result.pierSelfWeight, `${piers.length} \xD7 \xD8 ${kgFormat.format(model.footingDiameter)} mm, ${kgFormat.format(model.footingDepth)} mm deep`);
-      addLine("Total on the soil", onPiers + result.pierSelfWeight, `${kN(onPiers + result.pierSelfWeight)} kN`, "loads-total-row");
-      breakdown.replaceChildren(out);
-      const items = [
-        ...Object.values(densities).map((d) => `${d.label}: ${kgFormat.format(d.value)} kg/m\xB3`),
-        ...wallLayerMasses(model).map((l) => `${l.label}: ${oneDecimal.format(l.kg)} kg/m\xB2`),
-        `Window units: ${openingMasses.window} kg/m\xB2; exterior door: ${openingMasses.door} kg/m\xB2`,
-        ...Object.entries(roofCoveringMasses).map(([key, value]) => `${roofCoveringLabels[key]}: ${value} kg/m\xB2 of roof incl. battens`),
-        `Roof deck, 22 mm boards: ${roofLayerMasses.deck} kg/m\xB2; underlayment: ${roofLayerMasses.underlayment} kg/m\xB2`,
-        `Eave (fascia, drip flashing, gutter): ${roofEdgeMasses.eave} kg/m; each verge (two bargeboards, flashing): ${roofEdgeMasses.verge} kg/m; downpipe: ${roofEdgeMasses.downpipe} kg`,
-        `Average adult: ${adultMass} kg; gravity ${gravity} m/s\xB2`
-      ];
-      assumptions.replaceChildren(...items.map((item) => {
-        const li = document.createElement("li");
-        li.textContent = item;
-        return li;
-      }));
-    }
-    let renderedKey;
-    function render() {
-      cancelAnimationFrame(renderFrame);
-      renderFrame = 0;
-      if (panel2.hidden) return;
-      if (!latest) {
-        status.textContent = "No valid design is available.";
-        return;
-      }
-      status.textContent = valid ? "" : "Showing the last valid design. Fix the highlighted parameters in Designer to update these loads.";
-      const key = [latest, rearSupport.value, peopleSelect.value, custom];
-      if (renderedKey && key.every((value, i) => value === renderedKey[i])) return;
-      renderedKey = key;
-      const people = peopleFor(latest);
-      const result = computeLoads(latest, { people, rearSupport: rearSupport.value });
-      const top = result.piers.reduce((a, b) => b.fromAbove > a.fromAbove ? b : a);
-      const worst = result.piers.reduce((a, b) => b.basePressure > a.basePressure ? b : a);
-      $("loads-total").textContent = `${kg(result.onPiers)} kg \xB7 ${kN(result.onPiers)} kN`;
-      $("loads-max").textContent = `${top.id}: ${kg(top.fromAbove)} kg`;
-      $("loads-pressure").textContent = `${worst.id}: ${oneDecimal.format(worst.basePressure)} kPa`;
-      drawDiagram(latest, result, people);
-      fillTables(latest, result);
-    }
-    return {
-      render,
-      update(model, isValid) {
-        latest = model;
-        valid = isValid;
-        render();
-      }
-    };
-  }
-
   // js/drawing-svg.js
   var layers = {
     WALLS_EXISTING: 'fill="none" stroke="#647078" stroke-width=".28"',
@@ -1631,28 +1031,28 @@
       const tag = close ? "polygon" : "polyline";
       add(layer, `<${tag} points="${points.map(([x, y]) => `${n(x)},${n(y)}`).join(" ")}" ${attrs}/>`);
     };
-    const text2 = (layer, x, y, label, { size = 2.8, weight = 400, anchor = "start", rotate = 0 } = {}) => {
+    const text = (layer, x, y, label, { size = 2.8, weight = 400, anchor = "start", rotate = 0 } = {}) => {
       const color = layer === "VERIFICATION_FLAGS" ? "#9e3227" : "#17252e";
       add(layer, `<text x="${n(x)}" y="${n(y)}" fill="${color}" stroke="none" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}"${rotate ? ` transform="rotate(${rotate} ${n(x)} ${n(y)})"` : ""}>${esc(label)}</text>`);
     };
-    const note = (x, y, rows, size = 2.8) => rows.forEach((row, i) => text2("ANNOTATIONS", x, y + i * 4.7, row, { size }));
-    const heading = (x, y, label) => text2("ANNOTATIONS", x, y, label, { size: 3.6, weight: 700 });
+    const note = (x, y, rows, size = 2.8) => rows.forEach((row, i) => text("ANNOTATIONS", x, y + i * 4.7, row, { size }));
+    const heading = (x, y, label) => text("ANNOTATIONS", x, y, label, { size: 3.6, weight: 700 });
     const cloud = (x, y, w, label) => {
       const h = 8, count = Math.ceil(w / 6), step = w / count;
       const horizontal = Array(count).fill(`q ${step / 2} -2.6 ${step} 0`).join(" ");
       const back = Array(count).fill(`q ${-step / 2} 2.6 ${-step} 0`).join(" ");
       add("VERIFICATION_FLAGS", `<path d="M ${x} ${y} ${horizontal} q 3.6 4 0 ${h} ${back} q -3.6 -4 0 ${-h} Z" fill="#fff"/>`);
-      text2("VERIFICATION_FLAGS", x + w / 2, y + 5.2, label, { size: 2.75, weight: 700, anchor: "middle" });
+      text("VERIFICATION_FLAGS", x + w / 2, y + 5.2, label, { size: 2.75, weight: 700, anchor: "middle" });
     };
     const pending = (rows, x = 14, y = 228) => {
-      text2("VERIFICATION_FLAGS", x, y, "Pending Verification / Komplettering", { weight: 700 });
+      text("VERIFICATION_FLAGS", x, y, "Pending Verification / Komplettering", { weight: 700 });
       note(x, y + 4.5, rows, 2.6);
     };
     const scaleBar = (x, y, scale, length) => {
       const w = length / scale;
       rect("ANNOTATIONS", x, y, w / 2, 1.5, 'fill="#25343d"');
       rect("ANNOTATIONS", x + w / 2, y, w / 2, 1.5);
-      text2("ANNOTATIONS", x + w + 2, y + 1.6, `${decimal(length / 1e3, length % 1e3 ? 1 : 0)} m`, { size: 2.5 });
+      text("ANNOTATIONS", x + w + 2, y + 1.6, `${decimal(length / 1e3, length % 1e3 ? 1 : 0)} m`, { size: 2.5 });
     };
     const view = (ox, oy, scale) => {
       const pt = (u, v) => [ox + u / scale, oy - v / scale];
@@ -1666,7 +1066,7 @@
         line(layer, ...p1, ...p2);
         for (const [x3, y3] of [p1, p2]) line(layer, x3 - 0.9, y3 + 0.9, x3 + 0.9, y3 - 0.9);
         const [x, y] = vertical ? [q - 1.3, (y1 + y2) / 2] : [(x1 + x2) / 2, q - 1.3];
-        text2(layer, x, y, label, { size: 2.6, anchor: "middle", rotate: vertical ? -90 : 0 });
+        text(layer, x, y, label, { size: 2.6, anchor: "middle", rotate: vertical ? -90 : 0 });
       };
       return {
         line: (layer, u, v, a, b, attrs) => line(layer, ...pt(u, v), ...pt(a, b), attrs),
@@ -1676,7 +1076,7 @@
           const [x, y] = pt(u, v);
           add(layer, `<circle cx="${n(x)}" cy="${n(y)}" r="${n(r / scale)}"/>`);
         },
-        label: (layer, u, v, label, opts) => text2(layer, ...pt(u, v), label, opts),
+        label: (layer, u, v, label, opts) => text(layer, ...pt(u, v), label, opts),
         horizontal: (u, a, v, offset, label = mm(Math.abs(a - u))) => dimension2([u, v], [a, v], offset, label, false),
         vertical: (v, b, u, offset, label = mm(Math.abs(b - v))) => dimension2([u, v], [u, b], offset, label, true),
         pt
@@ -1689,22 +1089,22 @@
     line(t, 7, 275, 413, 275);
     line(t, 270, 251, 270, 275);
     line(t, 371, 251, 371, 275);
-    text2(t, 14, 19, title, { size: 6, weight: 700 });
-    text2(t, 406, 18, "FARSTU  /  ANM\xC4LAN", { size: 3.2, weight: 700, anchor: "end" });
-    text2(t, 14, 257, `NY FARSTU  \xB7  ${site.address || "Adress ej angiven"}`, { size: 3.5, weight: 700 });
-    text2(t, 14, 263, `Fastighetsbeteckning: ${site.propertyId || "ej angiven"}`);
-    text2(t, 14, 270, "M\xE5tt i mm, niv\xE5er i m relativt FG. B\xE4rverk, inf\xE4stning och grundl\xE4ggning verifieras.");
-    text2(t, 275, 257, `Skala (A3): ${scales}`, { weight: 700 });
-    text2(t, 275, 263, `Datum: ${date}`);
-    text2(t, 275, 270, `Ritad av: ${site.drawnBy || "Farstu Designer"}`);
-    text2(t, 392, 266, id, { size: 8, weight: 700, anchor: "middle" });
-    text2(t, 14, 284, "F\xD6RHANDSKOPIA / UNDERLAG F\xD6R ANM\xC4LAN \u2013 EJ F\xC4RDIGKONSTRUERAD", { size: 3.7, weight: 700 });
-    text2(t, 406, 284, "ISO A3", { anchor: "end" });
+    text(t, 14, 19, title, { size: 6, weight: 700 });
+    text(t, 406, 18, "FARSTU  /  ANM\xC4LAN", { size: 3.2, weight: 700, anchor: "end" });
+    text(t, 14, 257, `NY FARSTU  \xB7  ${site.address || "Adress ej angiven"}`, { size: 3.5, weight: 700 });
+    text(t, 14, 263, `Fastighetsbeteckning: ${site.propertyId || "ej angiven"}`);
+    text(t, 14, 270, "M\xE5tt i mm, niv\xE5er i m relativt FG. B\xE4rverk, inf\xE4stning och grundl\xE4ggning verifieras.");
+    text(t, 275, 257, `Skala (A3): ${scales}`, { weight: 700 });
+    text(t, 275, 263, `Datum: ${date}`);
+    text(t, 275, 270, `Ritad av: ${site.drawnBy || "Farstu Designer"}`);
+    text(t, 392, 266, id, { size: 8, weight: 700, anchor: "middle" });
+    text(t, 14, 284, "F\xD6RHANDSKOPIA / UNDERLAG F\xD6R ANM\xC4LAN \u2013 EJ F\xC4RDIGKONSTRUERAD", { size: 3.7, weight: 700 });
+    text(t, 406, 284, "ISO A3", { anchor: "end" });
     return {
       line,
       rect,
       poly,
-      text: text2,
+      text,
       note,
       heading,
       cloud,
@@ -1769,6 +1169,18 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       }
     }
     return { ...settings, defaults };
+  }
+
+  // js/foundation.js
+  function pierLayout({ width, length, footingColumns, footingRows, footingDiameter }) {
+    const radius = footingDiameter / 2;
+    const inset = radius + Math.min(
+      100,
+      (width - footingColumns * footingDiameter) / 4,
+      (length - footingRows * footingDiameter) / 4
+    );
+    const axis = (span, count) => Array.from({ length: count }, (_, i) => inset + i * (span - 2 * inset) / (count - 1));
+    return { radius, columns: axis(width, footingColumns), rows: axis(length, footingRows) };
   }
 
   // js/drawings.js
@@ -2393,12 +1805,10 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     const storageStatus = $("storage-status");
     const exportButton = $("export-settings");
     const bom = createBomView($);
-    const loads = createLoadsView($);
     const drawings = createDrawingsView($);
     createWorkspaceTabs($, [
       { button: "show-designer", panel: "designer-view" },
       { button: "show-bom", panel: "bom-view", onShow: bom.render },
-      { button: "show-loads", panel: "loads-view", onShow: loads.render },
       { button: "show-drawings", panel: "drawings-view", onShow: drawings.render }
     ]);
     const dimensions = createNumberFormat({ maximumFractionDigits: 2 });
@@ -2860,7 +2270,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       if (messages.size) {
         settingsValid = false;
         bom.update(latest, false);
-        loads.update(latest, false);
         updateDrawings();
         return false;
       }
@@ -2905,7 +2314,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       });
       $("flashing-warning").textContent = touching.length ? `Warning: the standing flashing (st\xE5ndskiva) or its apron touches or overlaps the existing ${touching.map((window2) => houseWindows[window2.key].label.toLowerCase().replace(" house", "")).join(", ")} or its surround. Adjust the roof or window layout and consult a roofer.` : "";
       bom.update(latest, true);
-      loads.update(latest, true);
       updateDrawings();
       $("area").textContent = `${fmt(v.width * v.length / 1e6)} m\xB2`;
       $("rear").textContent = mm2(rear);
@@ -3000,8 +2408,8 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         line(a, b, "property-line-halo");
         line(a, b, "property-line");
       };
-      const note = (at, text2, dy = 0, anchor = "middle") => labels2.push({ at, text: text2, dy, anchor });
-      const dimension2 = (a, b, gap, text2) => dims.push({ a, b, gap, text: text2 });
+      const note = (at, text, dy = 0, anchor = "middle") => labels2.push({ at, text, dy, anchor });
+      const dimension2 = (a, b, gap, text) => dims.push({ a, b, gap, text });
       const ground = (x, y) => [x, y, 0];
       const roofLeft = -doorSideOverhang, roofRight = roofLeft + roofWidth;
       const houseWallHeight = houseHeightAboveGround - slabThickness;
@@ -4060,12 +3468,12 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       const group = document.createDocumentFragment();
       const layer = document.createElementNS(ns, "g");
       layer.setAttribute("class", "drawing-layer");
-      function node(tag, attrs, text2, parent = layer) {
-        const el2 = document.createElementNS(ns, tag);
-        for (const [key, value] of Object.entries(attrs)) el2.setAttribute(key, value);
-        if (text2 !== void 0) el2.textContent = text2;
-        parent.append(el2);
-        return el2;
+      function node(tag, attrs, text, parent = layer) {
+        const el = document.createElementNS(ns, tag);
+        for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+        if (text !== void 0) el.textContent = text;
+        parent.append(el);
+        return el;
       }
       function stroke(a, b, attrs, parent = layer) {
         node("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], ...attrs }, void 0, parent);
@@ -4376,7 +3784,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         const specs = measurementSpecs(guideSection).filter((spec) => !guideField || spec.key === guideField);
         if (!specs.length) return;
         const overlay = node("g", { class: "measurement-guides", "aria-hidden": "true" }, void 0, svg);
-        const guide = (tag, attrs, text2) => node(tag, attrs, text2, overlay);
+        const guide = (tag, attrs, text) => node(tag, attrs, text, overlay);
         function arrow([x, y], [u, v]) {
           const n2 = Math.hypot(u - x, v - y);
           const dx = (u - x) / n2, dy = (v - y) / n2;
@@ -4546,7 +3954,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         if (tag === "door-leaf") drawDoorLeaf();
         else drawShape(tag, points, attrs, original);
       }
-      for (const { a, b, gap, text: text2 } of dims) {
+      for (const { a, b, gap, text } of dims) {
         const p = project(a), q = project(b);
         const u = [p[0] + gap[0], p[1] + gap[1]], v = [q[0] + gap[0], q[1] + gap[1]];
         const attrs = { class: "dim" };
@@ -4559,11 +3967,11 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
           y: (u[1] + v[1]) / 2 + (gap[0] ? 5 : 21),
           "text-anchor": gap[0] < 0 ? "end" : "middle",
           class: "dimension"
-        }, text2);
+        }, text);
       }
-      for (const { at, text: text2, dy, anchor } of labels2) {
+      for (const { at, text, dy, anchor } of labels2) {
         const [x, y] = project(at);
-        node("text", { x, y: y + dy, "text-anchor": anchor, class: "annotation" }, text2);
+        node("text", { x, y: y + dy, "text-anchor": anchor, class: "annotation" }, text);
       }
       group.append(layer);
       drawingLayer = layer;

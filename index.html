@@ -20,7 +20,6 @@
   <nav class="tabs app-views" aria-label="Workspace views">
     <button type="button" id="show-designer" aria-controls="designer-view" aria-pressed="true">Designer</button>
     <button type="button" id="show-bom" aria-controls="bom-view" aria-pressed="false">Lumber BOM &amp; prices</button>
-    <button type="button" id="show-loads" aria-controls="loads-view" aria-pressed="false">Floor &amp; pier loads</button>
     <button type="button" id="show-drawings" aria-controls="drawings-view" aria-pressed="false">Drawings</button>
   </nav>
   <main id="designer-view">
@@ -129,7 +128,7 @@
               </select></label>
               <p class="hint">Left is as seen facing the house. Offset is measured from the existing house wall to the nearest edge of the door.</p>
               <p class="hint">Hinge side is as seen from outside the door. Preview the outward swing in 3D, Left, or Top view.</p>
-              <p class="hint">Door opening dimensions use Swedish modules. Leaf thickness (40–100 mm) controls the solid swing preview; the door mass remains an area-based estimate.</p>
+              <p class="hint">Door opening dimensions use Swedish modules. Leaf thickness (40–100 mm) controls the solid swing preview.</p>
               <p class="hint" id="door-window-hint">Glazing styles follow common Swedish retail doors: a solid leaf, a narrow light above the handle, a framed upper rectangle, or a traditional semicircular fanlight with radial muntins. The narrow light follows the handle side. These are schematic proportions, not supplier glass-cutting dimensions; confirm the chosen door, safety glazing and performance with your supplier.</p>
               <p class="hint">The exterior step follows the door opening when its width or offset changes.</p>
             </div>
@@ -160,7 +159,7 @@
             <div class="parameter-content">
               <div class="fields" id="walls"></div>
               <p class="hint">Wall thickness applies to the three new walls. Cover-board spacing is measured centre to centre and also applies to the existing house façade. The lockpanel drawing shows a drip edge at least 200 mm above the drawn grade; it is not a construction detail.</p>
-              <p class="hint">New cladding and trim use 22 mm boards in listed retail widths. Set base-board and cover-board widths independently; allow at least 20 mm overlap on each side of the joint. Drawing, lumber takeoff and cladding weight follow these choices.</p>
+              <p class="hint">New cladding and trim use 22 mm boards in listed retail widths. Set base-board and cover-board widths independently; allow at least 20 mm overlap on each side of the joint. Drawing and lumber takeoff follow these choices.</p>
             </div>
           </details>
           <details class="parameter-section" name="wall-parameters">
@@ -333,73 +332,6 @@
         <li>Perimeter insulation and a compatible interior airtight seal system, such as tape or backer rod and sealant.</li>
       </ul>
       <p class="hint">Confirm the mounting and exterior drainage details with your window supplier. These items are not included in the lumber total.</p>
-    </details>
-  </main>
-  <main id="loads-view" class="card loads" aria-labelledby="loads-heading" hidden>
-    <h2 id="loads-heading">Floor &amp; pier loads</h2>
-    <p class="hint">Top view of the slab and cylindrical piers with the dead weight of the farstu and three standing adults (<span id="loads-adult-mass"></span> kg each). The estimate updates whenever a Designer parameter changes. It uses typical material densities, not a structural design: snow, wind, furniture and dynamic loads are not included. Have a qualified engineer verify the foundation and the soil bearing capacity before construction.</p>
-    <p class="status" id="loads-status" role="status"></p>
-    <div class="loads-controls">
-      <label>Rear roof support
-        <select id="loads-rear-support">
-          <option value="beam">Beam between the side walls (whole roof on the slab)</option>
-          <option value="house">Ledger on the house wall (house carries the rear share)</option>
-        </select>
-      </label>
-      <label>Where the adults stand
-        <select id="loads-people">
-          <option value="spread">Spread across the floor</option>
-          <option value="together">Together at the centre</option>
-          <option value="worst">Together over the most-loaded pier</option>
-          <option value="custom" disabled>Custom (drag in the diagram)</option>
-        </select>
-      </label>
-    </div>
-    <div class="metrics loads-metrics">
-      <div><span>Total on the piers</span><strong id="loads-total"></strong></div>
-      <div><span>Most-loaded pier</span><strong id="loads-max"></strong></div>
-      <div><span>Highest bearing pressure</span><strong id="loads-pressure"></strong></div>
-    </div>
-    <figure class="loads-figure">
-      <svg id="loads-diagram" role="img" aria-labelledby="loads-diagram-title loads-diagram-desc">
-        <title id="loads-diagram-title">Top view of slab load and pier reactions</title>
-        <desc id="loads-diagram-desc">The house is at the top. Shading shows the load applied to the slab; each pier is labelled with its load and the bearing pressure under its base.</desc>
-      </svg>
-      <figcaption>
-        <div class="loads-legend">
-          <span>Load applied to the slab</span>
-          <i class="loads-ramp" aria-hidden="true"></i>
-          <span id="loads-ramp-range"></span>
-        </div>
-        <p class="hint">House at the top, front at the bottom. Drag an adult, or focus one and use the arrow keys, to move them. Pier labels show the load from above and the bearing pressure under the base, including the pier’s own weight. Rows run A, B, C from the house; columns 1, 2, 3 from the left.</p>
-      </figcaption>
-    </figure>
-    <div class="bom-scroll" role="region" aria-label="Scrollable pier load table" tabindex="0">
-      <table class="bom-table">
-        <caption>Load on each pier</caption>
-        <thead>
-          <tr>
-            <th scope="col">Pier</th><th scope="col">Centre x / y (mm)</th><th scope="col">Slab (kg)</th><th scope="col">Walls (kg)</th>
-            <th scope="col">Roof (kg)</th><th scope="col">Adults (kg)</th><th scope="col">From above (kg)</th><th scope="col">From above (kN)</th>
-            <th scope="col">Pier weight (kg)</th><th scope="col">At base (kN)</th><th scope="col">Bearing pressure (kPa)</th><th scope="col">Share</th>
-          </tr>
-        </thead>
-        <tbody id="loads-rows"></tbody>
-      </table>
-    </div>
-    <div class="bom-scroll" role="region" aria-label="Scrollable weight breakdown" tabindex="0">
-      <table class="bom-table loads-breakdown">
-        <caption>Weight breakdown</caption>
-        <thead><tr><th scope="col">Component</th><th scope="col">Mass (kg)</th><th scope="col">Basis</th></tr></thead>
-        <tbody id="loads-breakdown"></tbody>
-      </table>
-    </div>
-    <details class="parameter-group">
-      <summary>Method and material assumptions</summary>
-      <div class="parameter-body">
-        <p class="hint">The slab is treated as supported only by the piers. Every load is shared between the neighbouring pier rows and columns with the lever rule (simple spans in both directions); loads outside the outer piers are cantilevered. Wall weights follow the stud layout, wall height and openings; rafters bear on the front wall and on the selected rear support at the house façade, so a front overhang adds to the front piers. Drawing layer toggles do not change the estimate; the optional exterior insulation and roof safety/access equipment are excluded.</p>
-        <ul id="loads-assumptions" class="hint"></ul>
-      </div>
     </details>
   </main>
   <main id="drawings-view" class="card drawings" aria-labelledby="drawings-heading" hidden>

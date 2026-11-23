@@ -1,9 +1,8 @@
 import { createControls, timberSections } from './controls.js';
 import { createBomView } from './bom-view.js';
-import { createLoadsView } from './loads-view.js';
 import { createDrawingsView } from './drawings-view.js';
 import { wheelZoom } from './wheel-zoom.js';
-import { pierLayout } from './loads.js';
+import { pierLayout } from './foundation.js';
 import { createWorkspaceTabs } from './workspace-tabs.js';
 import { clippedHeight, rafterStarts, wallCourses as courses, wallMembers, wallPosts as posts } from './framing.js';
 import { drawWindow, sillExtension, sillProjection, windowProfile } from './windows.js';
@@ -35,12 +34,10 @@ export function initDesigner() {
   const storageStatus = $('storage-status');
   const exportButton = $('export-settings');
   const bom = createBomView($);
-  const loads = createLoadsView($);
   const drawings = createDrawingsView($);
   createWorkspaceTabs($, [
     { button: 'show-designer', panel: 'designer-view' },
     { button: 'show-bom', panel: 'bom-view', onShow: bom.render },
-    { button: 'show-loads', panel: 'loads-view', onShow: loads.render },
     { button: 'show-drawings', panel: 'drawings-view', onShow: drawings.render }
   ]);
   const dimensions = createNumberFormat({ maximumFractionDigits: 2 });
@@ -493,7 +490,6 @@ export function initDesigner() {
     if (messages.size) {
       settingsValid = false;
       bom.update(latest, false);
-      loads.update(latest, false);
       updateDrawings();
       return false;
     }
@@ -534,7 +530,6 @@ export function initDesigner() {
       ? `Warning: the standing flashing (ståndskiva) or its apron touches or overlaps the existing ${touching.map(window => houseWindows[window.key].label.toLowerCase().replace(' house','')).join(', ')} or its surround. Adjust the roof or window layout and consult a roofer.`
       : '';
     bom.update(latest, true);
-    loads.update(latest, true);
     updateDrawings();
     $('area').textContent = `${fmt(v.width * v.length / 1e6)} m\u00b2`;
     $('rear').textContent = mm(rear);

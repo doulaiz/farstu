@@ -15,4 +15,4 @@
   .legend { display:flex; flex-wrap:wrap; gap:6px 16px; margin-bottom:6px; }
   main[hidden] { display:none; }
   .app-views { width:fit-content; margin-bottom:14px; }
-  main.bom:not([hidden]), main.loads:not([hidden]) { display:block; padding:18px; }
+  main.bom:not([hidden]) { display:block; padding:18px; }

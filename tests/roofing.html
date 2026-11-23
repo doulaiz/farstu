@@ -6,7 +6,6 @@
 <script type="module">
 import { buildRoofSchedule, roofWidthRange, tileGaugeLimit } from '../js/roofing.js';
 import { rafterStarts } from '../js/framing.js';
-import { computeLoads, densities, roofCoveringMasses, roofEdgeMasses, roofLayerMasses, wallLayerMasses } from '../js/loads.js';
 import { buildBom } from '../js/bom.js';
 
 const results = document.querySelector('#results');
@@ -60,32 +59,7 @@ try {
       rafterWidth:45, rafterDepth:170, rafterSpacing:600, roofMaterial:'standingSeam',
       baseBoardWidth:145, coverBoardWidth:95, claddingSpacing:200, trimWidth:95
     };
-    const loads = computeLoads(model,{people:[]});
-    const run = model.length+model.frontOverhang;
-    const slopedRun = run*Math.hypot(1,slope);
-    close(loads.details['slab:concrete'],model.width*model.length*model.slabThickness*densities.concrete.value/1e9);
-    close(loads.details['roof:covering'],model.roofWidth*slopedRun/1e6*
-      (roofCoveringMasses.standingSeam+roofLayerMasses.deck+roofLayerMasses.underlayment));
-    close(loads.details['roof:rafters'],rafterStarts(model.roofWidth,model.doorSideOverhang,
-      model.rafterWidth,model.rafterSpacing).length*model.rafterWidth*model.rafterDepth*slopedRun*densities.timber.value/1e9);
-    close(loads.details['roof:edges'],model.roofWidth/1000*(roofEdgeMasses.eave+roofEdgeMasses.abutment)+
-      2*slopedRun/1000*roofEdgeMasses.verge+roofEdgeMasses.downpipe);
-    const sideLength = model.length-model.wallThickness;
-    const sideArea = (model.rear+(model.rear-slope*sideLength))/2*sideLength;
-    const solidArea = 2*sideArea+model.width*model.frontWallHeight-1000*2100-2*900*1000;
-    close(loads.details['walls:layers'],solidArea/1e6*wallLayerMasses(model).reduce((sum,layer) => sum+layer.kg,0));
-    close(loads.details['walls:insulation'],solidArea*densities.mineralWool.value*model.studDepth/1e9*
-      (1-model.studWidth/model.studSpacing));
-    const houseLoads = computeLoads(model,{people:[],rearSupport:'house'});
-    const roofMass = loads.details['roof:covering']+loads.details['roof:rafters']+loads.details['roof:edges'];
-    close(loads.totals.roof,roofMass);
-    close(houseLoads.totals.roof+houseLoads.totals.house,roofMass);
-    for (const result of [loads,houseLoads]) {
-      close(result.piers.reduce((sum,pier) => sum+pier.fromAbove,0),result.onPiers);
-      close(result.field.values.reduce((sum,value) => sum+value,0)*
-        model.width*model.length/(result.field.nx*result.field.ny)/1e6*1000/9.81,result.onPiers);
-    }
-    if (remainder === 0) for (const [baseHeight,recession,effective] of [[600,0,0],[600,100,100],[600,500,500],[0,500,0]]) {
+    for (const [baseHeight,recession,effective] of [[600,0,0],[600,100,100],[600,500,500],[0,500,0]]) {
       const recessed = {...model, houseBaseHeight:baseHeight, houseBaseRecession:recession,
         rear:model.frontWallHeight+slope*(model.length-effective)};
       const length = (model.length+model.frontOverhang-effective)*Math.hypot(1,slope);
@@ -97,25 +71,9 @@ try {
       assert(cuts.length === rafterStarts(model.roofWidth,model.doorSideOverhang,
         model.rafterWidth,model.rafterSpacing).length && cuts.every(cut => cut === Math.ceil(length-1e-8)),
         'Rafter cuts do not use the façade-aligned roof length');
-      const result = computeLoads(recessed,{people:[],rearSupport:'house'});
-      close(result.details['roof:covering'],roofArea*
-        (roofCoveringMasses.standingSeam+roofLayerMasses.deck+roofLayerMasses.underlayment));
-      const end = model.length+model.frontOverhang;
-      const centre = (effective+end)/2;
-      const verge = 2*length/1000*roofEdgeMasses.verge;
-      const eave = model.roofWidth/1000*roofEdgeMasses.eave+roofEdgeMasses.downpipe;
-      const abutment = model.roofWidth/1000*roofEdgeMasses.abutment;
-      const distributed = result.details['roof:covering']+result.details['roof:rafters']+verge;
-      const front = distributed*(centre-effective)/(model.length-model.wallThickness/2-effective) +
-        eave*(end-effective)/(model.length-model.wallThickness/2-effective);
-      close(result.totals.house,result.details['roof:covering']+result.details['roof:rafters']+
-        result.details['roof:edges']-front);
-      const beam = computeLoads(recessed,{people:[],rearSupport:'beam'});
-      close(beam.piers.reduce((sum,pier) => sum+pier.parts.roof*pier.y,0),
-        distributed*centre+eave*end+abutment*effective);
     }
   }
-  passed.push('Partial slab, wall and roof increments retain their full calculated loads');
+  passed.push('Partial roof increments and basement recession retain the full schedule and rafter cuts');
 
   localStorage.removeItem(key);
   await load();
@@ -246,24 +204,10 @@ try {
   const covering = [...doc().querySelectorAll('#roof-rows tr')]
     .find(row => row.textContent.includes('Benders concrete tiles covering'));
   close(Number(covering.querySelector('td').textContent.replace(/\s/g,'')),Number((area*1.1).toFixed(3)));
-  field('show-loads').click();
-  const roofLoad = [...doc().querySelectorAll('#loads-view tr')]
-    .find(row => row.textContent.includes('Roof benders concrete tiles, deck'));
-  const actualKg = Number(roofLoad.querySelector('td').textContent.replace(/\s/g,''));
-  assert(Math.abs(actualKg-area*56.5) <= 1,'Load estimate uses a different roof width');
-  const outline = doc().querySelector('.loads-roof');
-  close(Number(outline.getAttribute('x')),-180);
-  close(Number(outline.getAttribute('width')),total);
-  close(Number(outline.getAttribute('y')),recession);
-  close(Number(outline.getAttribute('height')),Number(field('length').value)+Number(field('frontOverhang').value)-recession);
-  const firstPierRoof = () => Number(field('loads-rows').querySelector('tr').cells[4].textContent.replace(/\s/g,''));
-  const previousRoofLoad = firstPierRoof();
+  field('show-designer').click();
   edit('doorSideOverhang',400);
   valid();
-  assert(Math.abs(firstPierRoof()-previousRoofLoad) > 1,'Roof offset did not change pier loads');
-  close(Number(doc().querySelector('.loads-roof').getAttribute('x')),-400);
-  passed.push('Schedule area, load outline and pier reactions follow the asymmetric roof');
-  field('show-designer').click();
+  passed.push('Schedule area follows the asymmetric roof');
   for (const mode of ['tiles','rafters']) {
     edit('roof-display',mode,'change');
     for (const view of ['3d','front','left','right','plan']) {

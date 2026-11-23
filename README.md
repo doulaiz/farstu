@@ -1,6 +1,6 @@
 # Farstu Designer
 
-Plan an enclosed entrance porch (*farstu*) against an existing house: explore the design, estimate materials and pier loads, and produce preliminary Swedish *Anmälan* drawings.
+Plan an enclosed entrance porch (*farstu*) against an existing house: explore the design, estimate materials, and produce preliminary Swedish *Anmälan* drawings.
 
 ## Part 1: Using the app
 
@@ -10,7 +10,7 @@ Plan an enclosed entrance porch (*farstu*) against an existing house: explore th
 
 You can also download and extract the [project ZIP](https://github.com/doulaiz/farstu/archive/refs/heads/master.zip), then open [index.html](./index.html) in your browser. Keep the accompanying folders together. There is nothing to install to use the downloaded app.
 
-### The four workspaces
+### The three workspaces
 
 Use the buttons at the top to switch workspaces; all share the same design.
 
@@ -18,7 +18,6 @@ Use the buttons at the top to switch workspaces; all share the same design.
 | --- | --- |
 | **Designer** | Set dimensions and explore the porch in 3D, elevations and Top view. |
 | **Lumber BOM & prices** | Review a lumber bill of materials, cut lists, stock matches and a separate roofing and drainage schedule. Enter supplier quotes to estimate costs. |
-| **Floor & pier loads** | Explore estimated weights, load distribution and bearing pressures for the selected pier layout. |
 | **Drawings** | Review four preliminary Swedish Anmälan sheets and print them as an A3 PDF. |
 
 #### Designer
@@ -43,7 +42,7 @@ The porch and existing house share a yellow façade hue; the existing house is l
 - **Top view** shows the existing wall up to 1 m beyond either side of the slab, limited by the configured house wall, and the existing entry with configurable dimensions and position. Its two stair runs each show two schematic 250 mm deep treads; check actual stair dimensions and local requirements. Where there is a concrete base, the slab meets the basement face and the existing wall projects over it by the recession. The green roof footprint runs from the façade to the front overhang. Flashing and gutter are hidden; the hedge is a schematic 900 mm deep band, not a measured length.
 - **Property line** is a schematic Designer overlay. Set its distance from the façade under Existing house. It appears in 3D, Top and side views, but it does not set the boundary distances on the A-1 site plan.
 - **Roof display** switches between the covering and details, rafters, or a hidden roof.
-- **Wall layers** lets you inspect the wall build-up or expose the timber. Hiding layers does not remove materials or weight from the estimates.
+- **Wall layers** lets you inspect the wall build-up or expose the timber. Hiding layers does not remove materials from the estimate.
 - **Open door / Close door** animates the door where it is visible.
 - **Hide ground / Show ground** toggles the ground and vertical roof-footprint projection, which is not a sunlight simulation. Elevations show the footprint edge-on as a green ground segment.
 - Open a parameter section or focus a dimension to display temporary measurement arrows.
@@ -63,14 +62,6 @@ Expand cut lists to inspect required pieces. Follow **Derome article** links to 
 
 Review the separate roofing and drainage schedule, and **Window installation items to quote separately**, before budgeting.
 
-#### Floor & pier loads
-
-Choose whether the rear roof support rests on a beam between the side walls or on a ledger attached to the house. This changes how much roof weight reaches the slab.
-
-The page includes three adults of **80 kg each**. Choose a placement preset or drag them in the diagram. You can also focus an adult and use the arrow keys; hold **Shift** for larger movements.
-
-The house is at the top of the diagram. Shading shows applied loads; tables show component weights, pier reactions and bearing pressures. Open **Method and material assumptions** for calculation details.
-
 #### Drawings
 
 Use the sheet selector to preview the four A3 SVGs. They update from the latest valid Designer model; if an edit is invalid, the last valid set stays visible and printing is disabled.
@@ -84,7 +75,7 @@ Use **Alt + mouse wheel** over a drawing to enlarge that view without changing t
 | **A-3 Fasadritningar** | Three affected elevations with roof heights and existing/proposed grade | 1:100 |
 | **A-4 Sektionsritning & konstruktionsdetaljer** | Section, frost-depth comparison and schematic house-connection and pier details | 1:50 / 1:20 |
 
-1. Open **Site & Permit Details** to set the address, property ID, drawn-by name, orientation, boundary distances from the slab edges, house depth and ridge height, ground offsets from finished floor (FG), frost depth and local snow load. Blank measurements use the displayed assumptions, such as 4,500 mm boundary offsets and 1.5 kN/m² snow load.
+1. Open **Site & Permit Details** to set the address, property ID, drawn-by name, orientation, boundary distances from the slab edges, house depth and ridge height, ground offsets from finished floor (FG), frost depth and local snow load for the drawing notes. Blank measurements use the displayed assumptions, such as 4,500 mm boundary offsets and 1.5 kN/m² snow load.
 2. Before submitting, use the **KONTROLLERAS** clouds and **Komplettering** notes to identify what still needs verification. Replace the schematic site plan with the municipality's required base map and confirm the applicable permit route and area rules. The 4.5 m and 15 m² warnings are not approvals or evidence of neighbour consent.
 3. Choose **Download All Sheets as PDF** to print all four sheets, regardless of which is selected. In the browser dialog, choose **Save as PDF**, **A3 landscape**, **100% / actual size**, and turn off headers and footers. Check the printed scale bar.
 
@@ -98,7 +89,7 @@ Settings and quotes are saved in the current browser when storage is available, 
 
 - **Scope:** one rectangular slab, three new walls and a single-slope roof against a house.
 - **Safety:** geometry and connections are schematic, not structural or regulatory approvals. Have spans, fixings, house attachments, foundations, soil capacity, frost protection and weatherproofing checked professionally.
-- **Loads:** typical densities and simplified load sharing; no snow, wind, furniture or dynamic loads. Placement presets do not establish worst-case loading.
+- **Loads:** the app does not calculate structural loads or pier reactions. The snow-load value in the drawings is an unverified note, not a calculation.
 - **Costs:** catalogue snapshots are not live stock or prices. Foundations, insulation, labour, window units and installation accessories need separate costing. Lumber allocation is approximate, with a 3 mm saw kerf and no general waste allowance; roof allowances are listed separately.
 - **Components:** listed sizes do not guarantee supplier availability. Porch windows use 100 mm modules; existing-house windows accept measured dimensions.
 - **Roofs:** minimum pitch is 14 degrees for tiles and 6 degrees for metal; low pitches need additional detailing. Tile modules omit finished verge allowances and special pieces. Snow guards and roof-access equipment are excluded. Flashing warnings do not approve weatherproofing or clearance.
@@ -125,8 +116,8 @@ Static HTML, CSS and JavaScript, with SVG drawings and browser storage. There is
 | [js/main.js](./js/main.js), [js/designer.js](./js/designer.js), [js/controls.js](./js/controls.js) | Startup, controls, validation, geometry and drawing. |
 | [js/framing.js](./js/framing.js), [js/windows.js](./js/windows.js) | Shared framing layout and window drawing details. |
 | [js/bom.js](./js/bom.js), [js/roofing.js](./js/roofing.js), [js/derome.js](./js/derome.js) | Lumber takeoff, roof calculations and catalogue data. |
-| [js/loads.js](./js/loads.js) | Weight estimates and pier-load calculations. |
-| [js/bom-view.js](./js/bom-view.js), [js/loads-view.js](./js/loads-view.js) | Estimate workspaces. |
+| [js/foundation.js](./js/foundation.js) | Shared pier layout geometry. |
+| [js/bom-view.js](./js/bom-view.js) | Materials estimate workspace. |
 | [js/drawings.js](./js/drawings.js), [js/drawing-svg.js](./js/drawing-svg.js) | Four sheet generators and shared SVG projection, layers, annotations and title blocks. |
 | [js/drawings-view.js](./js/drawings-view.js), [js/permit-settings.js](./js/permit-settings.js), [css/drawings.css](./css/drawings.css) | Sheet selector, permit settings, and A3 print layout. |
 | [js/storage.js](./js/storage.js) | Settings persistence and export. |
@@ -166,7 +157,7 @@ Run these browser suites **one at a time** and check the final `PASS` result:
 | Local suite | Coverage |
 | --- | --- |
 | [Application](http://127.0.0.1:8000/tests/application.html) | Framing, flashing, validation, storage, quotes, interactions, and drawing scales, warnings and print setup. |
-| [Roofing](http://127.0.0.1:8000/tests/roofing.html) | Roof geometry, views, schedules and loads. |
+| [Roofing](http://127.0.0.1:8000/tests/roofing.html) | Roof geometry, views and schedules. |
 | [Door](http://127.0.0.1:8000/tests/door.html) | Glazing, animation, occlusion and persistence. |
 
 Use a test-only origin or browser profile: suites temporarily replace and restore settings and quotes. Do not edit another designer tab on that origin while tests run. After JavaScript changes, also check the app directly from disk.
