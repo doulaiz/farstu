@@ -769,7 +769,7 @@ try {
     for (const view of ['3d','front','left','right','plan']) {
       doc.querySelector(`[data-view="${view}"]`).click();
       const text = field('drawing').textContent;
-      assert(!/\d,\d{3}/.test(text) && (['left','right'].includes(view) || /\d\u202f\d{3} mm/.test(text)),
+      assert(!/\d,\d{3}/.test(text) && (['left','right','plan'].includes(view) || /\d\u202f\d{3} mm/.test(text)),
         `Incorrect grouping in ${view}`);
     }
     field('show-bom').click();
@@ -1003,6 +1003,24 @@ try {
     assert(field('drawing').querySelectorAll('.dimension').length === 2, '3D slab dimensions were removed');
     doc.querySelector('[data-view="front"]').click();
     assert(field('drawing').querySelectorAll('.dimension').length === 2, 'Front dimensions were removed');
+  });
+
+  await check('Top view omits slab dimensions and the left-door label', async () => {
+    await load(true);
+    doc.querySelector('[data-view="plan"]').click();
+    const svg = field('drawing');
+    for (const mode of ['tiles','rafters','none']) {
+      change(field('roof-display'),mode);
+      assert(!svg.querySelector('.dimension') &&
+        ![...svg.querySelectorAll('.annotation')].some(node => node.textContent === 'Left door'),
+        `Unwanted top-view annotation with ${mode}`);
+      assert(svg.querySelector('.slab-plan') && svg.querySelector('.door-opening'),
+        `Top-view slab or door geometry missing with ${mode}`);
+    }
+    doc.querySelector('[data-view="front"]').click();
+    assert(svg.querySelectorAll('.dimension').length === 2, 'Front dimensions were removed');
+    doc.querySelector('[data-view="3d"]').click();
+    assert(svg.querySelectorAll('.dimension').length === 2, '3D dimensions were removed');
   });
 
   await check('Stored lumber and roof quotes use the same bounds as entered prices',async () => {

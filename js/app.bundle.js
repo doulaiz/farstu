@@ -3944,9 +3944,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         if (roofFraming) drawRafters();
         shapes.push(["door-leaf", []]);
         if (planA < planB && !entryVisible) note(ground((planA + planB) / 2, (houseFace - T) / 2), "Existing house", -7);
-        note(ground(T, (door.start + door.end) / 2), "Left door", -9, "start");
-        dimension2(ground(0, L + F), ground(W, L + F), [0, 0], mm2(W));
-        dimension2(ground(roofLeft, 0), ground(roofLeft, L), [-43, 0], mm2(L));
       } else {
         if (iso || front) drawHouseFacade();
         if (groundHidden) drawPiers();
