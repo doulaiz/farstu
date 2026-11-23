@@ -156,15 +156,9 @@ try {
         field(side+'Bottom').getAttribute('aria-invalid') === 'true','Insufficient sill clearance was accepted');
       edit(side+'Bottom',91);
     }
-    const rightTop = Number(field('rightTop').value);
-    field('rightTop').value = String(rightTop+2);
-    field('rightTop').dispatchEvent(new win.Event('input',{bubbles:true}));
-    assert(field('status').textContent.includes('Raise the right window'),'An insufficient calculated bottom clearance was accepted');
-    edit('rightTop',rightTop);
     edit('width',2850);
     const saved = JSON.parse(localStorage.getItem(settingsKey));
     saved.fields.frontBottom = '90';
-    saved.anchors.front = 'Bottom';
     localStorage.setItem(settingsKey,JSON.stringify(saved));
     await load();
     assert(field('width').value === '2850' && field('frontBottom').value === '90' &&
@@ -729,7 +723,7 @@ try {
     }
     edit('slabThickness',141);
     doc.querySelector('[data-view="left"]').click();
-    assert(field('drawing').textContent.includes('14.25'),'Pitch label lost its decimals');
+    assert(!field('drawing').textContent.includes('14.25'),'Side view still displays the pitch label');
     for (const view of ['3d','front','left','right','plan']) {
       doc.querySelector(`[data-view="${view}"]`).click();
       assert(!/\d+\.\d+\s*mm\b/.test(field('drawing').textContent),`Fractional drawing label in ${view}`);
@@ -769,7 +763,8 @@ try {
     for (const view of ['3d','front','left','right','plan']) {
       doc.querySelector(`[data-view="${view}"]`).click();
       const text = field('drawing').textContent;
-      assert(!/\d,\d{3}/.test(text) && /\d\u202f\d{3} mm/.test(text),`Incorrect grouping in ${view}`);
+      assert(!/\d,\d{3}/.test(text) && (['left','right'].includes(view) || /\d\u202f\d{3} mm/.test(text)),
+        `Incorrect grouping in ${view}`);
     }
     field('show-bom').click();
     assert(/\d\u202f\d{3}/.test(field('bom-rows').querySelector('details div').textContent),
@@ -913,26 +908,30 @@ try {
     verify(3,2,251,400);
   });
 
-  await check('Calculated clearances round-trip; anchored limits and invalid-setting notices remain enforced',async () => {
+  await check('Legacy centred windows migrate to left and bottom clearances',async () => {
     await load(true);
     edit('length',6000);
     edit('pitch',60);
     edit('frontWallHeight',3500);
-    for (const anchor of ['Bottom','Top']) {
-      if (anchor === 'Top') edit('rightTop',1000);
-      const derived = `right${anchor === 'Bottom' ? 'Top' : 'Bottom'}`;
-      assert(Number(field(derived).value) > Number(field(derived).max),'Large calculated clearance was not exercised');
-      await load();
-      assert(field('length').value === '6000' && Number(field(derived).value) > 5000,
-        'A valid saved design was replaced by defaults');
-      assert(!field('storage-status').textContent,'Valid saved clearances produced a warning');
-    }
     const saved = JSON.parse(localStorage.getItem(settingsKey));
+    delete saved.fields.frontLeft;
+    delete saved.fields.rightLeft;
+    saved.anchors = { front: 'Bottom', right: 'Top' };
+    saved.fields.frontTop = 'stale derived value';
+    saved.fields.rightTop = '1000';
     saved.fields.rightBottom = 'stale derived value';
     localStorage.setItem(settingsKey,JSON.stringify(saved));
     await load();
+    const expectedBottom = 3500 + Math.tan(Math.PI / 3) * (6000 - (100 + 2427.5 + 900)) - 1000 - 1000;
+    assert(field('length').value === '6000' && Number(field('rightBottom').value) > 5000 &&
+      field('rightLeft').value === '2428' && field('storage-status').textContent.includes('left and bottom clearances'),
+      'Legacy top-anchored window was not migrated');
+    assert(Math.abs(Number(field('rightBottom').value) - expectedBottom) <= .5, 'Legacy window height moved during migration');
+    const newSaved = JSON.parse(localStorage.getItem(settingsKey));
+    assert(!('rightTop' in newSaved.fields) && !('anchors' in newSaved), 'Obsolete clearance data was saved');
+    await load();
     assert(field('length').value === '6000' && Number(field('rightBottom').value) > 5000,
-      'Calculated values were trusted instead of recomputed');
+      'Migrated clearance did not survive reload');
     saved.fields.rightTop = '5001';
     saved.fields.tileWidth = '290';
     localStorage.setItem(settingsKey,JSON.stringify(saved));
@@ -940,6 +939,64 @@ try {
     const notice = field('storage-status').textContent;
     assert(notice.includes('invalid') && !notice.includes('adjusted'),
       'Invalid anchored values were accepted or reported as a successful migration');
+  });
+
+  await check('Porch windows use bottom and outside-left clearance in all views', async () => {
+    await load(true);
+    assert(!field('frontTop') && !field('rightTop'), 'Top clearances remain editable');
+    edit('frontLeft', 300);
+    edit('rightLeft', 250);
+    edit('frontBottom', 950);
+    doc.querySelector('[data-view="plan"]').click();
+    const slab = doc.querySelector('.slab-plan');
+    assert(slab, 'Missing plan slab');
+    const loadSettings = () => {
+      field('show-loads').click();
+      const glazing = [...doc.querySelectorAll('.loads-glazing line')];
+      assert(Number(glazing[0].getAttribute('x1')) === 445 &&
+        Number(glazing[1].getAttribute('y2')) === 1805 &&
+        Number(glazing[1].getAttribute('y1')) === 905,
+        'Loads diagram did not use front and right clearances');
+    };
+    loadSettings();
+    field('show-drawings').click();
+    change(field('permit-sheet'), 'A-2');
+    assert(!field('drawings-status').textContent, 'Updated windows did not compile into the drawings');
+    const glass = [...doc.querySelectorAll('[data-sheet="A-2"] [data-layer="STRUCTURE_NEW"] rect[fill="#e8f4f7"]')];
+    assert(glass.length === 2 && Math.abs(Number(glass[0].getAttribute('y')) - 102.05) < .001 &&
+      Math.abs(Number(glass[1].getAttribute('x')) - 95.45) < .001,
+      'Permit plan did not use front and right clearances');
+    field('show-designer').click();
+    edit('rightLeft', 0);
+    field('rightBottom').value = '1400';
+    field('rightBottom').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent.includes('does not fit between the slab and the roofline'),
+      'A right window above the sloping roofline was accepted');
+    edit('rightBottom', 900);
+    field('rightLeft').value = '1200';
+    field('rightLeft').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent.includes('extends beyond its clear wall span') &&
+      field('rightLeft').getAttribute('aria-invalid') === 'true', 'Out-of-wall clearance was accepted');
+    edit('rightLeft', 250);
+    await load();
+    assert(field('frontLeft').value === '300' && field('rightLeft').value === '250' &&
+      field('frontBottom').value === '950', 'Window offsets did not persist');
+  });
+
+  await check('Side views keep the house label but omit pitch and slab dimensions', async () => {
+    await load(true);
+    for (const side of ['left', 'right']) {
+      doc.querySelector(`[data-view="${side}"]`).click();
+      const svg = field('drawing');
+      assert([...svg.querySelectorAll('.annotation')].some(node => node.textContent === 'Existing house'),
+        `Missing existing-house label in ${side} view`);
+      assert(![...svg.querySelectorAll('.annotation')].some(node => node.textContent.includes('pitch')) &&
+        svg.querySelectorAll('.dimension').length === 0, `Unexpected pitch or slab dimension in ${side} view`);
+    }
+    doc.querySelector('[data-view="3d"]').click();
+    assert(field('drawing').querySelectorAll('.dimension').length === 2, '3D slab dimensions were removed');
+    doc.querySelector('[data-view="front"]').click();
+    assert(field('drawing').querySelectorAll('.dimension').length === 2, 'Front dimensions were removed');
   });
 
   await check('Stored lumber and roof quotes use the same bounds as entered prices',async () => {
@@ -1169,6 +1226,75 @@ try {
       foundation.getScreenCTM().a === fixedScale, 'Zoom should only affect the active subview');
     assert(wheel(plan, 105, 104, { altKey: true, deltaY: 400 }) && architecture.getScreenCTM().a === fixedScale,
       'Alt-wheel down did not restore the base scale');
+  });
+
+  await check('House window tables configure all nine openings and flag flashing contact', async () => {
+    await load(true);
+    doc.querySelector('[data-view="front"]').click();
+    const extra = ['houseExtraLeft','houseExtraRight','houseBasementExtraLeft','houseBasementExtraRight'];
+    assert(doc.querySelectorAll('#house-window-rows tr').length === 5 &&
+      doc.querySelectorAll('#basement-window-rows tr').length === 4, 'Window tables have the wrong rows');
+    const houseGroup = doc.querySelector('#house-window-rows').closest('.parameter-group');
+    houseGroup.open = true;
+    doc.querySelector('#house-window-rows').closest('.parameter-section').open = true;
+    field('houseExtraLeftOffset').focus();
+    assert(doc.querySelector('.measurement-guides')?.textContent.includes('Centre from origin'),
+      'Focusing a table field did not show its measurement guide');
+    assert(doc.querySelector('[data-window-centre="houseLeft"]').textContent === '650' &&
+      doc.querySelector('[data-window-centre="houseRight"]').textContent === '9\u202f138',
+      'Derived main-window centres are incorrect');
+    edit('houseLeftWidth', 1400);
+    assert(doc.querySelector('[data-window-centre="houseLeft"]').textContent === '700' &&
+      doc.querySelector('[data-window-centre="houseRight"]').textContent === '9\u202f238',
+      'Derived centres did not follow main-window width');
+    for (const key of extra) {
+      assert(doc.querySelector(`polygon[data-window="${key}"][data-window-part="glass"]`),
+        `Missing ${key} in the front elevation`);
+      assert(field(key+'Offset').getAttribute('aria-label').includes('centre from origin'),
+        `Missing accessible centre label for ${key}`);
+    }
+    edit('houseExtraLeftOffset', 4100);
+    edit('houseExtraLeftSill', 3100);
+    assert(field('flashing-warning').textContent.includes('additional left window'),
+      'Flashing contact with an additional window was missed');
+    edit('houseExtraLeftSill', 1390);
+    edit('houseBasementExtraLeftWidth', 775);
+    await load();
+    assert(field('houseExtraLeftOffset').value === '4100' && field('houseBasementExtraLeftWidth').value === '775',
+      'Additional windows did not persist');
+    field('houseExtraLeftOffset').value = '30000';
+    field('houseExtraLeftOffset').dispatchEvent(new win.Event('input',{bubbles:true}));
+    assert(field('status').textContent.includes('Additional left house window extends beyond') &&
+      field('houseExtraLeftOffset').getAttribute('aria-invalid') === 'true',
+      'Out-of-wall additional window was accepted');
+    edit('houseExtraLeftOffset', 4100);
+    field('show-drawings').click();
+    change(field('permit-sheet'), 'A-3');
+    const facade = doc.querySelector('[data-sheet="A-3"] [data-layer="STRUCTURE_NEW"]');
+    assert(facade && !field('drawings-status').textContent, 'Updated windows did not compile in Drawings');
+    const existing = doc.querySelector('[data-sheet="A-3"] [data-layer="WALLS_EXISTING"]');
+    assert(existing.querySelectorAll('rect[fill="#e8f4f7"]').length === 9,
+      'Permit elevation did not include all nine existing windows');
+  });
+
+  await check('Older saved designs gain four windows without moving existing openings', async () => {
+    await load(true);
+    const saved = JSON.parse(localStorage.getItem(settingsKey));
+    for (const prefix of ['houseExtraLeft','houseExtraRight','houseBasementExtraLeft','houseBasementExtraRight']) {
+      for (const suffix of ['Width','Height','Offset','Sill']) delete saved.fields[prefix+suffix];
+    }
+    saved.fields.houseLeftWidth = '1275';
+    saved.fields.houseWallLeft = '-100';
+    saved.fields.houseWallWidth = '10000';
+    saved.fields.houseBasementLeftSill = '100';
+    localStorage.setItem(settingsKey, JSON.stringify(saved));
+    await load();
+    assert(field('houseLeftWidth').value === '1275' && field('houseExtraLeftOffset').value === '2900' &&
+      field('houseExtraRightOffset').value === '6900' && field('houseBasementExtraLeftSill').value === '100' &&
+      !field('status').textContent, 'Older design was not migrated to valid additional windows');
+    assert(field('storage-status').textContent.includes('assumed measurements'), 'Missing notice for assumed windows');
+    await load();
+    assert(field('houseExtraLeftOffset').value === '2900', 'Migrated windows did not persist');
   });
 
   results.textContent = failed.length

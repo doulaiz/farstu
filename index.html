@@ -147,7 +147,7 @@
             <div class="parameter-content fields" id="trims"></div>
             <p class="hint">The door and both farstu windows share the same trim width and colour. Set the width to zero to hide their casing. Existing-house window trims are unchanged.</p>
           </details>
-          <p class="hint">Both windows are centred in their clear wall spans. New windows use Swedish module sizes M5–M15 (500–1500 mm) in each direction; these are rough openings, not frame outer dimensions. Check the chosen width/height combination and glazing with your supplier. Clearances can be entered independently. The last clearance edited stays fixed. Choose a muntin pattern for each window.</p>
+          <p class="hint">Left clearance is measured from the inside corner of each clear wall span, viewed from outside: from the left wall on the front, and from the front wall on the right. Bottom clearance is above the slab. New windows use Swedish module sizes M5–M15 (500–1500 mm); these are rough openings, not frame outer dimensions. Check the chosen size and glazing with your supplier. Choose a muntin pattern for each window.</p>
           <p class="hint">The casing runs along the sides and head; a sloped metal sill (fönsterbleck) replaces the bottom board. Head flashing (överbleck) is shown where there is room above the casing. Hiding Opening trim leaves the flashing visible. Top view shows the shallow frame setback.</p>
           <p class="hint">Schematic only. Window units, flashing, frame screws, bearing blocks and perimeter seals are not priced in the lumber BOM. Confirm clearance, mounting and the drained exterior, insulated gap and airtight interior details with the window supplier.</p>
         </div>
@@ -249,27 +249,27 @@
               <p class="hint">The entry is inside the house, measured from its exterior wall. Its centre is measured from the house origin and remains fixed when the slab moves. Top view shows two schematic stairs beyond the back of the entry, up on the left and down on the right, with two 250 mm deep treads each. Check the actual stair dimensions and local requirements.</p>
             </div>
           </details>
-          <p class="hint">Existing-house window widths and heights accept measured dimensions in 1 mm increments, including non-standard sizes. The upper window's centre is measured from the origin. Sill heights are measured above ground.</p>
           <details class="parameter-section" name="house-parameters">
-            <summary>Left house window</summary>
-            <div class="parameter-content fields" id="houseLeft"></div>
+            <summary>House windows</summary>
+            <div class="parameter-content">
+              <p class="hint">All measurements are in mm. Centres are from the origin; sill heights are above ground. The left centre follows its width, and the right centre follows the main window gap.</p>
+              <div class="window-table-scroll"><table class="window-table">
+                <caption>Existing house windows</caption>
+                <thead><tr><th scope="col">Window</th><th scope="col">Width</th><th scope="col">Height</th><th scope="col">Centre</th><th scope="col">Sill</th></tr></thead>
+                <tbody id="house-window-rows"></tbody>
+              </table></div>
+            </div>
           </details>
           <details class="parameter-section" name="house-parameters">
-            <summary>Upper house window</summary>
-            <div class="parameter-content fields" id="houseUpper"></div>
-          </details>
-          <details class="parameter-section" name="house-parameters">
-            <summary>Right house window</summary>
-            <div class="parameter-content fields" id="houseRight"></div>
-          </details>
-          <p class="hint">Basement window widths and heights also accept measured dimensions in 1 mm increments. Their centres are measured from the origin; sill height is measured up from the bottom of the concrete base. Each basement window must fit within the base.</p>
-          <details class="parameter-section" name="house-parameters">
-            <summary>Left basement window</summary>
-            <div class="parameter-content fields" id="houseBasementLeft"></div>
-          </details>
-          <details class="parameter-section" name="house-parameters">
-            <summary>Right basement window</summary>
-            <div class="parameter-content fields" id="houseBasementRight"></div>
+            <summary>Basement windows</summary>
+            <div class="parameter-content">
+              <p class="hint">All measurements are in mm. Centres are from the origin; sill heights are from the bottom of the concrete base. Each window must fit within the base.</p>
+              <div class="window-table-scroll"><table class="window-table">
+                <caption>Existing basement windows</caption>
+                <thead><tr><th scope="col">Window</th><th scope="col">Width</th><th scope="col">Height</th><th scope="col">Centre</th><th scope="col">Sill</th></tr></thead>
+                <tbody id="basement-window-rows"></tbody>
+              </table></div>
+            </div>
           </details>
           <details class="parameter-section" name="house-parameters">
             <summary>Hedge</summary>

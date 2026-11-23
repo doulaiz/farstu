@@ -24,13 +24,11 @@ export function initDesigner() {
   const { width: drawingWidth, height: drawingHeight } = svg.viewBox.baseVal;
   const {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColour, houseWindows, houseBasementWindows,
+    doorHanding, doorWindow, roofMaterial, roofFinish, fields, windowSides, trimColour, houseWindows, houseBasementWindows,
     windowMuntins, syncTimberSizes
   } = createControls($);
   const legacyBasementFields = new Set(Object.keys(houseBasementWindows)
     .flatMap(key => ['Width','Height','Offset','Sill'].map(suffix => key + suffix)));
-  const isCalculatedClearance = (key, selectedAnchors = anchors) => Object.keys(anchors).some(side =>
-    key === side + (selectedAnchors[side] === 'Bottom' ? 'Top' : 'Bottom'));
   const roofGuidance = $('roof-guidance');
   const tileLayoutGuidance = $('tile-layout-guidance');
   const roofLayoutGuidance = $('roof-layout-guidance');
@@ -120,10 +118,12 @@ export function initDesigner() {
   let adjustedRoofSettings = false;
   let adjustedTrims = false;
   let migratedHouseReference = false;
+  let addedHouseWindows = false;
+  let migratedWindowClearances = false;
   let roundedMillimetres = false;
   function restoreSettings(saved) {
     if (!saved || saved.version !== 1 || !saved.fields ||
-      !saved.layers || !saved.anchors) return false;
+      !saved.layers) return false;
     const hasOption = (select, value) => [...select.options].some(option => option.value === value);
     const savedRoofMaterial = saved.roofMaterial && hasOption(roofMaterial, saved.roofMaterial)
       ? saved.roofMaterial
@@ -151,7 +151,7 @@ export function initDesigner() {
         houseBasementRightOffset: width/2+oldValue('houseBasementRightOffset','4244')-origin,
         houseWallHeight: oldValue('houseWallHeight')+slabThickness
       };
-      for (const key of Object.keys(houseWindows)) converted[key+'Sill'] = oldValue(key+'Sill')+slabThickness;
+      for (const key of ['houseLeft','houseRight','houseUpper']) converted[key+'Sill'] = oldValue(key+'Sill')+slabThickness;
       if (Object.values(converted).some(value => !Number.isFinite(value))) return false;
       for (const [key,value] of Object.entries(converted)) savedFields[key] = String(value);
       migratedHouseReference = true;
@@ -187,8 +187,48 @@ export function initDesigner() {
       savedFields.houseEntryOffset = String(Math.round(Math.max(left,Math.min(right,centre))));
     }
     if (savedFields.propertyLineDistance === undefined) savedFields.propertyLineDistance = savedFields.hedgeDistance;
+    for (const side of windowSides) {
+      if (savedFields[side+'Left'] !== undefined) continue;
+      const anchor = saved.anchors?.[side];
+      if (!['Bottom','Top'].includes(anchor)) return false;
+      const numeric = key => {
+        const value = savedFields[key];
+        return typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)) ? Number(value) : NaN;
+      };
+      const width = numeric(side+'Width'), thickness = numeric('wallThickness');
+      const face = numeric('houseBaseHeight') > 0 ? numeric('houseBaseRecession') : 0;
+      const span = side === 'front' ? numeric('width') - 2*thickness : numeric('length') - thickness - face;
+      const left = (span-width)/2;
+      if (!Number.isFinite(left)) return false;
+      savedFields[side+'Left'] = String(Math.ceil(left));
+      if (anchor === 'Top') {
+        const clearance = numeric(side+'Top');
+        if (!Number.isFinite(clearance) || clearance < 0 || clearance > 5000) return false;
+        const end = face + left + width;
+        const roof = side === 'front' ? numeric('frontWallHeight')
+          : numeric('frontWallHeight') + Math.tan(numeric('pitch')*Math.PI/180) * (numeric('length') - end);
+        const bottom = roof - numeric(side+'Height') - clearance;
+        if (!Number.isFinite(bottom)) return false;
+        savedFields[side+'Bottom'] = String(Math.round(bottom));
+      }
+      migratedWindowClearances = true;
+    }
+    for (const [prefix, fraction, reference] of [
+      ['houseExtraLeft', .3, 'houseLeft'], ['houseExtraRight', .7, 'houseRight'],
+      ['houseBasementExtraLeft', .3, 'houseBasementLeft'], ['houseBasementExtraRight', .7, 'houseBasementRight']
+    ]) {
+      if (savedFields[prefix+'Offset'] === undefined) {
+        addedHouseWindows = true;
+        savedFields[prefix+'Offset'] = String(Math.round(Number(savedFields.houseWallLeft) + fraction * Number(savedFields.houseWallWidth)));
+      }
+      for (const suffix of ['Width','Height','Sill']) {
+        if (savedFields[prefix+suffix] === undefined) {
+          savedFields[prefix+suffix] = suffix === 'Width' ? fields[prefix+suffix].dataset.initial
+            : savedFields[reference+suffix] ?? fields[reference+suffix].dataset.initial;
+        }
+      }
+    }
     for (const [key, input] of Object.entries(fields)) {
-      if (isCalculatedClearance(key,saved.anchors)) continue;
       const value = (['houseBaseRecession','doorThickness','baseBoardWidth','coverBoardWidth','flashingHeight',
         'houseEntryWidth','houseEntryDepth','houseEntryOffset','houseBaseBoardWidth','houseBaseBoardThickness',
         'houseCoverBoardWidth','houseCoverBoardThickness'].includes(key) || legacyBasementFields.has(key)) && savedFields[key] === undefined
@@ -232,15 +272,13 @@ export function initDesigner() {
       !hasOption(roofFinish, savedRoofFinish) ||
       !hasOption(doorHanding, saved.doorHanding) ||
       !['3d', 'front', 'left', 'right', 'plan'].includes(saved.view) ||
-      typeof saved.groundHidden !== 'boolean' ||
-      !['Bottom', 'Top'].includes(saved.anchors.front) ||
-      !['Bottom', 'Top'].includes(saved.anchors.right)) return false;
+      typeof saved.groundHidden !== 'boolean') return false;
     if (saved.windowMuntins !== undefined && !Object.entries(windowMuntins).every(([key,input]) =>
       hasOption(input,saved.windowMuntins?.[key]))) return false;
     if (saved.doorWindow !== undefined && !hasOption(doorWindow,saved.doorWindow)) return false;
 
     for (const [key, input] of Object.entries(fields)) {
-      if (key !== 'studDepth' && key !== 'rafterDepth' && !isCalculatedClearance(key,saved.anchors)) {
+      if (key !== 'studDepth' && key !== 'rafterDepth') {
         input.value = savedFields[key];
       }
     }
@@ -260,8 +298,6 @@ export function initDesigner() {
     if (saved.doorWindow !== undefined) doorWindow.value = saved.doorWindow;
     view = saved.view;
     groundHidden = saved.groundHidden;
-    anchors.front = saved.anchors.front;
-    anchors.right = saved.anchors.right;
     return true;
   }
 
@@ -279,8 +315,7 @@ export function initDesigner() {
       doorHanding: doorHanding.value,
       doorWindow: doorWindow.value,
       view,
-      groundHidden,
-      anchors: { ...anchors }
+      groundHidden
     };
   }
 
@@ -324,7 +359,6 @@ export function initDesigner() {
     const [footingColumns, footingRows] = footingLayout.value.split('x').map(Number);
     const v = {footingColumns, footingRows};
     for (const [key, input] of Object.entries(fields)) {
-      if (isCalculatedClearance(key)) continue;
       v[key] = input.value === '' ? NaN : Number(input.value);
       if (!input.validity.valid || !Number.isFinite(v[key]) ||
         (input.tagName === 'SELECT' && ![...input.options].some(option => option.value === input.value))) {
@@ -391,24 +425,22 @@ export function initDesigner() {
     if (eave <= 0) flag('The front roof edge reaches slab level. Reduce the pitch or front overhang, or raise the front wall.', 'pitch', 'frontOverhang', 'frontWallHeight');
 
     const windows = {};
-    for (const [side, anchor] of Object.entries(anchors)) {
+    for (const side of windowSides) {
       const w = v[side + 'Width'];
       const h = v[side + 'Height'];
       const isFront = side === 'front';
       const span = isFront ? frontSpan : sideSpan-planRecession;
-      const start = (span - w) / 2 + (isFront ? v.wallThickness : planRecession);
+      const start = isFront ? v.wallThickness + v[side+'Left'] : sideSpan - v[side+'Left'] - w;
       const end = start + w;
       const available = (isFront ? v.frontWallHeight : rear - slope * (end-planRecession)) - h;
-      const complement = available - v[side + anchor];
-      const other = anchor === 'Bottom' ? 'Top' : 'Bottom';
-      fields[side + other].value = Number.isFinite(complement) ? Math.round(complement) : '';
       if (w > span) flag(`The ${side} window is wider than its clear wall span.`, side + 'Width', isFront ? 'width' : 'length', 'wallThickness');
-      if (complement < -1e-8) flag(`The ${side} window does not fit between the slab and the roofline.`, side + 'Height', side + anchor, side + other);
-      const bottom = anchor === 'Bottom' ? v[side + anchor] : Math.max(0, complement);
+      if (v[side+'Left'] + w > span) flag(`The ${side} window extends beyond its clear wall span.`, side+'Left', side+'Width', isFront ? 'width' : 'length');
+      const bottom = v[side+'Bottom'];
+      if (bottom > available + 1e-8) flag(`The ${side} window does not fit between the slab and the roofline.`, side + 'Height', side + 'Bottom', side+'Left');
       if (bottom <= 2*v.studWidth) {
         const message = `Raise the ${side} window: doubled studs below the sill need space above the bottom plate.`;
         sillMessages.add(message);
-        flag(message,side + anchor,side + other,'studWidth');
+        flag(message,side + 'Bottom','studWidth');
       }
       windows[side] = { start, end, bottom, top: bottom + h };
     }
@@ -423,7 +455,7 @@ export function initDesigner() {
     const houseOpenings = Object.keys(houseWindows).map((key) => {
       const left = key === 'houseLeft' ? origin
         : key === 'houseRight' ? origin+v.houseLeftWidth+v.houseWindowGap
-        : origin+v.houseUpperOffset-v.houseUpperWidth/2;
+        : origin+v[key+'Offset']-v[key+'Width']/2;
       const right = left+v[key + 'Width'];
       const sill = v[key + 'Sill']-v.slabThickness;
       const head = sill+v[key + 'Height'];
@@ -477,24 +509,29 @@ export function initDesigner() {
     }
     latest = { ...v, houseA, houseB, rightOverhang, windows, houseOpenings, basementOpenings, slope, rear, eave,
       roofMaterial:roofMaterial.value, roofFinish:roofFinish.value };
-    const flashing = standingFlashing(latest);
-    const upper = houseOpenings.find(window => window.key === 'houseUpper');
-    const top = v.houseWallHeight-v.slabThickness;
-    const extension = sillExtension(upper.right-upper.left);
-    const fall = Math.min(16,(upper.head-upper.sill)*.1);
-    const head = Math.min(upper.head+houseTrim+12,top);
-    const surround = [
-      [Math.max(houseA,upper.left-houseTrim),Math.min(houseB,upper.right+houseTrim),upper.sill,Math.min(top,upper.head+houseTrim),22],
-      [Math.max(houseA,upper.left-extension),Math.min(houseB,upper.right+extension),upper.sill-fall-Math.min(9,fall),upper.sill,sillProjection]
-    ];
-    if (head >= upper.head+houseTrim+10) {
-      surround.push([Math.max(houseA,upper.left-houseTrim-8),Math.min(houseB,upper.right+houseTrim+8),upper.head+houseTrim,head,sillProjection]);
+    for (const opening of houseOpenings) {
+      const output = document.querySelector(`[data-window-centre="${opening.key}"]`);
+      if (output) output.textContent = millimetres.format((opening.left+opening.right)/2-origin);
     }
-    const touches = surround.some(([left,right,bottom,top,projection]) =>
-      flashing.left <= right && flashing.right >= left &&
-      flashing.bottom-slope*projection <= top && flashing.top >= bottom);
-    $('flashing-warning').textContent = touches
-      ? 'Warning: the standing flashing (ståndskiva) or its apron touches or overlaps the existing upper window or its surround. Adjust the roof or window layout and consult a roofer.'
+    const flashing = standingFlashing(latest);
+    const top = v.houseWallHeight-v.slabThickness;
+    const touching = houseOpenings.filter(window => {
+      const extension = sillExtension(window.right-window.left);
+      const fall = Math.min(16,(window.head-window.sill)*.1);
+      const head = Math.min(window.head+houseTrim+12,top);
+      const surround = [
+        [Math.max(houseA,window.left-houseTrim),Math.min(houseB,window.right+houseTrim),window.sill,Math.min(top,window.head+houseTrim),22],
+        [Math.max(houseA,window.left-extension),Math.min(houseB,window.right+extension),window.sill-fall-Math.min(9,fall),window.sill,sillProjection]
+      ];
+      if (head >= window.head+houseTrim+10) {
+        surround.push([Math.max(houseA,window.left-houseTrim-8),Math.min(houseB,window.right+houseTrim+8),window.head+houseTrim,head,sillProjection]);
+      }
+      return surround.some(([left,right,bottom,top,projection]) =>
+        flashing.left <= right && flashing.right >= left &&
+        flashing.bottom-slope*projection <= top && flashing.top >= bottom);
+    });
+    $('flashing-warning').textContent = touching.length
+      ? `Warning: the standing flashing (ståndskiva) or its apron touches or overlaps the existing ${touching.map(window => houseWindows[window.key].label.toLowerCase().replace(' house','')).join(', ')} or its surround. Adjust the roof or window layout and consult a roofer.`
       : '';
     bom.update(latest, true);
     loads.update(latest, true);
@@ -1354,13 +1391,14 @@ export function initDesigner() {
           }
           line([0,housePlanRecession,houseBaseTop],[0,housePlanRecession,houseWallHeight],'face',
             {style:'stroke:#778a7b;stroke-width:1.7;stroke-dasharray:5 4'});
-          note([0,housePlanRecession,houseWallHeight],'House wall',-9);
+          note([0,housePlanRecession,houseWallHeight],'Existing house',-9);
         }
         foundation(sideAt(side === 'right' ? W : 0),L,'#8e9b92');
         drawWall(sideSection(side),L,wallTop,side === 'left' ? door : windows.right,side === 'left' ? 'door' : 'right');
-        const x = side === 'right' ? W : 0;
-        const baseline = groundHidden ? footingBase : slabBase;
-        dimension([x,0,baseline],[x,L,baseline],[0,38],mm(L));
+        if (iso) {
+          const baseline = groundHidden ? footingBase : slabBase;
+          dimension([0,0,baseline],[0,L,baseline],[0,38],mm(L));
+        }
       }
       if (sideElevation) drawSideWallBasementJunction(side);
       orderScene(wallScene);
@@ -1382,9 +1420,6 @@ export function initDesigner() {
           face([[0,housePlanRecession,R],[0,L+F,E],[0,L+F,E+roofDepth],[0,housePlanRecession,R+roofDepth]],roofPaint);
           drawRoofCovering();
           drawRoofEdgeDetails();
-        }
-        if (roofTiles || roofFraming) {
-          note([0,(housePlanRecession+L+F)/2,(R+E)/2+roofDepth+(roofTiles&&material==='tiles' ? tileRise : 0)],`${fmt(pitch)}\u00b0 pitch`,-13);
         }
       }
       if (roofTiles) drawGutter();
@@ -1466,12 +1501,11 @@ export function initDesigner() {
           const w = windows[section], isFront = section === 'front';
           const at = isFront ? frontAt : sideAt(W);
           const usable = isFront ? onFacade : right;
-          const top = isFront ? H : wallTop(w.end);
           return [
             m(section+'Width','Window width',at(w.start,w.top),at(w.end,w.top),usable||plan),
             m(section+'Height','Window height',at(w.start,w.bottom),at(w.start,w.top),usable,undefined,[-14,0]),
             m(section+'Bottom','Bottom clearance',at(w.end,0),at(w.end,w.bottom),usable,w.bottom,[12,0]),
-            m(section+'Top','Top clearance',at(w.end,w.top),at(w.end,top),usable,top-w.top,[12,0]),
+            m(section+'Left','Left clearance',at(isFront ? T : L-T,w.bottom),at(isFront ? w.start : w.end,w.bottom),usable||plan,latest[section+'Left'],[0,12]),
             m('trimWidth','Trim width',at(w.start-latest.trimWidth,(w.bottom+w.top)/2),
               at(w.start,(w.bottom+w.top)/2),visible('trim')&&usable&&latest.trimWidth<=w.start)
           ];
@@ -1603,7 +1637,7 @@ export function initDesigner() {
           return [
             m(section+'Width','Window width',houseAt(w.left,w.head),houseAt(w.right,w.head),onFacade),
             m(section+'Height','Window height',houseAt(w.left,w.sill),houseAt(w.left,w.head),onFacade,undefined,[-12,0]),
-            ...(section === 'houseUpper' ? [m(section+'Offset','Centre from origin',
+            ...(fields[section+'Offset'] ? [m(section+'Offset','Centre from origin',
               houseAt(-slabOriginOffset,w.sill),houseAt(c,w.sill),onFacade,undefined,[0,13])] : []),
             m(section+'Sill','Sill height',houseAt(w.right,slabBase),houseAt(w.right,w.sill),onFacade,undefined,[13,0])
           ];
@@ -1802,7 +1836,7 @@ export function initDesigner() {
   },true);
   form.addEventListener('focusin', ({target}) => {
     if (fields[target.id] === target) {
-      guideSection = activeSection();
+      guideSection = target.closest('tr[data-window]')?.dataset.window || activeSection();
       showMeasurements(target.id);
     }
   });
@@ -1811,10 +1845,6 @@ export function initDesigner() {
     if (target === trimColour || Object.values(windowMuntins).includes(target)) {
       render();
       return;
-    }
-    for (const side of Object.keys(anchors)) {
-      if (target.name === side + 'Top') anchors[side] = 'Top';
-      if (target.name === side + 'Bottom') anchors[side] = 'Bottom';
     }
     if (target === fields.studWidth || target === fields.rafterWidth) syncTimberSizes();
     update(target === fields.tileWidth);
@@ -1840,7 +1870,6 @@ export function initDesigner() {
     fields.rafterDepth.value = fields.rafterDepth.dataset.initial;
     trimColour.value = trimColour.defaultValue;
     for (const input of Object.values(windowMuntins)) input.value = [...input.options].find(option => option.defaultSelected).value;
-    anchors.front = anchors.right = 'Bottom';
     footingLayout.value = [...footingLayout.options].find(option => option.defaultSelected).value;
     for (const input of Object.values(layerInputs)) input.checked = input.defaultChecked;
     roofDisplay.selectedIndex = 0;
@@ -1938,12 +1967,14 @@ export function initDesigner() {
       storageStatus.textContent = 'Saved settings are incompatible; defaults were loaded.';
       update();
     }
-  } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference || roundedMillimetres)) {
+  } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference || roundedMillimetres || addedHouseWindows || migratedWindowClearances)) {
     const notices = [];
     if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map(key => `${key} = ${fields[key].value} mm`).join(', ')}. Review these changes before ordering.`);
     if (adjustedRoofSettings) notices.push('Saved roof settings were migrated to total roof width and door-side overhang, or adjusted to the selected tile module and pitch-dependent batten gauge.');
     if (adjustedTrims) notices.push('Saved opening trims were unified using the door trim width and colour.');
     if (migratedHouseReference) notices.push('Saved house and slab positions were converted to the left-window origin.');
+    if (addedHouseWindows) notices.push('Four additional house and basement windows were added with assumed measurements. Review their sizes and positions.');
+    if (migratedWindowClearances) notices.push('Porch windows now use left and bottom clearances; former centred positions were rounded to whole millimetres.');
     if (roundedMillimetres) notices.push('Saved dimensions were rounded to whole millimetres. Review the updated layout.');
     storageStatus.textContent = [...notices,storageStatus.textContent].filter(Boolean).join(' ');
   }

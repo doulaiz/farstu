@@ -277,6 +277,7 @@ try {
   localStorage.removeItem(key);
   await load();
   edit('width',2400);
+  edit('rightLeft',100);
   edit('length',1800);
   const points = polygon => polygon.getAttribute('points').trim().split(/\s+/).map(pair => pair.split(',').map(Number));
   for (const [material,width,offset,overhang,pitch] of [

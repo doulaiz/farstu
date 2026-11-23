@@ -93,6 +93,13 @@
   .parameter-content { padding:0 4px 8px; }
   .parameter-content > .hint:last-child { margin-bottom:0; }
   .fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 10px; }
+  .window-table-scroll { max-width:100%; overflow-x:auto; }
+  .window-table { width:100%; min-width:280px; table-layout:fixed; border-collapse:collapse; font-size:11px; }
+  .window-table caption { text-align:left; font-weight:700; }
+  .window-table th, .window-table td { padding:3px; text-align:left; vertical-align:middle; }
+  .window-table th:first-child { width:64px; }
+  .window-table input { width:100%; min-height:32px; padding:4px; font-size:12px; }
+  .window-table output { white-space:nowrap; }
   label { display:block; font-size:12px; font-weight:650; }
   .door-handing, .door-window { margin-top:10px; }
   .footing-layout { margin-bottom:8px; }

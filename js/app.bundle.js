@@ -318,49 +318,56 @@
     const doorHanding = $("door-handing");
     const doorWindow = $("door-window");
     const fields = {};
-    const anchors = { front: "Bottom", right: "Bottom" };
+    const windowSides = ["front", "right"];
     const windowMuntins = {};
     const houseWindows = {
       houseLeft: { label: "Left house window", sill: 1390, width: 1300, height: 1100 },
+      houseExtraLeft: { label: "Additional left house window", offset: 2700, sill: 1390, width: 700, height: 1100 },
       houseUpper: { label: "Upper house window", offset: 4894, sill: 3490, width: 700, height: 500 },
+      houseExtraRight: { label: "Additional right house window", offset: 6800, sill: 1390, width: 700, height: 1100 },
       houseRight: { label: "Right house window", sill: 1390, width: 1300, height: 1100 }
     };
     const houseBasementWindows = {
       houseBasementLeft: { label: "Left basement window", offset: 650, sill: 150, width: 900, height: 300 },
+      houseBasementExtraLeft: { label: "Additional left basement window", offset: 2700, sill: 150, width: 700, height: 300 },
+      houseBasementExtraRight: { label: "Additional right basement window", offset: 6800, sill: 150, width: 700, height: 300 },
       houseBasementRight: { label: "Right basement window", offset: 9138, sill: 150, width: 900, height: 300 }
     };
+    function makeField(group, [key, title, initial, min = 0, unit = "mm", max = 5e4, step = unit === "mm" ? 1 : "any", choices]) {
+      const label = document.createElement("label");
+      label.textContent = title;
+      const box = document.createElement("span");
+      box.className = "number";
+      const input = document.createElement(choices ? "select" : "input");
+      Object.assign(input, { name: key, id: key, required: true });
+      input.dataset.initial = initial;
+      if (choices) {
+        for (const value of choices) input.add(new Option(`${dimension.format(value)} ${unit}`, value, value === initial, value === initial));
+      } else {
+        Object.assign(input, {
+          type: "number",
+          min,
+          max,
+          step,
+          defaultValue: initial,
+          inputMode: unit === "mm" ? "numeric" : "decimal"
+        });
+      }
+      const fieldTitle = windowSides.includes(group) ? `${group} window: ${title.toLowerCase().replace(/^window /, "")}` : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}` : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}` : group === "houseCladding" ? `Existing house: ${title.toLowerCase()}` : title;
+      input.setAttribute("aria-label", unit ? `${fieldTitle} (${unit === "mm" ? "millimetres" : "degrees"})` : fieldTitle);
+      const suffix = document.createElement("span");
+      suffix.className = "unit";
+      suffix.textContent = unit;
+      suffix.setAttribute("aria-hidden", "true");
+      box.append(input);
+      if (!choices) box.append(suffix);
+      label.append(box);
+      fields[key] = input;
+      return label;
+    }
     function addFields(group, specs) {
-      for (const [key, title, initial, min = 0, unit = "mm", max = 5e4, step = unit === "mm" ? 1 : "any", choices] of specs) {
-        const label = document.createElement("label");
-        label.textContent = title;
-        const box = document.createElement("span");
-        box.className = "number";
-        const input = document.createElement(choices ? "select" : "input");
-        Object.assign(input, { name: key, id: key, required: true });
-        input.dataset.initial = initial;
-        if (choices) {
-          for (const value of choices) input.add(new Option(`${dimension.format(value)} ${unit}`, value, value === initial, value === initial));
-        } else {
-          Object.assign(input, {
-            type: "number",
-            min,
-            max,
-            step,
-            defaultValue: initial,
-            inputMode: unit === "mm" ? "numeric" : "decimal"
-          });
-        }
-        const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, "")}` : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}` : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}` : group === "houseCladding" ? `Existing house: ${title.toLowerCase()}` : title;
-        input.setAttribute("aria-label", unit ? `${fieldTitle} (${unit === "mm" ? "millimetres" : "degrees"})` : fieldTitle);
-        const suffix = document.createElement("span");
-        suffix.className = "unit";
-        suffix.textContent = unit;
-        suffix.setAttribute("aria-hidden", "true");
-        box.append(input);
-        if (!choices) box.append(suffix);
-        label.append(box);
-        $(group).append(label);
-        fields[key] = input;
+      for (const spec of specs) {
+        $(group).append(makeField(group, spec));
       }
     }
     const stockSize = (key, title, initial, choices) => [key, title, initial, Math.min(...choices), "mm", Math.max(...choices), 1, choices];
@@ -381,12 +388,12 @@
       ["doorThickness", "Door leaf thickness", 70, 40, "mm", 100, 1],
       ["offset", "Offset from house", 550, 0, "mm", 5e3, 1]
     ]);
-    for (const side of Object.keys(anchors)) {
+    for (const side of windowSides) {
       addFields(side, [
         windowSize(side + "Width", "Window width", 900),
         windowSize(side + "Height", "Window height", 1e3),
-        [side + "Bottom", "Bottom clearance", 900, 0, "mm", 5e3],
-        [side + "Top", "Top clearance", 0, 0, "mm", 5e3]
+        [side + "Bottom", "Bottom clearance", 900, 0, "mm", 2e4],
+        [side + "Left", "Left clearance", side === "front" ? 805 : 528, 0, "mm", 6e3]
       ]);
       const label = document.createElement("label");
       label.textContent = "Muntins (spr\xF6js)";
@@ -441,22 +448,38 @@
       ["slabOriginOffset", "Origin to slab left edge", 3494, -4e4, "mm", 4e4, 1],
       ["houseWindowGap", "Gap between main windows", 7188, -4e4, "mm", 4e4, 1]
     ]);
-    for (const [key, values] of Object.entries(houseWindows)) {
-      addFields(key, [
-        measuredWindowSize(key + "Width", "Width", values.width, 4e3),
-        measuredWindowSize(key + "Height", "Height", values.height, 3e3),
-        ...key === "houseUpper" ? [[key + "Offset", "Centre from origin", values.offset, -4e4, "mm", 4e4, 1]] : [],
-        [key + "Sill", "Sill height above ground", values.sill, 0, "mm", 12400, 1]
-      ]);
+    function addWindowRows(table, windows, basement) {
+      for (const [key, values] of Object.entries(windows)) {
+        const row = document.createElement("tr");
+        row.dataset.window = key;
+        const heading = document.createElement("th");
+        heading.scope = "row";
+        heading.textContent = values.label.replace(/ (house|basement) window$/, "");
+        row.append(heading);
+        const specs = [
+          measuredWindowSize(key + "Width", "Width", values.width, basement ? 3e3 : 4e3),
+          measuredWindowSize(key + "Height", "Height", values.height, basement ? 1500 : 3e3),
+          values.offset === void 0 ? null : [key + "Offset", "Centre from origin", values.offset, -4e4, "mm", 4e4, 1],
+          [key + "Sill", basement ? "Sill height above base bottom" : "Sill height above ground", values.sill, 0, "mm", basement ? 3e3 : 12400, 1]
+        ];
+        for (const spec of specs) {
+          const cell2 = document.createElement("td");
+          if (spec) {
+            makeField(key, spec);
+            const input = fields[spec[0]];
+            cell2.append(input);
+          } else {
+            const output = document.createElement("output");
+            output.dataset.windowCentre = key;
+            cell2.append(output);
+          }
+          row.append(cell2);
+        }
+        $(table).append(row);
+      }
     }
-    for (const [key, values] of Object.entries(houseBasementWindows)) {
-      addFields(key, [
-        measuredWindowSize(key + "Width", "Width", values.width, 3e3),
-        measuredWindowSize(key + "Height", "Height", values.height, 1500),
-        [key + "Offset", "Centre from origin", values.offset, -4e4, "mm", 4e4, 1],
-        [key + "Sill", "Sill height above base bottom", values.sill, 0, "mm", 3e3, 1]
-      ]);
-    }
+    addWindowRows("house-window-rows", houseWindows, false);
+    addWindowRows("basement-window-rows", houseBasementWindows, true);
     addFields("houseWall", [
       ["houseWallLeft", "Wall left edge from origin", -505, -4e4, "mm", 4e4, 1],
       ["houseWallWidth", "House wall width", 10798, 3e3, "mm", 3e4, 1],
@@ -505,7 +528,7 @@
       roofMaterial,
       roofFinish,
       fields,
-      anchors,
+      windowSides,
       trimColour,
       houseWindows,
       houseBasementWindows,
@@ -2356,7 +2379,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       roofMaterial,
       roofFinish,
       fields,
-      anchors,
+      windowSides,
       trimColour,
       houseWindows,
       houseBasementWindows,
@@ -2364,7 +2387,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       syncTimberSizes
     } = createControls($);
     const legacyBasementFields = new Set(Object.keys(houseBasementWindows).flatMap((key) => ["Width", "Height", "Offset", "Sill"].map((suffix) => key + suffix)));
-    const isCalculatedClearance = (key, selectedAnchors = anchors) => Object.keys(anchors).some((side) => key === side + (selectedAnchors[side] === "Bottom" ? "Top" : "Bottom"));
     const roofGuidance = $("roof-guidance");
     const tileLayoutGuidance = $("tile-layout-guidance");
     const roofLayoutGuidance = $("roof-layout-guidance");
@@ -2448,9 +2470,11 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     let adjustedRoofSettings = false;
     let adjustedTrims = false;
     let migratedHouseReference = false;
+    let addedHouseWindows = false;
+    let migratedWindowClearances = false;
     let roundedMillimetres = false;
     function restoreSettings(saved2) {
-      if (!saved2 || saved2.version !== 1 || !saved2.fields || !saved2.layers || !saved2.anchors) return false;
+      if (!saved2 || saved2.version !== 1 || !saved2.fields || !saved2.layers) return false;
       const hasOption = (select, value) => [...select.options].some((option) => option.value === value);
       const savedRoofMaterial = saved2.roofMaterial && hasOption(roofMaterial, saved2.roofMaterial) ? saved2.roofMaterial : Number(saved2.fields.pitch) < 14 ? "standingSeam" : roofMaterial.value;
       const savedRoofFinish = saved2.roofFinish ?? roofFinish.value;
@@ -2474,7 +2498,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
           houseBasementRightOffset: width / 2 + oldValue("houseBasementRightOffset", "4244") - origin,
           houseWallHeight: oldValue("houseWallHeight") + slabThickness
         };
-        for (const key of Object.keys(houseWindows)) converted[key + "Sill"] = oldValue(key + "Sill") + slabThickness;
+        for (const key of ["houseLeft", "houseRight", "houseUpper"]) converted[key + "Sill"] = oldValue(key + "Sill") + slabThickness;
         if (Object.values(converted).some((value) => !Number.isFinite(value))) return false;
         for (const [key, value] of Object.entries(converted)) savedFields[key] = String(value);
         migratedHouseReference = true;
@@ -2508,8 +2532,48 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         savedFields.houseEntryOffset = String(Math.round(Math.max(left, Math.min(right, centre2))));
       }
       if (savedFields.propertyLineDistance === void 0) savedFields.propertyLineDistance = savedFields.hedgeDistance;
+      for (const side of windowSides) {
+        if (savedFields[side + "Left"] !== void 0) continue;
+        const anchor = saved2.anchors?.[side];
+        if (!["Bottom", "Top"].includes(anchor)) return false;
+        const numeric = (key) => {
+          const value = savedFields[key];
+          return typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : NaN;
+        };
+        const width = numeric(side + "Width"), thickness = numeric("wallThickness");
+        const face = numeric("houseBaseHeight") > 0 ? numeric("houseBaseRecession") : 0;
+        const span = side === "front" ? numeric("width") - 2 * thickness : numeric("length") - thickness - face;
+        const left = (span - width) / 2;
+        if (!Number.isFinite(left)) return false;
+        savedFields[side + "Left"] = String(Math.ceil(left));
+        if (anchor === "Top") {
+          const clearance = numeric(side + "Top");
+          if (!Number.isFinite(clearance) || clearance < 0 || clearance > 5e3) return false;
+          const end = face + left + width;
+          const roof = side === "front" ? numeric("frontWallHeight") : numeric("frontWallHeight") + Math.tan(numeric("pitch") * Math.PI / 180) * (numeric("length") - end);
+          const bottom = roof - numeric(side + "Height") - clearance;
+          if (!Number.isFinite(bottom)) return false;
+          savedFields[side + "Bottom"] = String(Math.round(bottom));
+        }
+        migratedWindowClearances = true;
+      }
+      for (const [prefix, fraction, reference] of [
+        ["houseExtraLeft", 0.3, "houseLeft"],
+        ["houseExtraRight", 0.7, "houseRight"],
+        ["houseBasementExtraLeft", 0.3, "houseBasementLeft"],
+        ["houseBasementExtraRight", 0.7, "houseBasementRight"]
+      ]) {
+        if (savedFields[prefix + "Offset"] === void 0) {
+          addedHouseWindows = true;
+          savedFields[prefix + "Offset"] = String(Math.round(Number(savedFields.houseWallLeft) + fraction * Number(savedFields.houseWallWidth)));
+        }
+        for (const suffix of ["Width", "Height", "Sill"]) {
+          if (savedFields[prefix + suffix] === void 0) {
+            savedFields[prefix + suffix] = suffix === "Width" ? fields[prefix + suffix].dataset.initial : savedFields[reference + suffix] ?? fields[reference + suffix].dataset.initial;
+          }
+        }
+      }
       for (const [key, input] of Object.entries(fields)) {
-        if (isCalculatedClearance(key, saved2.anchors)) continue;
         const value = ([
           "houseBaseRecession",
           "doorThickness",
@@ -2553,11 +2617,11 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       for (const [key] of Object.entries(layerInputs)) {
         if (typeof saved2.layers[key] !== "boolean") return false;
       }
-      if (!hasOption(footingLayout, saved2.footingLayout) || !hasOption(roofDisplay, saved2.roofDisplay) || !hasOption(roofMaterial, savedRoofMaterial) || !hasOption(roofFinish, savedRoofFinish) || !hasOption(doorHanding, saved2.doorHanding) || !["3d", "front", "left", "right", "plan"].includes(saved2.view) || typeof saved2.groundHidden !== "boolean" || !["Bottom", "Top"].includes(saved2.anchors.front) || !["Bottom", "Top"].includes(saved2.anchors.right)) return false;
+      if (!hasOption(footingLayout, saved2.footingLayout) || !hasOption(roofDisplay, saved2.roofDisplay) || !hasOption(roofMaterial, savedRoofMaterial) || !hasOption(roofFinish, savedRoofFinish) || !hasOption(doorHanding, saved2.doorHanding) || !["3d", "front", "left", "right", "plan"].includes(saved2.view) || typeof saved2.groundHidden !== "boolean") return false;
       if (saved2.windowMuntins !== void 0 && !Object.entries(windowMuntins).every(([key, input]) => hasOption(input, saved2.windowMuntins?.[key]))) return false;
       if (saved2.doorWindow !== void 0 && !hasOption(doorWindow, saved2.doorWindow)) return false;
       for (const [key, input] of Object.entries(fields)) {
-        if (key !== "studDepth" && key !== "rafterDepth" && !isCalculatedClearance(key, saved2.anchors)) {
+        if (key !== "studDepth" && key !== "rafterDepth") {
           input.value = savedFields[key];
         }
       }
@@ -2577,8 +2641,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       if (saved2.doorWindow !== void 0) doorWindow.value = saved2.doorWindow;
       view = saved2.view;
       groundHidden = saved2.groundHidden;
-      anchors.front = saved2.anchors.front;
-      anchors.right = saved2.anchors.right;
       return true;
     }
     function settingsSnapshot() {
@@ -2595,8 +2657,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         doorHanding: doorHanding.value,
         doorWindow: doorWindow.value,
         view,
-        groundHidden,
-        anchors: { ...anchors }
+        groundHidden
       };
     }
     function persistSettings() {
@@ -2643,7 +2704,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       const [footingColumns, footingRows] = footingLayout.value.split("x").map(Number);
       const v = { footingColumns, footingRows };
       for (const [key, input] of Object.entries(fields)) {
-        if (isCalculatedClearance(key)) continue;
         v[key] = input.value === "" ? NaN : Number(input.value);
         if (!input.validity.valid || !Number.isFinite(v[key]) || input.tagName === "SELECT" && ![...input.options].some((option) => option.value === input.value)) {
           const label = input.getAttribute("aria-label");
@@ -2724,24 +2784,22 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       if (v.doorHeight > rear - slope * (doorEnd - planRecession)) flag("The left-side door reaches above the roofline at its front edge.", "doorHeight", "frontWallHeight", "pitch");
       if (eave <= 0) flag("The front roof edge reaches slab level. Reduce the pitch or front overhang, or raise the front wall.", "pitch", "frontOverhang", "frontWallHeight");
       const windows = {};
-      for (const [side, anchor] of Object.entries(anchors)) {
+      for (const side of windowSides) {
         const w = v[side + "Width"];
         const h = v[side + "Height"];
         const isFront = side === "front";
         const span = isFront ? frontSpan : sideSpan - planRecession;
-        const start = (span - w) / 2 + (isFront ? v.wallThickness : planRecession);
+        const start = isFront ? v.wallThickness + v[side + "Left"] : sideSpan - v[side + "Left"] - w;
         const end = start + w;
         const available = (isFront ? v.frontWallHeight : rear - slope * (end - planRecession)) - h;
-        const complement = available - v[side + anchor];
-        const other = anchor === "Bottom" ? "Top" : "Bottom";
-        fields[side + other].value = Number.isFinite(complement) ? Math.round(complement) : "";
         if (w > span) flag(`The ${side} window is wider than its clear wall span.`, side + "Width", isFront ? "width" : "length", "wallThickness");
-        if (complement < -1e-8) flag(`The ${side} window does not fit between the slab and the roofline.`, side + "Height", side + anchor, side + other);
-        const bottom = anchor === "Bottom" ? v[side + anchor] : Math.max(0, complement);
+        if (v[side + "Left"] + w > span) flag(`The ${side} window extends beyond its clear wall span.`, side + "Left", side + "Width", isFront ? "width" : "length");
+        const bottom = v[side + "Bottom"];
+        if (bottom > available + 1e-8) flag(`The ${side} window does not fit between the slab and the roofline.`, side + "Height", side + "Bottom", side + "Left");
         if (bottom <= 2 * v.studWidth) {
           const message = `Raise the ${side} window: doubled studs below the sill need space above the bottom plate.`;
           sillMessages.add(message);
-          flag(message, side + anchor, side + other, "studWidth");
+          flag(message, side + "Bottom", "studWidth");
         }
         windows[side] = { start, end, bottom, top: bottom + h };
       }
@@ -2758,10 +2816,10 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         );
       }
       const houseOpenings = Object.keys(houseWindows).map((key) => {
-        const left = key === "houseLeft" ? origin : key === "houseRight" ? origin + v.houseLeftWidth + v.houseWindowGap : origin + v.houseUpperOffset - v.houseUpperWidth / 2;
+        const left = key === "houseLeft" ? origin : key === "houseRight" ? origin + v.houseLeftWidth + v.houseWindowGap : origin + v[key + "Offset"] - v[key + "Width"] / 2;
         const right = left + v[key + "Width"];
         const sill = v[key + "Sill"] - v.slabThickness;
-        const head2 = sill + v[key + "Height"];
+        const head = sill + v[key + "Height"];
         if (left < houseA || right > houseB) {
           flag(
             `${houseWindows[key].label} extends beyond the sides of the house wall.`,
@@ -2771,23 +2829,23 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
             key === "houseRight" ? "houseWindowGap" : key + "Offset"
           );
         }
-        if (head2 > v.houseWallHeight - v.slabThickness) {
+        if (head > v.houseWallHeight - v.slabThickness) {
           flag(`${houseWindows[key].label} extends above the house wall.`, "houseWallHeight", key + "Height", key + "Sill");
         }
-        return { key, left, right, sill, head: head2 };
+        return { key, left, right, sill, head };
       });
       const basementOpenings = Object.entries(houseBasementWindows).map(([key, { label }]) => {
         const centre2 = origin + v[key + "Offset"];
         const halfWidth = v[key + "Width"] / 2;
         const sill = v[key + "Sill"];
-        const head2 = sill + v[key + "Height"];
+        const head = sill + v[key + "Height"];
         if (centre2 - halfWidth < houseA || centre2 + halfWidth > houseB) {
           flag(`${label} extends beyond the sides of the house wall.`, "houseWallLeft", "houseWallWidth", key + "Width", key + "Offset");
         }
-        if (v.houseBaseHeight > 0 && head2 > v.houseBaseHeight) {
+        if (v.houseBaseHeight > 0 && head > v.houseBaseHeight) {
           flag(`${label} extends beyond the concrete base.`, "houseBaseHeight", key + "Height", key + "Sill");
         }
-        return { key, left: centre2 - halfWidth, right: centre2 + halfWidth, sill, head: head2 };
+        return { key, left: centre2 - halfWidth, right: centre2 + halfWidth, sill, head };
       });
       for (const [key, input] of Object.entries({
         ...fields,
@@ -2826,21 +2884,26 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         roofMaterial: roofMaterial.value,
         roofFinish: roofFinish.value
       };
-      const flashing = standingFlashing(latest);
-      const upper = houseOpenings.find((window2) => window2.key === "houseUpper");
-      const top = v.houseWallHeight - v.slabThickness;
-      const extension = sillExtension(upper.right - upper.left);
-      const fall = Math.min(16, (upper.head - upper.sill) * 0.1);
-      const head = Math.min(upper.head + houseTrim + 12, top);
-      const surround = [
-        [Math.max(houseA, upper.left - houseTrim), Math.min(houseB, upper.right + houseTrim), upper.sill, Math.min(top, upper.head + houseTrim), 22],
-        [Math.max(houseA, upper.left - extension), Math.min(houseB, upper.right + extension), upper.sill - fall - Math.min(9, fall), upper.sill, sillProjection]
-      ];
-      if (head >= upper.head + houseTrim + 10) {
-        surround.push([Math.max(houseA, upper.left - houseTrim - 8), Math.min(houseB, upper.right + houseTrim + 8), upper.head + houseTrim, head, sillProjection]);
+      for (const opening of houseOpenings) {
+        const output = document.querySelector(`[data-window-centre="${opening.key}"]`);
+        if (output) output.textContent = millimetres.format((opening.left + opening.right) / 2 - origin);
       }
-      const touches = surround.some(([left, right, bottom, top2, projection]) => flashing.left <= right && flashing.right >= left && flashing.bottom - slope * projection <= top2 && flashing.top >= bottom);
-      $("flashing-warning").textContent = touches ? "Warning: the standing flashing (st\xE5ndskiva) or its apron touches or overlaps the existing upper window or its surround. Adjust the roof or window layout and consult a roofer." : "";
+      const flashing = standingFlashing(latest);
+      const top = v.houseWallHeight - v.slabThickness;
+      const touching = houseOpenings.filter((window2) => {
+        const extension = sillExtension(window2.right - window2.left);
+        const fall = Math.min(16, (window2.head - window2.sill) * 0.1);
+        const head = Math.min(window2.head + houseTrim + 12, top);
+        const surround = [
+          [Math.max(houseA, window2.left - houseTrim), Math.min(houseB, window2.right + houseTrim), window2.sill, Math.min(top, window2.head + houseTrim), 22],
+          [Math.max(houseA, window2.left - extension), Math.min(houseB, window2.right + extension), window2.sill - fall - Math.min(9, fall), window2.sill, sillProjection]
+        ];
+        if (head >= window2.head + houseTrim + 10) {
+          surround.push([Math.max(houseA, window2.left - houseTrim - 8), Math.min(houseB, window2.right + houseTrim + 8), window2.head + houseTrim, head, sillProjection]);
+        }
+        return surround.some(([left, right, bottom, top2, projection]) => flashing.left <= right && flashing.right >= left && flashing.bottom - slope * projection <= top2 && flashing.top >= bottom);
+      });
+      $("flashing-warning").textContent = touching.length ? `Warning: the standing flashing (st\xE5ndskiva) or its apron touches or overlaps the existing ${touching.map((window2) => houseWindows[window2.key].label.toLowerCase().replace(" house", "")).join(", ")} or its surround. Adjust the roof or window layout and consult a roofer.` : "";
       bom.update(latest, true);
       loads.update(latest, true);
       updateDrawings();
@@ -3928,13 +3991,14 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
               "face",
               { style: "stroke:#778a7b;stroke-width:1.7;stroke-dasharray:5 4" }
             );
-            note([0, housePlanRecession, houseWallHeight], "House wall", -9);
+            note([0, housePlanRecession, houseWallHeight], "Existing house", -9);
           }
           foundation(sideAt(side === "right" ? W : 0), L, "#8e9b92");
           drawWall(sideSection(side), L, wallTop, side === "left" ? door : windows.right, side === "left" ? "door" : "right");
-          const x = side === "right" ? W : 0;
-          const baseline = groundHidden ? footingBase : slabBase;
-          dimension2([x, 0, baseline], [x, L, baseline], [0, 38], mm2(L));
+          if (iso) {
+            const baseline = groundHidden ? footingBase : slabBase;
+            dimension2([0, 0, baseline], [0, L, baseline], [0, 38], mm2(L));
+          }
         }
         if (sideElevation) drawSideWallBasementJunction(side);
         orderScene(wallScene);
@@ -3956,9 +4020,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
             face([[0, housePlanRecession, R], [0, L + F, E], [0, L + F, E + roofDepth], [0, housePlanRecession, R + roofDepth]], roofPaint);
             drawRoofCovering();
             drawRoofEdgeDetails();
-          }
-          if (roofTiles || roofFraming) {
-            note([0, (housePlanRecession + L + F) / 2, (R + E) / 2 + roofDepth + (roofTiles && material === "tiles" ? tileRise : 0)], `${fmt(pitch)}\xB0 pitch`, -13);
           }
         }
         if (roofTiles) drawGutter();
@@ -4050,12 +4111,11 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
             const w = windows[section2], isFront = section2 === "front";
             const at = isFront ? frontAt : sideAt(W);
             const usable = isFront ? onFacade : right;
-            const top = isFront ? H : wallTop(w.end);
             return [
               m(section2 + "Width", "Window width", at(w.start, w.top), at(w.end, w.top), usable || plan),
               m(section2 + "Height", "Window height", at(w.start, w.bottom), at(w.start, w.top), usable, void 0, [-14, 0]),
               m(section2 + "Bottom", "Bottom clearance", at(w.end, 0), at(w.end, w.bottom), usable, w.bottom, [12, 0]),
-              m(section2 + "Top", "Top clearance", at(w.end, w.top), at(w.end, top), usable, top - w.top, [12, 0]),
+              m(section2 + "Left", "Left clearance", at(isFront ? T : L - T, w.bottom), at(isFront ? w.start : w.end, w.bottom), usable || plan, latest[section2 + "Left"], [0, 12]),
               m(
                 "trimWidth",
                 "Trim width",
@@ -4295,7 +4355,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
             return [
               m(section2 + "Width", "Window width", houseAt(w.left, w.head), houseAt(w.right, w.head), onFacade),
               m(section2 + "Height", "Window height", houseAt(w.left, w.sill), houseAt(w.left, w.head), onFacade, void 0, [-12, 0]),
-              ...section2 === "houseUpper" ? [m(
+              ...fields[section2 + "Offset"] ? [m(
                 section2 + "Offset",
                 "Centre from origin",
                 houseAt(-slabOriginOffset, w.sill),
@@ -4527,7 +4587,7 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
     }, true);
     form.addEventListener("focusin", ({ target }) => {
       if (fields[target.id] === target) {
-        guideSection = activeSection();
+        guideSection = target.closest("tr[data-window]")?.dataset.window || activeSection();
         showMeasurements(target.id);
       }
     });
@@ -4536,10 +4596,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       if (target === trimColour || Object.values(windowMuntins).includes(target)) {
         render();
         return;
-      }
-      for (const side of Object.keys(anchors)) {
-        if (target.name === side + "Top") anchors[side] = "Top";
-        if (target.name === side + "Bottom") anchors[side] = "Bottom";
       }
       if (target === fields.studWidth || target === fields.rafterWidth) syncTimberSizes();
       update(target === fields.tileWidth);
@@ -4563,7 +4619,6 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
       fields.rafterDepth.value = fields.rafterDepth.dataset.initial;
       trimColour.value = trimColour.defaultValue;
       for (const input of Object.values(windowMuntins)) input.value = [...input.options].find((option) => option.defaultSelected).value;
-      anchors.front = anchors.right = "Bottom";
       footingLayout.value = [...footingLayout.options].find((option) => option.defaultSelected).value;
       for (const input of Object.values(layerInputs)) input.checked = input.defaultChecked;
       roofDisplay.selectedIndex = 0;
@@ -4658,12 +4713,14 @@ ${Object.entries(layers).map(([key, attrs]) => `<g id="${id}-${key}" data-layer=
         storageStatus.textContent = "Saved settings are incompatible; defaults were loaded.";
         update();
       }
-    } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference || roundedMillimetres)) {
+    } else if (valid && restored && (adjustedStockSizes.length || adjustedRoofSettings || adjustedTrims || migratedHouseReference || roundedMillimetres || addedHouseWindows || migratedWindowClearances)) {
       const notices = [];
       if (adjustedStockSizes.length) notices.push(`Saved dimensions adjusted to listed stock sizes: ${adjustedStockSizes.map((key) => `${key} = ${fields[key].value} mm`).join(", ")}. Review these changes before ordering.`);
       if (adjustedRoofSettings) notices.push("Saved roof settings were migrated to total roof width and door-side overhang, or adjusted to the selected tile module and pitch-dependent batten gauge.");
       if (adjustedTrims) notices.push("Saved opening trims were unified using the door trim width and colour.");
       if (migratedHouseReference) notices.push("Saved house and slab positions were converted to the left-window origin.");
+      if (addedHouseWindows) notices.push("Four additional house and basement windows were added with assumed measurements. Review their sizes and positions.");
+      if (migratedWindowClearances) notices.push("Porch windows now use left and bottom clearances; former centred positions were rounded to whole millimetres.");
       if (roundedMillimetres) notices.push("Saved dimensions were rounded to whole millimetres. Review the updated layout.");
       storageStatus.textContent = [...notices, storageStatus.textContent].filter(Boolean).join(" ");
     }

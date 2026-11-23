@@ -57,46 +57,53 @@ export function createControls($) {
   const doorHanding = $('door-handing');
   const doorWindow = $('door-window');
   const fields = {};
-  const anchors = { front: 'Bottom', right: 'Bottom' };
+  const windowSides = ['front', 'right'];
   const windowMuntins = {};
   const houseWindows = {
     houseLeft: { label: 'Left house window', sill: 1390, width: 1300, height: 1100 },
+    houseExtraLeft: { label: 'Additional left house window', offset: 2700, sill: 1390, width: 700, height: 1100 },
     houseUpper: { label: 'Upper house window', offset: 4894, sill: 3490, width: 700, height: 500 },
+    houseExtraRight: { label: 'Additional right house window', offset: 6800, sill: 1390, width: 700, height: 1100 },
     houseRight: { label: 'Right house window', sill: 1390, width: 1300, height: 1100 }
   };
   const houseBasementWindows = {
     houseBasementLeft: { label: 'Left basement window', offset: 650, sill: 150, width: 900, height: 300 },
+    houseBasementExtraLeft: { label: 'Additional left basement window', offset: 2700, sill: 150, width: 700, height: 300 },
+    houseBasementExtraRight: { label: 'Additional right basement window', offset: 6800, sill: 150, width: 700, height: 300 },
     houseBasementRight: { label: 'Right basement window', offset: 9138, sill: 150, width: 900, height: 300 }
   };
+  function makeField(group, [key, title, initial, min = 0, unit = 'mm', max = 50000, step = unit === 'mm' ? 1 : 'any', choices]) {
+    const label = document.createElement('label');
+    label.textContent = title;
+    const box = document.createElement('span');
+    box.className = 'number';
+    const input = document.createElement(choices ? 'select' : 'input');
+    Object.assign(input, { name: key, id: key, required: true });
+    input.dataset.initial = initial;
+    if (choices) {
+      for (const value of choices) input.add(new Option(`${dimension.format(value)} ${unit}`,value,value === initial,value === initial));
+    } else {
+      Object.assign(input, { type: 'number', min, max, step, defaultValue: initial,
+        inputMode: unit === 'mm' ? 'numeric' : 'decimal' });
+    }
+    const fieldTitle = windowSides.includes(group) ? `${group} window: ${title.toLowerCase().replace(/^window /, '')}`
+      : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}`
+        : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}`
+          : group === 'houseCladding' ? `Existing house: ${title.toLowerCase()}` : title;
+    input.setAttribute('aria-label', unit ? `${fieldTitle} (${unit === 'mm' ? 'millimetres' : 'degrees'})` : fieldTitle);
+    const suffix = document.createElement('span');
+    suffix.className = 'unit';
+    suffix.textContent = unit;
+    suffix.setAttribute('aria-hidden', 'true');
+    box.append(input);
+    if (!choices) box.append(suffix);
+    label.append(box);
+    fields[key] = input;
+    return label;
+  }
   function addFields(group, specs) {
-    for (const [key, title, initial, min = 0, unit = 'mm', max = 50000, step = unit === 'mm' ? 1 : 'any', choices] of specs) {
-      const label = document.createElement('label');
-      label.textContent = title;
-      const box = document.createElement('span');
-      box.className = 'number';
-      const input = document.createElement(choices ? 'select' : 'input');
-      Object.assign(input, { name: key, id: key, required: true });
-      input.dataset.initial = initial;
-      if (choices) {
-        for (const value of choices) input.add(new Option(`${dimension.format(value)} ${unit}`,value,value === initial,value === initial));
-      } else {
-        Object.assign(input, { type: 'number', min, max, step, defaultValue: initial,
-          inputMode: unit === 'mm' ? 'numeric' : 'decimal' });
-      }
-      const fieldTitle = Object.hasOwn(anchors, group) ? `${group} window: ${title.toLowerCase().replace(/^window /, '')}`
-        : Object.hasOwn(houseWindows, group) ? `${houseWindows[group].label}: ${title.toLowerCase()}`
-          : Object.hasOwn(houseBasementWindows, group) ? `${houseBasementWindows[group].label}: ${title.toLowerCase()}`
-            : group === 'houseCladding' ? `Existing house: ${title.toLowerCase()}` : title;
-      input.setAttribute('aria-label', unit ? `${fieldTitle} (${unit === 'mm' ? 'millimetres' : 'degrees'})` : fieldTitle);
-      const suffix = document.createElement('span');
-      suffix.className = 'unit';
-      suffix.textContent = unit;
-      suffix.setAttribute('aria-hidden', 'true');
-      box.append(input);
-      if (!choices) box.append(suffix);
-      label.append(box);
-      $(group).append(label);
-      fields[key] = input;
+    for (const spec of specs) {
+      $(group).append(makeField(group, spec));
     }
   }
 
@@ -119,10 +126,11 @@ export function createControls($) {
     ['doorThickness','Door leaf thickness',70,40,'mm',100,1],
     ['offset', 'Offset from house', 550, 0, 'mm', 5000, 1]
   ]);
-  for (const side of Object.keys(anchors)) {
+  for (const side of windowSides) {
     addFields(side, [
       windowSize(side + 'Width','Window width',900), windowSize(side + 'Height','Window height',1000),
-      [side + 'Bottom', 'Bottom clearance', 900, 0, 'mm', 5000], [side + 'Top', 'Top clearance', 0, 0, 'mm', 5000]
+      [side + 'Bottom', 'Bottom clearance', 900, 0, 'mm', 20000],
+      [side + 'Left', 'Left clearance', side === 'front' ? 805 : 528, 0, 'mm', 6000]
     ]);
     const label = document.createElement('label');
     label.textContent = 'Muntins (spröjs)';
@@ -176,20 +184,38 @@ export function createControls($) {
     ['slabOriginOffset','Origin to slab left edge',3494,-40000,'mm',40000,1],
     ['houseWindowGap','Gap between main windows',7188,-40000,'mm',40000,1]
   ]);
-  for (const [key, values] of Object.entries(houseWindows)) {
-    addFields(key, [
-      measuredWindowSize(key + 'Width','Width',values.width,4000), measuredWindowSize(key + 'Height','Height',values.height,3000),
-      ...(key === 'houseUpper' ? [[key + 'Offset', 'Centre from origin', values.offset, -40000, 'mm', 40000, 1]] : []),
-      [key + 'Sill', 'Sill height above ground', values.sill, 0, 'mm', 12400, 1]
-    ]);
+  function addWindowRows(table, windows, basement) {
+    for (const [key, values] of Object.entries(windows)) {
+      const row = document.createElement('tr');
+      row.dataset.window = key;
+      const heading = document.createElement('th');
+      heading.scope = 'row';
+      heading.textContent = values.label.replace(/ (house|basement) window$/, '');
+      row.append(heading);
+      const specs = [
+        measuredWindowSize(key + 'Width','Width',values.width,basement ? 3000 : 4000),
+        measuredWindowSize(key + 'Height','Height',values.height,basement ? 1500 : 3000),
+        values.offset === undefined ? null : [key + 'Offset', 'Centre from origin', values.offset, -40000, 'mm', 40000, 1],
+        [key + 'Sill', basement ? 'Sill height above base bottom' : 'Sill height above ground', values.sill, 0, 'mm', basement ? 3000 : 12400, 1]
+      ];
+      for (const spec of specs) {
+        const cell = document.createElement('td');
+        if (spec) {
+          makeField(key, spec);
+          const input = fields[spec[0]];
+          cell.append(input);
+        } else {
+          const output = document.createElement('output');
+          output.dataset.windowCentre = key;
+          cell.append(output);
+        }
+        row.append(cell);
+      }
+      $(table).append(row);
+    }
   }
-  for (const [key, values] of Object.entries(houseBasementWindows)) {
-    addFields(key, [
-      measuredWindowSize(key + 'Width','Width',values.width,3000), measuredWindowSize(key + 'Height','Height',values.height,1500),
-      [key + 'Offset', 'Centre from origin', values.offset, -40000, 'mm', 40000, 1],
-      [key + 'Sill', 'Sill height above base bottom', values.sill, 0, 'mm', 3000, 1]
-    ]);
-  }
+  addWindowRows('house-window-rows', houseWindows, false);
+  addWindowRows('basement-window-rows', houseBasementWindows, true);
   addFields('houseWall', [
     ['houseWallLeft','Wall left edge from origin', -505, -40000, 'mm', 40000, 1],
     ['houseWallWidth', 'House wall width', 10798, 3000, 'mm', 30000, 1],
@@ -228,7 +254,7 @@ export function createControls($) {
   syncTimberSizes();
   return {
     layerMenu, roofDisplay, footingLayout, wallLayers, layerInputs, doorButton, groundButton,
-    doorHanding, doorWindow, roofMaterial, roofFinish, fields, anchors, trimColour, houseWindows, houseBasementWindows, windowMuntins,
+    doorHanding, doorWindow, roofMaterial, roofFinish, fields, windowSides, trimColour, houseWindows, houseBasementWindows, windowMuntins,
     syncTimberSizes
   };
 }
